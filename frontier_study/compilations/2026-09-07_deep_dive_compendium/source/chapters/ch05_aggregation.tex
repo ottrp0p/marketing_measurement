@@ -1,0 +1,235 @@
+% ===========================================================================
+% Chapter: MMM under geographic aggregation and privacy noise (Dive 06, M9)
+% ===========================================================================
+\chapter{Geo aggregation and privacy noise in MMM}
+\label{ch:aggregation}
+
+\begin{provenance}
+\textbf{Source dive:} \dive{06} \emph{MMM under aggregation and privacy noise (M9)} (run 2026-09-01, file \texttt{06\_aggregation\_privacy.md}, written 07:36 UTC; INDEX log stamp $\sim$07:45).
+\textbf{Code:} \texttt{code/06\_aggregation\_privacy.py} (entry points \texttt{drift\_laws}, \texttt{drift\_noise}, \texttt{dp}, \texttt{frontier [b]}).
+\textbf{Frontier-study problem addressed:} M9 --- identification and estimation when covariates aggregate over heterogeneous units (ecological bias through nonlinear Hill transforms, the ``Jensen-gap bias in $\beta$'') and outcomes carry calibrated DP noise of known mechanism; nobody had derived the corrections or priced privacy in ROAS posterior width. Touches adoption barrier O3 (geo-level data is a step-change harder to obtain).
+\textbf{Backlog items closed:} none; \textbf{opened:} \BL{14}--\BL{17}.
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item Uneven geo spend shares (coefficient of variation $c$) make the national Hill curve a mixture whose fitted half-saturation drifts by $\Delta\log K = +c^2/2$ ($s$-independent; exact at all orders for symmetric two-point shares) and whose local slope flattens to $s_{\mathrm{eff}} = s - c^2 s^3 H(1-H)$.
+\item The M9 alarm that the Jensen gap biases $\beta$ is refuted in its decision-relevant form: with stable shares the operating-point marginal-ROAS bias is $\le 0.4\%$ even with heterogeneous, targeted geos; the bias sits in the shape ($K$ $+13\%$, $s$ $-0.25$ at $c = 0.5$) and in deep counterfactuals ($+28\%$ at $4\times$ spend).
+\item The aggregation bias that does reach the operating point is share \emph{drift}: $+10.9\% \pm 3.0$ (up to $+20.9\% \pm 2.7$) on mROAS at $1\times$, which a share-calibrated mixture estimator using national outcomes plus the advertiser's own geo spend cuts to $+0.3\% \pm 2.2$.
+\item Known Laplace($b$) noise on outcomes inflates posterior width by exactly $\sqrt{1 + 2b^2/\sigma^2}$; an exact noise-aware likelihood recovers at most a factor 2 in information over this fix (ARE limit $50\%$); national-level DP is effectively free.
+\item Geo-granularity release beats national release iff the per-cell noise scale satisfies $b \lesssim \sigma_{\mathrm{geo}}\sqrt{G}$; beyond that, coarse release plus the mixture estimator wins.
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+Post-cookie marketing mix models consume data that have been aggregated over people and places and then deliberately noised. Two worries hide in that sentence. The first is \emph{ecological}: an MMM fits a saturating (Hill) response to national spend, but sales arise geo by geo, each geo at its own point on the curve because spend is spread unevenly, and a nonlinear function of an average is not the average of the function. The frontier study (M9) phrased this as a Jensen-gap bias in the effectiveness coefficient $\beta$. The second is \emph{privacy}: the aggregated measurement APIs that replaced user-level attribution (Google's Attribution Reporting API, Meta's and Apple's aggregated reporting, clean rooms with DP checks) add calibrated noise of a \emph{known} mechanism to every released cell, and nobody had priced the privacy parameter $\varepsilon$ in the width of a ROAS posterior.
+
+The two worries meet in one design choice: at what granularity should an API release outcomes? Geo-week cells carry the cross-sectional variation that identifies saturation, but each carries the same noise scale against a signal $G$ times smaller; national-week cells are barely touched by the noise but reintroduce ecological bias. \dive{06} set out to derive closed-form corrections for the Hill-shape bias under share dispersion, to price $\varepsilon$, and to put the two on one axis. Along the way it refuted its own planned indictment of naive national fitting, and found that the operating-point bias comes from share \emph{instability} rather than \emph{dispersion} and can be removed without geo-level outcomes.
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{Aggregating nonlinear micro relations (van Garderen, Lee and Pesaran, 2000; Stoker, 1984; Blundell and Stoker, 2005)}
+
+Let units $g = 1,\ldots,G$ obey $y_g = f(x_g;\theta) + \varepsilon_g$ with $f$ nonlinear, while the analyst sees only $Y = \sum_g y_g$ and $X = \sum_g x_g$. Jensen's inequality is the elementary statement: if $f$ is concave on the range of the $x_g$ then $\sum_g f(x_g) \le G f(X/G)$, with a gap of order $\tfrac12 f''(\bar x)\Var_g(x)$; for an S-shaped $f$, as Hill is when $s > 1$, the sign depends on where the units sit relative to the inflection. Van Garderen, Lee and Pesaran (2000) make this precise: no aggregate model in aggregate variables alone reproduces the aggregated nonlinear micro relation in general; the best aggregate predictor is the conditional expectation of $\sum_g f(x_g)$ given aggregate information, and it depends on the cross-sectional distribution of the regressors. Stoker (1984) supplies the identification counterpart: writing the aggregate as $\bar f_t = \int f(x)\,\dd P_t(x)$, the micro $f$ is recoverable from a time series of aggregates only if the family $\{P_t\}$ is \emph{complete}, rich enough that distinct micro functions cannot yield the same aggregates; when $P_t$ is frozen up to scale (stable geo shares) the aggregate identifies only the mixture $u \mapsto \int f(wu)\,\dd P(w)$, never $f$. Blundell and Stoker (2005) survey the two escapes, modelling the distribution or collecting micro data; Sun et al.\ (2017) and the Meridian documentation take the second: a geo-level hierarchical Bayesian MMM partially pools Hill and adstock parameters across geos, and cross-geo variation in spend intensity is what pins down saturation.
+
+\subsection{Differential privacy for aggregated measurement (Delaney et al., 2024; Aksu et al., 2023)}
+
+A randomized release $M$ is $\varepsilon$-differentially private if for every pair of datasets $D, D'$ differing in one user's records and every output set $S$, $\Prob(M(D) \in S) \le e^{\varepsilon}\Prob(M(D') \in S)$. The Laplace mechanism releases $f(D) + \eta$, $\eta \sim \mathrm{Lap}(b)$ with density $e^{-|\eta|/b}/(2b)$ and variance $2b^2$, at scale $b = \Delta/\varepsilon$ where $\Delta$ is the $L_1$ sensitivity of $f$ (the most one user can move it; $\Delta = 1$ for a count with one contribution per user); the Gaussian mechanism substitutes $N(0,\sigma_{\mathrm{DP}}^2)$ noise and delivers the relaxed $(\varepsilon,\delta)$ guarantee. Sequential composition says repeated queries on the same users add their $\varepsilon$'s; \emph{parallel} composition says queries on disjoint user sets each enjoy the full budget, so $G$ geo-week cells can carry the same per-cell scale $b$ as one national-week cell at the same $\varepsilon$ --- the premise of this chapter's frontier. Deployed advertising systems are of the ``known mechanism'' type: the Attribution Reporting API bounds each user's total contribution, sums contributions into aggregation-key buckets, and adds discrete Laplace noise of a published scale to every bucket of the summary report (Aksu et al., 2023, optimize the allocation of the contribution budget across buckets); Delaney et al.\ (2024) formalize the attribution rule and contribution bounding that make the guarantee hold. The analyst knows the exact noise distribution on every number she receives.
+
+\subsection{Privacy noise as measurement error (Evans and King, 2023, 2025; Gong, 2022; Karwa and Vadhan, 2018)}
+
+Known DP noise is measurement error of known distribution, and the classical/Berkson distinction says where it bites. Classical error, $W = X + U$ with $U$ independent of the true $X$, attenuates a regression slope by the reliability $\Var X/(\Var X + \Var U)$; Berkson error, $X = W + U$ with $U$ independent of the observed $W$, leaves a linear slope unbiased and only inflates variance. Noise on the \emph{outcome} of a linear-in-parameters model is the benign case: least squares stays unbiased and the residual variance rises by $\Var U$. Noise on a \emph{covariate} (SKAN- or ARA-style noisy attributed conversions used as inputs) is classical error through a nonlinear link, scoped out as \BL{14}. Evans, King, Schwenzfeier and Thakurta (2023) correct estimates from DP-protected data by treating the added noise as measurement error of known variance, and Evans and King (2025) extend this to nonlinear transformations. Gong (2022) puts the mechanism into the likelihood, $p(z\mid\theta) = \int p(z\mid y)\,p(y\mid\theta)\,\dd y$, and uses Monte Carlo EM or approximate Bayesian computation for \emph{exact} inference from the noised release. Karwa and Vadhan (2018) price privacy for a normal mean: an $\varepsilon$-DP confidence interval carries a privacy term of order $\sigma/(n\varepsilon)$ against the sampling term $\sigma/\sqrt{n}$, so at fixed $\varepsilon$ privacy is asymptotically free. Estimators are compared below by Fisher information for a location family with density $f$, $I = \int (f'/f)^2 f$ ($1/\sigma^2$ for a Gaussian, $1/b^2$ for a Laplace); asymptotic relative efficiency (ARE) is the ratio of two estimators' asymptotic informations.
+
+\section{Setup and assumptions}
+
+Geos $g = 1,\ldots,G$, weeks $t = 1,\ldots,T$. Geo spend $x_{gt}$ passes through geometric adstock $a_{gt} = x_{gt} + \alpha\, a_{g,t-1}$ and the Hill transform $H(a;K,s) = a^s/(a^s + K^s)$ with half-saturation $K$ and slope $s$. The micro model is
+\begin{equation}
+y_{gt} = \frac{B}{G} + \frac{\beta}{G}\, H(a_{gt};K,s) + \varepsilon_{gt}, \qquad \varepsilon_{gt} \sim N(0,\sigma_{\mathrm{geo}}^2),
+\label{eq:aggregation:micro}
+\end{equation}
+so $\beta$ is national incremental sales at full saturation. Shares $w_g$ ($\sum_g w_g = 1$) have cross-geo coefficient of variation $c$. Under stable shares $x_{gt} = w_g X_t$ and, adstock being linear, $a_{gt} = w_g A_t$ exactly with $A_t$ the adstock of national spend. The national modeler sees $X_t$ and $Y_t = \sum_g y_{gt}$ (noise sd $\sigma_{\mathrm{nat}} = \sigma_{\mathrm{geo}}\sqrt{G}$) and fits $Y_t = B + \beta H(A_t;\tilde K,\tilde s) + e_t$; tildes mark pseudo-true (population least-squares) national parameters. With $u = a/K$, $\operatorname{logit} H = s\log u$ exactly: the Hill family is linear in (logit, log) coordinates. Defaults: $G = 20$, $T = 104$, $\alpha = 0.5$, $K = 1$, $s = 2$, $\beta = 100$, $B = 500$, $\sigma_{\mathrm{geo}} = 1$ ($\sigma_{\mathrm{nat}} \approx 4.47$), block-pulse national spend (levels uniform on $[8,45]$ in 4--8-week blocks, the identifying design of \cref{ch:identification}), lognormal shares. Estimands are the shape $(K,s)$ --- the transport currency of \cref{ch:transport} --- and the marginal ROAS $\mROAS(X^\star) = \dd(\text{incremental sales})/\dd X$ at steady-state spend $X^\star$, at the operating point ($1\times$ mean spend) and at $0.25\times$--$4\times$. A DP curator may release outcomes with additive $\mathrm{Lap}(b)$ noise per cell, $b = \Delta/\varepsilon$ known. Penalized fits use Meridian-style weak priors identical across estimators ($\log s \sim N(\log 1.5, 0.5^2)$, $\log K \sim N(\log\mathrm{median}(a), 1)$, $\log\beta \sim N(\log 4\,\mathrm{sd}(Y), 1)$, $\operatorname{logit}\alpha \sim N(0,1)$), maximized to a MAP with Laplace (Hessian) widths.
+
+\begin{assumption}[Exogenous shares]\label{aggregation:ass:shares}
+Shares are fixed over time or follow an exogenous AR(1) log-share process (coefficient $0.9$, innovation sd $0.15$--$0.30$, renormalized weekly), uncorrelated with geo-level demand shocks.
+\end{assumption}
+
+\begin{assumption}[Known mechanism, parallel composition]\label{aggregation:ass:dp}
+DP noise is additive Laplace on outcomes only, with $b$ known and the same per cell whether cells are national-week or geo-week.
+\end{assumption}
+
+\begin{assumption}[Single channel, correct family]\label{aggregation:ass:family}
+One media channel, additive Gaussian micro noise, a Hill micro response of the family the modeler fits, no baseline covariates.
+\end{assumption}
+
+\section{Main results}
+
+\subsection{Closed-form Hill drift laws under share dispersion}
+
+Under stable shares the national curve is the fixed mixture $\bar H(u) = \E_w[H(wu)]$, $w$ of mean one and variance $c^2$ after rescaling by $1/G$. Expanding $H(wu)$ to second order in $w - 1$ with $\dd H/\dd\log u = sH(1-H)$ and $\dd^2 H/\dd(\log u)^2 = s^2 H(1-H)(1-2H)$ gives $\bar H = H + \tfrac12 c^2 H(1-H)\psi(u) + O(c^4)$,
+\begin{equation}
+\psi(u) = s\,\frac{(s-1) - (s+1)u^s}{1 + u^s},
+\label{eq:aggregation:psi}
+\end{equation}
+and through the logit, $\operatorname{logit}\bar H = s\log u + \tfrac12 c^2\psi(u) + O(c^4)$: the whole distortion sits in $\psi$.
+
+\begin{law}[Hill drift laws]\label{aggregation:law:drift}
+\tagEstablished\ Let $s_{\mathrm{eff}}(u) = \dd\operatorname{logit}\bar H/\dd\log u$ be the local slope of the national curve and $u^\star$ its half-saturation point. To leading order in $c$,
+\begin{align}
+s_{\mathrm{eff}}(u) &= s - c^2 s^3 H(u)\bigl(1 - H(u)\bigr) + O(c^4), \label{eq:aggregation:slope}\\
+\Delta\log\tilde K = \log u^\star &= +\tfrac12 c^2 + O(c^4), \qquad\text{independent of } s, \label{eq:aggregation:kdrift}
+\end{align}
+and $\beta$ is unbiased at leading order. Flattening is maximal at half-saturation, $\Delta s = -c^2 s^3/4$. For symmetric two-point shares $w \in \{1-c, 1+c\}$ the half-saturation law is exact at all orders: $\log u^\star = -\tfrac12\log(1-c^2)$.
+\end{law}
+
+The slope law is one derivative: with $v = u^s$, $\dd\psi/\dd v = -2s^2/(1+v)^2$, so $\tfrac12 c^2\,\dd\psi/\dd\log u = -c^2 s^3 v/(1+v)^2 = -c^2 s^3 H(1-H)$. The half-saturation law follows from $\psi(1) = -s$ for every $s$, whence $s\log u^\star = \tfrac12 c^2 s$ and the slope cancels --- the source of the $s$-independence. The exact two-point result, found by the clean-room agent, is elementary: $\bar H(u^\star) = \tfrac12$ requires $H((1-c)u^\star) + H((1+c)u^\star) = 1$, which with $p = ((1-c)u^\star)^s$, $q = ((1+c)u^\star)^s$ reduces to $pq = 1$, i.e.\ $u^{\star 2}(1 - c^2) = 1$. The same check located the slope law's validity boundary, $c^2 s^2 \gtrsim 1$ (at $s = 8$, $c = 0.5$ it predicts $s_{\mathrm{eff}} = -24$ against an actual $0.64$), outside marketing grids ($s \le 4$, $c \lesssim 0.3$ at the level of designated market areas), though where $c$ exceeds $0.8$ across US DMAs the laws are first-order guides only. Verification (E1b, symmetric two-point shares, $G = 4000$, $s \in \{1.5, 2, 3\}$): $\max|s_{\mathrm{eff}} - \text{prediction}| \le 5$--$10\%$ of the drop scale $c^2 s^3/4$ at $c = 0.3$, and $\log u^\star$ matches $c^2/2$ to three decimals at $c \le 0.2$. Noiseless projected fits with lognormal shares (E2, $T = 520$) give at $c = 0.5$ $\tilde K = 22.48 \pm 2.08$ on the national scale ($GK = 20$ at $c = 0$) against the law's $22.62$, $\tilde s = 1.75 \pm 0.07$ against the design-averaged \cref{eq:aggregation:slope}, and $\hat\beta \in [99.0, 100.5]$ across the $c$-sweep.
+
+\subsection{Stable-share aggregation bias is decision-benign at the operating point}
+
+\begin{proposition}[Benign projection]\label{aggregation:prop:benign}
+\tagNumerical\ With stable shares the least-squares projection of the fixed mixture $\bar H$ onto a single Hill curve matches its level and slope on the design's support, so the pseudo-true national $\mROAS$ at the operating point is biased by $-0.0\%$ to $-0.1\%$ for $c$ up to $0.8$, and by at most $0.4\%$ with geo-heterogeneous half-saturations ($K_g$ lognormal, cv $0.5$) or targeted shares $w_g \propto 1/K_g$ (E4). The M9 alarm that the Jensen gap biases $\beta$ is \tagRefuted\ in this decision-relevant form.
+\end{proposition}
+
+The bias lives elsewhere: in the parameters ($\tilde K$ $+13\%$, $\tilde s$ $-0.25$ at $c = 0.5$, as \cref{aggregation:law:drift} predicts) and in deep counterfactuals, where a single Hill and the mixture separate ($\mROAS$ at $4\times$: $+10.3\% \pm 3.0$ at $c = 0.3$, $+28.3\% \pm 7.7$ at $c = 0.8$; at $0.25\times$: $-3$ to $-7\%$). Both matter for uses that consume $(K,s)$ directly (lift-test transport as in \cref{ch:transport}, ``headroom to saturation'' narratives) and both now have a formula; neither matters for the modal national decision, a small reallocation at current spend.
+
+\subsection{Share drift, and the share-calibrated mixture estimator}
+
+When shares move over time the national curve is a \emph{moving} mixture no single Hill can track, and bias invades the operating point. The dive's reframe: aggregation bias in practice is a share-instability problem, and its cure needs no geo outcomes.
+
+\begin{construction}[Share-calibrated mixture estimator]\label{aggregation:con:mixture}
+\tagEstablished\ Fit the national outcome to the geo-spend mixture,
+\begin{equation}
+Y_t = B + \frac{\beta}{G}\sum_{g=1}^{G} H\bigl(\mathrm{adstock}_\alpha(x_{g\cdot})_t;\, K, s\bigr) + e_t,
+\label{eq:aggregation:mixture}
+\end{equation}
+using only $Y_t$ and the advertiser's own geo spend $x_{gt}$ --- always observable, never privacy-exposed. Same parameter count as the naive fit; the estimand is the micro curve rather than its projection.
+\end{construction}
+
+The construction is exact in the pseudo-true limit ($0.0\%$ bias at both drift levels) and coincides with the naive fit to four decimals when $c = 0$ (negative control E8a). Under realistic noise it cuts the drift bias at $1\times$ from $+10.9\% \pm 3.0$ to $+0.3\% \pm 2.2$ (\cref{aggregation:tab:drift}). A control with equal mean shares ($c = 0$) but drift sd $0.30$ isolates the mechanism: the naive bias is \emph{larger} there ($+20.9\% \pm 2.7$); the drift, not the static dispersion, does the damage.
+
+\subsection{Pricing $\varepsilon$: width law, bounded prize of noise-awareness, granularity frontier}
+
+\begin{law}[DP width law]\label{aggregation:law:width}
+\tagEstablished\ With known $\mathrm{Lap}(b)$ noise added to outcomes of natural noise sd $\sigma$, sampling and posterior widths of linear-in-$\beta$ fits scale as $\sqrt{\sigma^2 + 2b^2}$; the inflation factor $\sqrt{1 + 2b^2/\sigma^2}$ is the whole price of $\varepsilon$ for a national release.
+\end{law}
+
+This is the outcome-noise case of the measurement-error taxonomy: least squares stays unbiased and the residual variance gains $\Var\,\mathrm{Lap}(b) = 2b^2$. Its content is numerical: weekly national conversions with natural noise sd $\sim 100$ and $\Delta = 1$, released at $\varepsilon = 0.1$ per week, give $b = 10$ and inflation $\sqrt{1 + 200/10^4} \approx 1.01$; national-level DP is effectively free.
+
+\begin{proposition}[Bounded prize for exact noise-aware likelihoods]\label{aggregation:prop:are}
+\tagEstablished\ Compare Gaussian least squares with variance inflated to $\sigma^2 + 2b^2$ against maximum likelihood under the exact convolved density $N(0,\sigma^2) * \mathrm{Lap}(b)$. Their asymptotic relative efficiency for a location parameter is
+\begin{equation}
+\mathrm{ARE}(b/\sigma) = \frac{1/(\sigma^2 + 2b^2)}{I_{\mathrm{exact}}(\sigma,b)}, \qquad \mathrm{ARE} \to 1 \ (b/\sigma \to 0), \qquad \mathrm{ARE} \to \tfrac12 \ (b/\sigma \to \infty),
+\label{eq:aggregation:are}
+\end{equation}
+so the exact-inference machinery of Gong and of Evans--King buys at most a factor 2 in information over the two-line fix ``inflate $\sigma^2$ by $2b^2$''.
+\end{proposition}
+
+The limit is transparent: as $b \gg \sigma$ the convolution tends to a Laplace, whose location MLE has information $1/b^2$ while least squares has $1/(2b^2)$. The dive computed $I_{\mathrm{exact}}$ by integrating the score of the FFT-convolved density (\cref{aggregation:tab:dp}); the clean-room implementation gave $51.9\%$ at $b/\sigma = 30$ and $50.6\%$ at $100$. The dive calls this the first such bound stated for the DP--MMM setting.
+
+\begin{law}[Privacy--aggregation frontier]\label{aggregation:law:frontier}
+\tagNumerical\ The curator chooses between national-week cells (little DP damage, ecological limits) and geo-week cells ($G$ times more cells and full cross-sectional identification, but per-cell signal $\beta/G$ against the same per-cell noise $b$). Release at geo granularity while $b \lesssim \sigma_{\mathrm{nat}} = \sigma_{\mathrm{geo}}\sqrt{G}$; beyond that, coarse release plus the share-calibrated mixture wins. Finer panels are more privacy-fragile, consistent with per-cell SNR $\propto 1/(Gb)$: at $G = 50$ the geo release already trails at $b = 3$ ($16.6\%$ vs $10.7\%$ RMSE for the mixture).
+\end{law}
+
+Cross-geo dispersion is thus the enemy of the national fit (the drift laws) and the friend of the geo fit, which it spreads across operating points --- exactly what identifies the curve.
+
+\section{Numerical evidence}
+
+All experiments use the setup defaults ($G = 20$, $T = 104$, $\sigma_{\mathrm{geo}} = 1$, block-pulse spend, lognormal shares, identical weak priors); ``pseudo-true'' rows are noiseless $T = 520$ fits isolating the projection bias.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Share drift (AR(1) log-share wiggle) and the mixture estimator: bias of $\mROAS$ at $1\times$ with $\pm$sem; RMSE across seeds. E5 pseudo-true (naive errors at $2\times$ reach $\pm 65\%$); E5n realistic noise, 24 seeds; R4 the mechanism control.}
+\label{aggregation:tab:drift}
+\begin{tabular}{@{}llll@{}}
+\toprule
+Experiment & Shares & Naive national fit & Mixture estimator \\
+\midrule
+E5 pseudo-true, drift $0.15$ & $c = 0.5$ & $+5.3\% \pm 4.5$ & $0.0\%$ \\
+E5 pseudo-true, drift $0.30$ & $c = 0.5$ & $+10.1\% \pm 8.4$ & $0.0\%$ \\
+E5n noisy, drift $0.30$ & $c = 0.5$ & $+10.9\% \pm 3.0$ (RMSE $18.4\%$) & $+0.3\% \pm 2.2$ \\
+E5n fresh 24 seeds & $c = 0.5$ & $+10.0\% \pm 3.7$ (RMSE $20.6\%$) & $-2.9\% \pm 3.7$ \\
+R4 control, drift $0.30$ & $c = 0$ & $+20.9\% \pm 2.7$ & --- \\
+RMSE range, drift present & & $18.4$--$24.9\%$ & $10.7$--$18.5\%$ ($\times 1.7$--$2.3$) \\
+E8a control, no drift & $c = 0$ & \multicolumn{2}{l}{estimators coincide to four decimals} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Pricing $\varepsilon$. Left: width law on a fixed design and identified linear sub-fit (E6c, ratio of sd$(\hat\beta)$ to its $b = 0$ value, 400 reps; clean-room confirmed at 2.2\% MC precision). Right: asymptotic efficiency of variance-inflated Gaussian LS relative to the exact convolved-density MLE (E6b).}
+\label{aggregation:tab:dp}
+\begin{tabular}{@{}lll@{\hspace{2.5em}}ll@{}}
+\toprule
+$b/\sigma_{\mathrm{nat}}$ & Measured ratio & $\sqrt{1 + 2b^2/\sigma^2}$ & $b/\sigma$ & LS efficiency \\
+\midrule
+1 & 1.70 & 1.73 & 0.25 / 0.5 & $100\%$ / $98.9\%$ \\
+2 & 3.00 & 3.00 & 1 / 2 & $90.5\%$ / $75.5\%$ \\
+4 & 5.82 & 5.74 & 4 / 8 & $63.7\%$ / $57.0\%$ \\
+ &  &  & 30 / 100 (clean room) & $51.9\%$ / $50.6\%$ \\
+ &  &  & $\infty$ & $50\%$ (limit) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Privacy--aggregation frontier (E7): RMSE of $\mROAS$ at $1\times$, $c = 0.5$, 6 seeds per cell, per-cell $\mathrm{Lap}(b)$ noise, $\sigma_{\mathrm{nat}} \approx 4.47$. Six-seed cells carry roughly $\pm 30\%$ relative MC error; $b = 3$ is a tie within error. National arms use $\sigma^2 = 20 + 2b^2$, the geo arm $1 + 2b^2$.}
+\label{aggregation:tab:frontier}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+$b$ & National naive & National mixture & Geo release \\
+\midrule
+0 & $12.5\%$ & $12.9\%$ & $\mathbf{3.6\%}$ \\
+1 & $13.2\%$ & $13.7\%$ & $\mathbf{6.4\%}$ \\
+3 & $15.5\%$ & $16.1\%$ & $\mathbf{13.5\%}$ \\
+10 & $27.4\%$ & $27.4\%$ & $38.2\%$ \\
+30 & $53.9\%$ & $\mathbf{50.9\%}$ & $129.6\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two further E7 facts interpret \cref{aggregation:tab:frontier}: RMSE at $2\times$ and RMSE of $\hat s$ show the same crossover, and the geo release recovers $s \approx 1.94$--$1.97$ against a prior centred at $1.5$ while the national fits stay prior-dominated at every $b$. The round-3 penalized comparison at stable shares gave mixture $s = 1.99 \pm 0.12$ against naive $1.90 \pm 0.15$ --- the pseudo-true bias direction, but only just.
+
+\section{Limitations and the devil's advocate}
+
+The attack rounds changed the story materially. In round 2 the unpenalized national fits, naive and mixture alike, ran to a degenerate ridge ($\hat\beta = 5972 \pm 2910$ against a true $100$: $\beta \to \infty$, $K \to \infty$ with $\beta(a/K)^s$ finite mimics a power curve), so at $T = 104$ the national likelihood cannot pin the Hill shape at all and the ecological question is second-order to identification. The planned Jensen-gap indictment collapsed at the operating point (\cref{aggregation:prop:benign}). And the first width-law experiment showed sd$(\hat\beta)$ \emph{falling} as DP noise rose ($20.3 \to 12.1$ against a predicted $5.7\times$ rise) --- prior shrinkage masquerading as precision --- which forced the fixed-design, identified-sub-fit re-test of \cref{aggregation:tab:dp}. Round 4 (fresh seeds, the $c = 0$ drift control, the $G = 50$ check, a prior-centre sweep) confirmed round 3 without revision.
+
+Four negatives bound the scope. At realistic national SNR the drift laws are subdominant to sampling error and prior pull: 24-seed naive fits give $s = 1.98 \pm 0.08$ where the pseudo-true value is $1.75$, a finite-sample upward pull cancelling the drift by coincidence, and E8b confirms the $s$-drift is undetectable in one realistic fit; the laws matter for long panels, for refresh averaging (bias persists while noise averages; \cref{ch:refresh}) and for transport. National shape recovery is prior-dominated either way (E9a): centring the $s$-prior at $1.0$ or $3.0$ drags the mixture posterior to $1.77$ or $2.90$ --- the mixture moves the \emph{target} to the right place but cannot conjure identification the national likelihood lacks, whereas geo data at small $b$ can. The mixture does not dominate: at stable shares its $4\times$-extrapolation RMSE ($1.03$) is worse than the naive fit's ($0.67$). And the $K$-drift law is design-local (E9b): at $\alpha = 0.7$ the design sits deep in saturation, the crossing is unvisited, and the measured drift ($0.116$) overshoots the law ($0.064$), which holds at $\alpha = 0.3$ and $0.5$.
+
+The dive's own devil's advocate adds that benignness is proven only for single-channel, correctly specified, additive-noise worlds; that under drift the ``true'' benchmark is $\mROAS$ at mean shares, so a few points of naive bias could be convention, though the mixture faces the same benchmark and lands near zero; that exogenous AR(1) drift is the kindest case and spend chasing demand would confound both estimators (\BL{15}); that the geo arm of the frontier uses variance-inflated LS rather than the exact likelihood, which by \cref{aggregation:prop:are} costs at most $\sqrt2$ in width and could shift the crossover left by $\lesssim 1.4$ without erasing the regime change; that parallel composition fails for event-level budgets split across cells; and that the ARE bound is asymptotic and location-only. The optimizer is MAP plus Laplace, not NUTS, and \cref{ch:fusion}'s lesson on filter-class artifacts suggests re-checking prior domination under MCMC.
+
+\section{Discussion: impacts}
+
+For practice the chapter reverses the intuitive ordering of worries. A vendor fitting a national Hill curve (Robyn, PyMC-Marketing, Meridian in national mode) need not fear stable geographic dispersion for the everyday decision of nudging spend at the current operating point --- the projection bias is a few tenths of a percent --- but must fear it whenever $(K,s)$ are consumed directly: calibrating to a geo lift test through the operator of \cref{ch:transport}, quoting headroom to saturation, planning a budget doubling. For those uses \cref{aggregation:law:drift} gives an analytic de-biasing that costs nothing but the geo spend shares. The more consequential message is that the aggregation bias which \emph{does} reach the operating point comes from shares that move, and \cref{aggregation:con:mixture} removes it with data every advertiser already holds --- a direct response to barrier O3: enterprises that cannot produce geo-level \emph{outcomes} can still calibrate the national likelihood on geo-level \emph{spend}, with no extra parameters and no privacy exposure.
+
+For privacy engineering the results calibrate effort. National-week releases are essentially free at any plausible $\varepsilon$, and the exact-likelihood corrections of the DP-inference literature cannot repay more than a factor 2 in information over variance inflation --- worth having when $b \gg \sigma$, ignorable otherwise. The frontier gives advertisers something concrete to ask of an aggregation API: cells fine enough to identify saturation but no finer than $b \approx \sigma_{\mathrm{geo}}\sqrt{G}$ allows, with the mixture estimator as fallback when the API will not bargain. For theory the (logit, log) linearization of the Hill family is the reusable object: it turns the van Garderen--Lee--Pesaran wedge into two one-line laws and locates the $s$-independence of the half-saturation drift in the identity $\psi(1) = -s$. Stoker's completeness condition explains the whole pattern: stable shares freeze the cross-sectional distribution, so the aggregate identifies only the mixture (benign for its own slope, wrong for $(K,s)$); drifting shares move the distribution, but in a way no single Hill can absorb.
+
+\section{Further exploration}
+
+The dive's next steps are the four backlog items it opened. \BL{14} treats DP noise on \emph{covariates}, the SKAN/ARA case: known discrete-Laplace noise on inputs through the Hill link, its Berkson-versus-classical decomposition, corrected estimating equations, and whether the $50\%$ ARE bound has an analogue; the literature gap is confirmed unclaimed. \BL{15} replaces exogenous AR(1) drift with spend-chasing-demand allocation to see how much of the mixture estimator's advantage survives endogeneity (links \BL{3}/\BL{10}). \BL{16} makes the frontier a mechanism-design statement: given $\varepsilon$ and a decision loss, derive the optimal release granularity $G^\star$ in closed form from per-cell SNR $\propto 1/(Gb)$. \BL{17} applies the drift laws as analytic de-biasing of nationally fitted $(K,s)$ before the transport of \cref{ch:transport}. A full-MCMC check of prior domination shares a compute budget with \BL{13} and \BL{19}.
+
+In the compiler's judgement the most promising extension is \BL{16} coupled with \BL{15}: a closed-form $G^\star(\varepsilon,\text{loss})$ would turn a six-seed rule of thumb into a negotiating position with API vendors, and the endogenous-drift test decides whether the mixture estimator is a fix or only a fix for the simulator. The all-orders-exact half-saturation law also deserves a proof for general share distributions, being the one piece of the chapter that looks like a theorem rather than an expansion.
+
+\begin{reviewernote}[(compiler)]
+(1) \emph{Code versus writeup.} The file on disk implements the width-law test (E6c) with 40 seeds and a design re-simulated per seed, whereas the writeup reports a ``fixed design'' and ``400 reps''; the round-3 fixed-design variant is not in the file. The \texttt{drift\_noise} entry point calls \texttt{e3b.fitmap}, a module not on disk, so the E5n headline is not reproducible from the shipped code alone. (2) \emph{The mixture estimator's pair of numbers.} The writeup gives ``$+0.3\% \pm 2.2$ / $-2.9\% \pm 3.7$ across the drift scenarios'' without naming which is which; \cref{aggregation:tab:drift} assigns them to the main and fresh-seed E5n runs (the compiler's reading), and the INDEX one-liner quotes only the favourable $+0.3\%$. (3) \emph{Projected-fit support for the $K$ law is weak on its own.} $\tilde K = 22.48 \pm 2.08$ at $c = 0.5$ lies about $1.2$ standard errors above the no-drift value $20$; the law's real support is the pointwise E1b check and the clean-room proof, and exactness is proven only for symmetric two-point shares. (4) \emph{Frontier resolution.} Six-seed cells with $\pm 30\%$ MC error support the $\times 3.5$--$10$ gaps at $b \in \{0, 30\}$ but not a precise crossover; the rule $b \lesssim \sigma_{\mathrm{geo}}\sqrt{G}$ rests on one grid plus one $G = 50$ check, and the geo arm is handicapped by up to $\sqrt2$ through variance-inflated LS. (5) \emph{``National DP is free'' is a units statement:} the $\times 1.01$ example assumes a count outcome with $\Delta = 1$ and $\sigma \approx 100$; revenue outcomes with large per-user sensitivity change $b/\sigma$. (6) \emph{Novelty of the ARE bound.} The $50\%$ limit is the textbook Laplace-versus-Gaussian location-information ratio; the dive claims only first statement for DP--MMM, and it is asymptotic and location-only. (7) Beyond item (2) no disagreement between writeup and INDEX line was found (file stamp 07:36 vs log $\sim$07:45 UTC), and no number changed between rounds without a stated reason.
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item van Garderen, K.\ J., Lee, K.\ and Pesaran, M.\ H.\ (2000). \emph{Cross-sectional aggregation of non-linear models}. Journal of Econometrics 95(2), 285--331 (Cambridge DAE working paper 9803). \url{https://ideas.repec.org/p/cam/camdae/9803.html}
+\item Stoker, T.\ M.\ (1984). \emph{Completeness, distribution restrictions, and the form of aggregate functions}. Econometrica 52(4), 887--907.
+\item Blundell, R.\ and Stoker, T.\ M.\ (2005). \emph{Heterogeneity and aggregation}. Journal of Economic Literature 43(2), 347--391. \url{https://web.mit.edu/tstoker/www/Blundell_Stoker_Handbook.pdf}
+\item Sun, Y., Wang, Y., Jin, Y., Chan, D.\ and Koehler, J.\ (2017). \emph{Geo-level Bayesian hierarchical media mix modeling}. Google research paper. \url{https://research.google/pubs/geo-level-bayesian-hierarchical-media-mix-modeling/}
+\item Google. \emph{Meridian documentation: geo-level versus national data}. \url{https://developers.google.com/meridian/docs/pre-modeling/geo-selection-national-data}
+\item Evans, G., King, G., Schwenzfeier, M.\ and Thakurta, A.\ (2023). \emph{Statistically valid inferences from privacy protected data}. American Political Science Review 117(4), 1275--1290. \url{https://gking.harvard.edu/dp/}
+\item Evans, G.\ and King, G.\ (2025). \emph{Statistically valid inferences from differentially private data releases, II: extensions to nonlinear transformations}. Working paper. \url{https://gking.harvard.edu/dpd2/}
+\item Gong, R.\ (2022). \emph{Exact inference with approximate computation for differentially private data via perturbations}. Journal of Privacy and Confidentiality 12(2); arXiv 2019. \url{https://arxiv.org/abs/1909.12237}
+\item Karwa, V.\ and Vadhan, S.\ (2018). \emph{Finite sample differentially private confidence intervals}. Innovations in Theoretical Computer Science (ITCS). \url{https://arxiv.org/abs/1711.03908}
+\item Delaney, J.\ et al.\ (2024). \emph{Differentially private ad conversion measurement}. Proceedings on Privacy Enhancing Technologies (PoPETS). \url{https://arxiv.org/abs/2403.15224}
+\item Aksu, H., Ghazi, B., Kamath, P., Kumar, R., Manurangsi, P., Sealfon, A.\ and Varadarajan, A.\ V.\ (2023). \emph{Summary reports optimization in the Privacy Sandbox Attribution Reporting API}. arXiv. \url{https://arxiv.org/abs/2311.13586}
+\item WICG/Google (2021+). \emph{Attribution Reporting API and Aggregation Service}. \url{https://github.com/WICG/attribution-reporting-api}
+\item Frontier study, \emph{02\_open\_questions.md} (M9) and \emph{03\_mmm\_adoption\_barriers.md} (O3); \dive{01} (identifying designs), \dive{02} (transport consumes $K,s$), \dive{03}/\dive{04} (decision-loss framing).
+\end{enumerate}
+\endgroup

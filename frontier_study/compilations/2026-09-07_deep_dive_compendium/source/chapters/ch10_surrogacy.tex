@@ -1,0 +1,284 @@
+% ===========================================================================
+% Chapter: Horizon bounds for long-run effects under weak surrogacy (dive 12)
+% ===========================================================================
+\chapter{Horizon bounds for long-run effects under weak surrogacy}
+\label{ch:surrogacy}
+
+\begin{provenance}
+\textbf{Source dives:} \dive{12} \emph{Long-run effects under weak surrogacy: the price of the long run} (run 2026-09-02, file \texttt{12\_surrogacy\_horizon\_bounds.md}, written 2026-09-02 11:34 UTC; spanned two runs---an interrupted run built the constructions, the second re-ran, attacked (E13--E27), verified and wrote up).
+\textbf{Code:} \texttt{code/12\_surrogacy\_horizon\_bounds.py}.
+\textbf{Frontier-study problem(s) addressed:} B6/M5 --- the surrogate index requires that treatment affect long-run outcomes only through the surrogates, almost surely false for brand advertising whose memory channel bypasses short-run behaviour; develop partial identification of long-run ROAS from a short experiment plus an observational panel, with bounds indexed by a surrogacy-violation parameter in the manner of Cinelli--Hazlett.
+\textbf{Backlog items closed:} none; \textbf{opened:} \BL{37} (boundary law of the profile-LR), \BL{38} (the $(G,H)$ frontier), \BL{39} (shape families for de-confounding), \BL{40} (onset timing as a second index), \BL{41} (interval-valued posteriors in the deadband).
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item The surrogate-index error obeys the exact identity $\mathrm{SI} - \Theta_L = (\gamma - \one)^\T\tau_{1:H} - \sum_{t > H}\tau_t$: a negative \emph{bypass tail} and a positive \emph{phantom persistence} term; $-27.7\%$ at brand share $\phi = 0.4$, $H = 13$, but $+163\%$ at demand persistence $\rho_d = 0.9$ with \emph{no} long-run effect at all.
+\item Under complete monotonicity capped at a maximum half-life $\mathrm{hl}_{\max}$ the identified set for $\Theta_L$ is a convex profile-likelihood programme: noise-free $[13.25, 13.32]$ at $\mathrm{hl}_{\max} = 26$, but $1.36\times$ the truth wide with 400 geos and 26 post-weeks.
+\item The M5 sensitivity curve is $\mathrm{hi} \approx 11.5 + 0.235\,L_{\mathrm{eff}}(\mathrm{hl}_{\max})$ with a flat lower bound (7.7), obeying $\mathrm{hi} - \Theta \approx \kappa\sqrt{\mathrm{crit}/a^\T V^{-1}a}\;c_{\mathrm{slow}}$, $\kappa \in [1.1, 1.6]$; geos buy the upper bound, post-period weeks the lower. Establishing a long-run effect needs about 1600 geos $\times$ 52 weeks; ruling one out, $4\times$ more geos.
+\item One experiment de-confounds a 52-lag observational panel through the bias $s\,b$ (known shape, unknown scalar): $[10.1, 15.4]$ against $[6.0, 43.3]$ alone, $7\times$ tighter with coverage 1.00---once the non-decaying $-0.003$-per-lag bend that geo fixed effects put into the shape is included.
+\item Misspecified kernels are covered, but a brand component whose onset lies beyond the window is the invisible failure (coverage 0.47, misfit statistic silent); the $\chi^2_1$ profile radius under-covers at the cone boundary and is replaced by an MC-calibrated 6.63.
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+A geo experiment runs a spend pulse and reads weekly incremental sales for $H$ weeks, typically 8--13. The business needs the \emph{long-run} total $\Theta_L = \sum_{t \le L}\tau_t$ over $L \approx 104$ weeks, because brand advertising keeps paying through a memory or brand-stock channel long after short-run sales---the natural surrogates---have gone quiet. The standard tool for long-run effects from short experiments, the surrogate index of Athey, Chetty, Imbens and Kang (ACIK), requires that treatment reach the long-run outcome only through the surrogates. Problem M5 observed that this is almost surely false for brand advertising and asked for the missing instrument: partial identification of $\Theta_L$ from a short experiment plus an observational panel, with bounds indexed by an interpretable surrogacy-violation parameter, as Cinelli and Hazlett index omitted-variable bias by a partial $R^2$.
+
+Practice fills the gap with heuristics---``cooldown'' windows in platform lift tools, Binet and Field's 60/40 long/short split, Lodish et al.'s long-term multipliers---while the empirical literature reports weekly carryover near 0.9 (Shapiro, Hitsch and Tuchman, 2021; Dub\'e, Hitsch and Manchanda, 2005, half-life about six weeks), which puts most of a campaign's effect outside any 13-week window. \dive{12} builds three constructions: an exact identity for the surrogate index's error under persistent demand, a sensitivity bound indexed by the largest memory half-life the analyst will entertain, and a device by which one experiment de-confounds an entire observational lag structure. The headline is the \emph{price of the long run}: the bound exists, and the data that make it decision-useful cost more than anyone currently pays.
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{The surrogate index (Athey, Chetty, Imbens and Kang, 2019)}
+
+Given an experimental sample with treatment $W$ and short-run surrogates $S$ but no long-run outcome $Y$, and an observational sample with both $S$ and $Y$, the surrogate index is $\mu(s, x) = \E[Y \mid S = s, X = x]$ fitted on the observational sample and applied to the experimental one; the long-run effect estimate is the treatment contrast of $\mu(S_i, X_i)$. Three assumptions deliver unbiasedness: \emph{unconfoundedness} of $W$ in the experiment; \emph{surrogacy} (the Prentice criterion) $W \perp Y \mid S, X$, that treatment moves $Y$ only by moving $S$; and \emph{comparability}, that the law of $Y$ given $(S, X)$ is the same in both samples. With a linear index the estimate is $\gamma^\T\hat\tau_S$, the surrogate treatment effects weighted by their observational predictive coefficients. When surrogacy fails ACIK write the bias as an average residual direct effect of $W$ given $S$ and discuss bounding it by the explanatory power of $W$ and $Y$ given $S$; the dive's comparator is a partial-$R^2$ rendering, $|\text{bias}| \le |\mathrm{SI}|\sqrt{(1 - R^2_{W \mid S})(1 - R^2_{Y \mid S})}$.
+
+\subsection{Sensitivity analysis indexed by a partial $R^2$ (Cinelli and Hazlett, 2020)}
+
+For a regression of $Y$ on treatment $D$ and covariates $X$, omitting a confounder $Z$ biases the coefficient on $D$ by
+\begin{equation}
+|\widehat{\text{bias}}| = \mathrm{se}(\hat\tau)\sqrt{\frac{R^2_{Y \sim Z \mid D, X}\;R^2_{D \sim Z \mid X}}{1 - R^2_{D \sim Z \mid X}}}\sqrt{\mathrm{df}},
+\label{eq:surr:ch}
+\end{equation}
+the two partial $R^2$ values measuring how much of the outcome and of the treatment the unobserved $Z$ would explain. The contribution is a reporting discipline: index the unobservable by parameters on a scale the analyst understands, plot the estimate against them, and read off the \emph{robustness value}---the confounding strength at which the conclusion changes. The dive's index for surrogacy is $\mathrm{hl}_{\max}$, the largest half-life the memory channel may have: $\mathrm{hl}_{\max} = 0$ is full surrogacy (nothing after the window), $\mathrm{hl}_{\max} = \infty$ imposes nothing beyond monotone decay.
+
+\subsection{Completely monotone kernels, extrapolation, and shape-restricted bounds}
+
+A sequence $g(0), g(1), \ldots$ is \emph{completely monotone} if all its finite differences alternate in sign, $(-1)^k\Delta^k g(h) \ge 0$; Hausdorff's theorem (1921) says this holds if and only if $g(h) = \int_0^1\rho^h\,\dd\mu(\rho)$ for a non-negative measure $\mu$ (Bernstein's theorem is the continuous-time version). Every geometric adstock and every mixture of them belongs to the class; humps, delayed onsets and negative lobes do not. Brown and Grabovsky (2024) show that extrapolating a completely monotone function known on an interval is infeasible to the left but feasible to the right, with error decaying as a power of the distance from the interval---and a response tail is a right-extrapolation. Mogstad, Santos and Torgovitsky (2018) turn such restrictions into bounds: when target and identified moments are both linear in an unknown function confined to a convex class, the sharp bounds are two linear programmes over a finite basis. Here $\Theta_L = c^\T\mu$ and the observed window $A\mu$ are linear in the mixing weights $\mu \ge 0$ on a grid of decay rates. With Gaussian noise $\hat\tau \sim \mathcal N(A\mu, V)$ the natural set is the \emph{profile likelihood-ratio} set $\{\Theta : Q(\Theta) - Q_{\min} \le \mathrm{crit}\}$, $Q(\Theta)$ the minimum weighted residual sum of squares subject to $c^\T\mu = \Theta$; by Wilks' theorem $\mathrm{crit} = \chi^2_1(0.95) = 3.84$ when the nuisance parameters lie in the interior of their space.
+
+\subsection{Chi-bar-square laws at a cone boundary (Chernoff, 1954; Self and Liang, 1987)}
+
+When the parameter space is a convex cone and the truth lies on its boundary, the likelihood-ratio statistic converges to the squared information-metric distance from a Gaussian draw to the cone, whose law is the mixture $\bar\chi^2 = \sum_i w_i\chi^2_i$ with $w_i$ the probability that the projection of the draw lands on a face of dimension $i$ (Chernoff; Self and Liang; Silvapulle and Sen, 2005). The textbook case---one parameter constrained non-negative, truth at zero---gives $\tfrac12\chi^2_0 + \tfrac12\chi^2_1$, so the unadjusted test is conservative; but for a \emph{profile} statistic on a functional whose many nuisance weights sit on the boundary, the weights depend on the covariance and the local cone geometry and the departure from $\chi^2_1$ can go either way. The dive meets the anti-conservative direction.
+
+\subsection{Known-shape, unknown-scalar de-confounding}
+
+A distributed-lag regression of sales on $K$ lags of spend with the demand state $d$ omitted has probability-limit bias $\E[X^\T X]^{-1}\E[X^\T d]$. If spend chases demand, $x_t = \bar x + a\,d_t + u_t$ with $d$ an AR(1) of persistence $\rho_d$, then $\Cov(x_{t-k}, d_t) = a\Var(d)\rho_d^k$ and the lag covariance is $a^2\Var(d)R + \sigma_u^2 I$, $R_{kj} = \rho_d^{|k-j|}$: the bias factorises into an unknown scalar $s = a\Var(d)$ times a \emph{shape} $b$ whose every ingredient is estimable from the spend autocovariances. Removing hidden confounding from an observational estimate with an experiment is the programme of Kallus, Puli and Shalit (2018), who learn the bias as a function on the overlap region and extrapolate it, and of Rosenman et al.\ (2023), who shrink between the two estimates; the dive's variant parametrises the bias \emph{shape} from the spend autocorrelation and lets the experiment fix the one scalar left free.
+
+\section{Setup and assumptions}
+
+\begin{definition}[Effect dynamics and the long-run target]
+\label{surr:def:model}
+Per-unit spend produces the impulse response $g(h)$, $h = 0, 1, \ldots$; a pulse $dx$ produces the effect curve $\tau_t = \sum_k dx_k\,g(t - k)$. The benchmark truth is $g(h) = 0.5^h + w_B\rho_B^h$: a fast \emph{activation} component (one-week half-life) plus a slow \emph{brand-stock} component with 26-week half-life, $\rho_B = 0.5^{1/26}$, whose weight $w_B$ makes the brand share of $\Theta_L$ equal to $\phi$ ($\phi = 0.4$ benchmark; $\phi = 0$ is the no-long-run control). The pulse is $dx = (1, 1, 1, 1)$, $L = 104$, and $\Theta_L = 13.32$ at $\phi = 0.4$, $8.00$ at $\phi = 0$. Weeks inside the window are $t = 1, \ldots, H$, collected in $\tau_{1:H}$.
+\end{definition}
+
+\begin{definition}[Experiment and surrogate index]
+\label{surr:def:exp}
+$G$ geos, half treated ($W_g \in \{0, 1\}$), with $y_{gt} = \mu_g + d_{gt} + W_g\tau_t + \varepsilon_{gt}$, $d$ an AR(1) geo demand state with $\rho_d = 0.6$ and unit innovations, $\varepsilon \sim \mathcal N(0, 1)$, 52 pre-weeks. Per-week ANCOVA on the pre-period mean gives $\hat\tau_{1:H}$ with a Ledoit--Wolf-shrunk $H \times H$ covariance $\hat V$; the per-week standard error is about $1.6\sqrt{4/G}$. The surrogate index is fitted on an untreated panel $y_t = d_t + \varepsilon_t$ with $S = (y_1, \ldots, y_H)$ and $Y_L = \sum_{t \le L}y_t$: $\gamma = \Var(S)^{-1}\Cov(S, Y_L)$ and $\mathrm{SI} = \gamma^\T\tau_{1:H}$.
+\end{definition}
+
+\begin{assumption}[Capped complete monotonicity]
+\label{surr:ass:cm}
+$g(h) = \int\rho^h\,\dd\mu(\rho)$ with $\mu \ge 0$ supported on $[0, \rho_{\max}]$, $\rho_{\max} = 0.5^{1/\mathrm{hl}_{\max}}$. In the sharpened form the attack rounds forced: the response has begun by the end of the window and decays no more slowly than half-life $\mathrm{hl}_{\max}$.
+\end{assumption}
+
+\begin{assumption}[Observational panel for de-confounding]
+\label{surr:ass:panel}
+$y_{gt} = \mu_g + \sum_{k \le K}g_k x_{g,t-k} + d_{gt} + e_{gt}$ with $x_{gt} = \bar x + a\,d_{gt} + u_{gt}$, $u$ iid, $a$ unknown in sign and size, $K = 52$, geo fixed effects, $T_o = 156$ weeks, $G_o = 200$ geos. Effects are linear in spend and the panel's confounding runs only through the demand state the spend autocorrelation reveals.
+\end{assumption}
+
+\section{Main results}
+
+\subsection{The surrogate-index bias identity}
+
+\begin{theorem}[Bias of the linear surrogate index]
+\label{surr:thm:si}
+\tagEstablished\ (clean-room exact.) Because the index is linear and treatment enters the surrogates additively,
+\begin{equation}
+\mathrm{SI} - \Theta_L = (\gamma - \one)^\T\tau_{1:H} - \sum_{t > H}\tau_t .
+\label{eq:surr:si}
+\end{equation}
+\end{theorem}
+
+The proof is one line ($\Theta_L = \one^\T\tau_{1:H} + \sum_{t > H}\tau_t$); the content is that the two terms have opposite signs and different physics. The \emph{bypass tail} $-\sum_{t > H}\tau_t$ is the effect that never touches the surrogates: negative, growing with $\phi$ and the brand half-life, shrinking with $H$. The \emph{phantom persistence} term $(\gamma - \one)^\T\tau_{1:H}$ arises because the index learned on the panel that a high $y_t$ predicts high future $y$---demand persists, so $\gamma_t > 1$---and reads the treatment-induced shift in $S$ as a demand shift. It is a surrogacy violation \emph{even when the long-run effect is zero}: the surrogate is a noisy proxy for the state driving $Y_L$, and $W$ shifts the proxy without shifting the state. Conditioning on the pre-period mean does not help (E14: identical bias to three decimals), because the AR(1) state is Markov given $y_1$.
+
+At $\phi = 0.4$, $H = 13$: $\Theta_L = 13.32$, $\mathrm{SI} = 9.63$, bias $-27.7\%$ ($\sum\gamma = 14.12$; last four $\gamma$'s $1.02, 1.06, 1.22, 1.82$); a Monte Carlo of the whole pipeline (300-geo panel fit, 200-geo experiment, 40 replications) gives $9.46 \pm 0.44$. By horizon at $\phi = 0.4$ the bias is $-69\%$ ($H = 2$), $-35\%$ (4), $-28\%$ (13), $-19\%$ (26), $-8\%$ (52). The sign flips with demand persistence: at $\phi = 0.2$, $H = 4$ it is $-17\%$ for $\rho_d = 0.6$ but $+116\%$ for $\rho_d = 0.9$ and $+295\%$ for $0.95$; with $\phi = 0$---no long run at all---and $\rho_d = 0.9$ the index over-states the $H = 4$ effect by $+163\%$. A \emph{crossing horizon} $H^\star$ exists at which the terms cancel and the index is accidentally right ($H^\star \approx 8$ at $\phi = 0.2$, $\rho_d = 0.9$); it moves with $(\phi, \mathrm{hl}_B, \rho_d)$, none of which the analyst observes. The partial-$R^2$ comparator (E8, $G = 100$, $H = 13$, from $R^2_{W \mid S} = 0.44$, $R^2_{Y \mid S} = 0.13$) has width $0.99\times$ the truth but covers only 81\%: the $R^2$ calculus does not know the bias has a term outside the surrogate span.
+
+\subsection{The completely monotone profile-LR bound indexed by $\mathrm{hl}_{\max}$}
+
+\begin{construction}[Profile-LR horizon bound]
+\label{surr:con:profile}
+\tagEstablished\ Discretise \cref{surr:ass:cm} on 200--300 rates $\rho_j \in [0, \rho_{\max}]$; let $A$ ($H \times J$) map weights to the in-window effect curve of the pulse and $c$ to its long-run total, $\Theta_L = c^\T\mu$. Define
+\begin{equation}
+Q(\Theta) = \min_{\mu \ge 0,\; c^\T\mu = \Theta}(\hat\tau - A\mu)^\T\hat V^{-1}(\hat\tau - A\mu), \qquad
+\{\Theta : Q(\Theta) - Q_{\min} \le \mathrm{crit}\},
+\label{eq:surr:profile}
+\end{equation}
+with weeks beyond 13 blocked into 13-week bins to keep $\hat V$ well conditioned; the end points are two convex programmes. $\mathrm{crit} = \chi^2_1(0.95) = 3.84$ under-covers on the low side (6--9\% one-sided failures at $\phi = 0$); $\mathrm{crit} = 6.63$ is Monte Carlo calibrated ($\le 3.3\%$ one-sided everywhere tested, E9b).
+\end{construction}
+
+This is the third generation of the bound: the Round-1 \emph{box} LP ($|\hat\tau_t - (A\mu)_t| \le z\,\mathrm{se}_t$ simultaneously, \v{S}id\'ak $z$) covers 1.00 at width $3.8\times$ the truth for $G = 100$, $H = 13$, and the Round-2 \emph{ellipsoid} QCQP ($(\hat\tau - A\mu)^\T\hat V^{-1}(\hat\tau - A\mu) \le \chi^2_H$) gains little ($3.7\times$) while inheriting Hotelling inflation from a 13-dimensional covariance estimated on 50 geos per arm.
+
+\begin{proposition}[Noise-free identified set]
+\label{surr:prop:noisefree}
+\tagEstablished\ (clean-room exact.) With $\tau_{1:13}$ known exactly at $\phi = 0.4$, \cref{surr:ass:cm} leaves $\Theta_L \in [13.25, 13.32]$ for $\mathrm{hl}_{\max} = 26$, $[13.25, 14.77]$ for 52 and $[13.25, 15.53]$ for 104.
+\end{proposition}
+
+The shape restriction is \emph{very} informative when the curve is known; the whole difficulty is noise.
+
+\begin{law}[Price of the long run]
+\label{surr:law:width}
+\tagNumerical\ The unidentified direction is the $\rho_{\max}$ component: inside the window it adds an almost constant level per observed week, and its long-run total per unit weight is $c_{\mathrm{slow}} \approx D\,L_{\mathrm{eff}}$ with $D$ the pulse mass and
+\begin{equation}
+L_{\mathrm{eff}}(\mathrm{hl}_{\max}) = \frac{1 - \rho_{\max}^L}{1 - \rho_{\max}} \quad (= 56.6 \text{ at } \mathrm{hl}_{\max} = 52).
+\label{eq:surr:leff}
+\end{equation}
+With $a$ the in-window signature of that component the profile admits weight $m \le m_{\max} = \sqrt{\mathrm{crit}/a^\T V^{-1}a}$, so
+\begin{equation}
+\mathrm{hi} - \Theta_{\mathrm{true}} \approx \kappa\,m_{\max}\,c_{\mathrm{slow}}, \qquad \kappa \in [1.1, 1.6],
+\label{eq:surr:width}
+\end{equation}
+$\kappa > 1$ being the slack from re-fitting the fast components ($\kappa = 1.30, 1.42, 1.57, 1.24, 1.15, 1.09, 1.30$ over seven $(G, H, \mathrm{hl}_{\max})$ configurations, E7b, noise-free $\hat\tau$ with the true $V$).
+\end{law}
+
+The earlier run's cruder law $z\cdot\mathrm{se}_{\mathrm{level}}\cdot L_{\mathrm{eff}}\cdot D$ carries a spurious factor $D$ and overshoots about $3\times$ \tagRefuted; the naive $z\cdot\mathrm{se}_{\mathrm{GLS}}\cdot L_{\mathrm{eff}}$ is within $\pm 30\%$. The upper bound therefore scales as $1/\sqrt G$ and roughly $1/\sqrt{H_{\mathrm{eff}}}$ through the standard error and \emph{linearly} in $L_{\mathrm{eff}}(\mathrm{hl}_{\max})$---which is the sensitivity curve.
+
+\begin{proposition}[The M5 sensitivity curve and the $(G, H)$ asymmetry]
+\label{surr:prop:curve}
+\tagNumerical\ At $G = 400$, $H = 26$ (E19, 60 replications) the upper bound is $\mathrm{hi} \approx 11.5 + 0.235\,L_{\mathrm{eff}}(\mathrm{hl}_{\max})$ while the lower bound is flat at 7.7, independent of $\mathrm{hl}_{\max}$. The lower bound is rate-resolution limited, not long-run limited: at $H = 13$ it sits 5--8 below the truth, improves only $\sqrt G$-slowly ($7.9 \to 6.1 \to 5.1$ below truth for $G = 100 \to 400 \to 1600$) and barely with $H$, because a short window cannot tell a 13-week from a 26-week half-life (in-window shapes differ by $\rho^{12}$: 0.53 against 0.73) and the lower extreme reassigns the slow mass to the fastest rate the noise allows.
+\end{proposition}
+
+So $G$ buys the upper bound, $H$ buys the lower bound's rate resolution, and neither buys the other. The analyst plots the upper bound against the memory half-life they will entertain and reads off the breakdown half-life at which long-run ROAS crosses the decision threshold---the Cinelli--Hazlett plot for surrogacy.
+
+\subsection{One experiment de-confounds the whole observational lag structure}
+
+\begin{construction}[Joint profile bound with a known-shape bias]
+\label{surr:con:joint}
+\tagEstablished\ Under \cref{surr:ass:panel} the distributed-lag OLS $\hat\beta$ has probability-limit bias $s\,b$ with
+\begin{equation}
+s = a\Var(d), \qquad b = \big(a^2\Var(d)\,R + \sigma_u^2 I\big)^{-1}r, \quad R_{kj} = \rho_d^{|k-j|},\; r_k = \rho_d^k,
+\label{eq:surr:shape}
+\end{equation}
+where $(\hat\rho_d, a^2\widehat{\Var}(d), \hat\sigma_u^2)$ follow from the spend autocovariances $(\hat\gamma_0, \hat\gamma_1, \hat\gamma_2)$. The experiment, which has no $s$, pins the short lags; the panel's 52 lags, corrected by $\hat s\,b$, deliver the tail. The joint profile is
+\begin{equation}
+Q = (\hat\tau - A_e\mu)^\T V_e^{-1}(\hat\tau - A_e\mu) + (\hat\beta - A_g\mu - s\,b)^\T V_b^{-1}(\hat\beta - A_g\mu - s\,b)
+\label{eq:surr:joint}
+\end{equation}
+over $(\mu \ge 0, s \text{ free})$, $A_g$ mapping weights to lag coefficients $\rho^k$, $V_b$ cluster-robust by geo, and the same $\mathrm{crit} = 6.63$.
+\end{construction}
+
+The panel alone with $s$ free is unbounded: at $\rho_d = 0.6$ the shape $b$ is collinear with dictionary mass near $\rho = 0.6$, and the experiment breaks the collinearity. The attack rounds forced one correction to the shape itself.
+
+\begin{lemma}[Fixed effects bend the shape]
+\label{surr:lem:within}
+\tagEstablished\ (clean-room reproduced.) The within transformation over $T_o$ weeks subtracts from every lag's covariance with the omitted state the term $(1/T_o)\sum_j\Cov(x_{t-k}, d_j) \approx a\Var(d)(1 + \rho_d)/((1 - \rho_d)T_o)$, a \emph{non-decaying} correction that the infinite-$T$ shape \cref{eq:surr:shape} misses; through $(X^\T X)^{-1}$ it becomes a level of about $-0.003$ per lag (per unit $s$) at $k = 10, \ldots, 52$, cutting $\sum_k b_k$ from 1.18 to 1.02.
+\end{lemma}
+
+Direct simulation (4000 geos, six seeds) gives $-0.0029$ mean over $k \ge 10$ and $\sum b = 1.016 \pm 0.007$; an independent analytic within-plim gives 1.022 (the verifier's first attempt omitted the cross-lag $u$ covariance and got 0.88; the corrected derivation agrees).
+
+\section{Numerical evidence}
+\label{surr:sec:numerics}
+
+All experiments use \cref{surr:def:model,surr:def:exp} with the profile bound at $\mathrm{hl}_{\max} = 52$ unless stated. \cref{surr:tab:price} is the headline sweep (E9, 100 replications); a five-seed sweep at $G = 400$, $H = 26$ (E20) gives width/truth 1.36--1.45 and coverage 0.98--1.00. \cref{surr:tab:curve} is the M5 deliverable.
+
+\begin{table}[htbp]
+\centering\small
+\caption{The price of the long run: profile-LR bound on $\Theta_L$ (truth 13.32, $\phi = 0.4$, $\mathrm{hl}_{\max} = 52$, $\mathrm{crit} = 6.63$), E9, 100 replications; bounds are mean $\pm$ sd across replications.}
+\label{surr:tab:price}
+\begin{tabular}{rrccc}
+\toprule
+$G$ & $H$ & bound & width/truth & coverage \\
+\midrule
+100 & 13 & $[6.1 \pm 1.5,\ 42.0 \pm 10.4]$ & 2.69 & 1.00 \\
+100 & 52 & $[6.7 \pm 1.8,\ 30.9 \pm 7.9]$ & 1.82 & 1.00 \\
+400 & 13 & $[7.6 \pm 0.8,\ 31.1 \pm 5.3]$ & 1.76 & 1.00 \\
+400 & 26 & $[7.7 \pm 1.2,\ 25.9 \pm 4.7]$ & 1.36 & 1.00 \\
+400 & 52 & $[7.7 \pm 1.3,\ 23.5 \pm 3.8]$ & 1.19 & 0.99 \\
+1600 & 13 & $[8.5 \pm 0.7,\ 23.5 \pm 3.4]$ & 1.12 & 1.00 \\
+1600 & 52 & $[9.2 \pm 0.9,\ 19.3 \pm 1.8]$ & 0.76 & 1.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{The M5 sensitivity curve (E19, $G = 400$, $H = 26$, 60 replications, truth 13.32): mean upper bound against the index $\mathrm{hl}_{\max}$; the lower bound is 7.7 throughout. $L_{\mathrm{eff}}$ from \cref{eq:surr:leff}; the fit is $\mathrm{hi} \approx 11.5 + 0.235\,L_{\mathrm{eff}}$.}
+\label{surr:tab:curve}
+\begin{tabular}{lccccccc}
+\toprule
+$\mathrm{hl}_{\max}$ (weeks) & 4 & 8 & 13 & 26 & 52 & 104 & 208 \\
+\midrule
+$L_{\mathrm{eff}}$ & 6.3 & 12.0 & 19.2 & 35.6 & 56.6 & 75.3 & 88.0 \\
+upper bound & 13.0 & 15.1 & 17.2 & 21.2 & 25.9 & 29.7 & 32.2 \\
+coverage & 0.35 & 0.87 & $\ge 0.98$ & $\ge 0.98$ & $\ge 0.98$ & $\ge 0.98$ & $\ge 0.98$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\emph{Power control} (E13, 100 replications). The probability that the lower bound excludes the no-long-run total 8.0 when $\phi = 0.4$ is 0.12 ($G = 100$, $H = 13$), 0.39 (400, 26), 0.93 (1600, 52), 1.00 (6400, 52); the probability that the upper bound excludes 13.3 when $\phi = 0$ is 0.00, 0.03, 0.47, 1.00 on the same grid. The instrument discriminates, but establishing a long-run effect needs about 1600 geo-equivalents times 52 weeks and ruling one out four times as many geos. Demand persistence $\rho_d = 0.9$ or 0.95 doubles to triples every width because the per-week standard error doubles; $t_3$ shocks and national common shocks change nothing (E11).
+
+\emph{Misspecified kernels} (E10, E16). An Erlang-2 hump, an 8-week delayed onset and a pull-forward negative lobe are all covered by the geometric-only dictionary at $G = 400$, $H = 26$ (coverage 0.993--1.00) and at $G = 1600$, $H = 52$ (0.99--1.00), with widths 0.7--1.0$\times$; enlarging the dictionary with Erlang and lagged kernels costs 1.5--2.5$\times$ width for no coverage gain, and $Q_{\min}$ barely moves (13.5--15.9 against $k = 16$ blocks): the width is dominated by the tail extrapolation, which does not care about in-window shape. The counterexample (E16b) is a brand component with onset at lag 30 and $H = 26$: coverage 0.47, and $Q_{\min} = 11.2$ on $k = 14$ does not flag it; with $H = 52$ the onset is inside the window, $Q_{\min}$ rises to 22.9 and coverage returns to 0.95.
+
+\emph{De-confounding} (\cref{surr:tab:joint}). With a $G = 100$, $H = 13$ experiment and a $200 \times 156$ panel (E12, 40 replications) the joint bound is $7\times$ tighter than the experiment alone, with $\hat s = 0.69 \pm 0.26$ against the true 0.78. The value persists with better experiments (E23: joint width $0.25\times$ at $(400, 26)$ and $0.18\times$ at $(1600, 52)$ against $1.40\times$ and $0.75\times$ alone) and under strong confounding $a = 1.5$ (E24: $[12.6, 15.5]$, coverage 1.00). The audit at $G = 400$, $H = 26$ (E26, 60 replications) found 10\% high-side failures with the infinite-$T$ shape---15\% even with the \emph{true} $(\rho_d, a^2\Var(d), \sigma_u^2)$---and 3\% (coverage 0.95, width $0.23\times$) with the within-$T_o$ shape of \cref{surr:lem:within}.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Experiment-grounded de-confounding of a 52-lag panel (E12, $G = 100$, $H = 13$, panel $200 \times 156$, 40 replications, truth 13.32) and the two repairs (E21 with 25, E22 with 20 replications).}
+\label{surr:tab:joint}
+\begin{tabular}{lccc}
+\toprule
+Estimator & bound & width/truth & coverage \\
+\midrule
+experiment alone & $[6.0,\ 43.3]$ & 2.80 & --- \\
+naive panel (no correction) & $[15.0,\ 17.1]$ & --- & 0.00 \\
+panel alone, $s$ free & unbounded & --- & --- \\
+joint, single shape $b$ & $[10.1,\ 15.4]$ & 0.39 & 1.00 \\
+joint, lead family $\ell \in \{0,1,2,3,4,6\}$ (true lead 0/2/4) & --- & 0.44--0.46 & 0.88--0.92 \\
+joint, Hill truth, fixed scale & --- & --- & 0.85 \\
+joint, Hill truth, free scale $\kappa$ & --- & 1.49 & 1.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Limitations and the devil's advocate}
+
+Three attack rounds changed results. \emph{The under-coverage of the $\chi^2_1$ radius is not a $\hat V$ artifact}: with the true covariance the one-sided low failure is still 6--7\% (E15), and it grows with dictionary richness---2.7\% at $\mathrm{hl}_{\max} = 1$, 4.7\% (3), 5.0\% (8), 6.7\% (52) at $G = 400$, $H = 26$, against 1.3\% for the unconstrained one-sided sum test (E15b). The diagnosis is a chi-bar-square in which the nuisance cone over-fits noise, so $Q_{\min}$ is too low; the calibrated 6.63 stands and the exact law is \BL{37}. \emph{Anticipatory spend} ($x_t = \bar x + a\,d_{t+\ell} + u_t$) makes the single-shape joint bound confidently wrong---$[26, 30]$ against 13.3, coverage 0---but loudly, $Q_{\min} = 1600$--$2600$ against about 63 degrees of freedom (E17); a family of shapes $b_\ell$ with $r_{\ell,k} = \rho_d^{|k-\ell|}$, each with its own free scalar, restores coverage 0.88--0.92 at width 0.44--0.46$\times$ and $Q_{\min} = 68$--$75$ (E21). \emph{Saturation}: when both sources obey $\sum_k g_k\,\mathrm{Hill}(x_{t-k})$ and the experiment measures the finite difference at its operating point, the panel's linear lag coefficients are Hill's average derivative times $g$, a common scale across lags: coverage 0.85 at fixed scale, and 1.00 at width $1.49\times$ with a free panel/experiment scale $\kappa$ profiled on a grid---still $4\times$ tighter than the experiment alone ($5.67\times$)---with $\hat\kappa = 1.50 \pm 0.29$ against about 1.2 expected (E22). \emph{Two-component demand} (E18) degrades gracefully: $[11.8, 17.4]$, coverage 0.90, $Q_{\min} = 74$. A residual $Q_{\min} \approx 80$ against 63 degrees of freedom persists after the shape fix, falling to 71 with $G_o = 800$ but not with $T_o = 400$ (E27)---small-sample bias of CR0 cluster-robust covariance at 53 parameters and 200 clusters plus roughly $+8$ unexplained; coverage is unaffected.
+
+The dive's own devil's advocate fixes the scope. The $-28\%$ holds for a linear index without covariates; a nonlinear index, or one trained on a panel containing past campaigns, changes $\gamma$ (the identity still holds), and the phantom term assumes the panel's demand persistence equals the experiment's---comparability, which ACIK assume anyway. The $1.36\times$ width is one noise calibration (per-week se about 0.16 on a peak effect near 2); every width shrinks with the standard error, but the \emph{ratio} to what a naive analyst reports is set by $L_{\mathrm{eff}}/H$. The linearity of $\mathrm{hi}$ in $L_{\mathrm{eff}}$ is measured on seven points and its slope mixes $z\cdot\mathrm{se}$, $\kappa$ and the truth's own brand level: empirical, not derived. The $7\times$ needs spend exogenous except through the AR(1) state, a common effect scale between panel and experiment ($\kappa$ absorbs saturation, not heterogeneity) and the fixed-effects shape at the right $T_o$; and $\mathrm{crit} = 6.63$ was calibrated on construction 2's boundary geometry, not the joint problem's. Structural limits: linear-in-spend effects, a single pulse, additive near-Gaussian geo noise, no competitive response or price co-movement.
+
+\section{Discussion: impacts}
+
+For practice the first message is a warning about the surrogate index in dynamic panels: its error is the sum of two structural terms of opposite sign, one present with no long-run effect whatsoever. A platform that trains an index on persistent-demand panels and applies it to a 4-week test over-states by $+116\%$ to $+295\%$ at $\rho_d = 0.9$--$0.95$, and the horizon at which it is accidentally right depends on quantities it does not observe; the partial-$R^2$ interval inherits the problem (81\% coverage). The second is the sensitivity curve as a reporting standard: report $[\mathrm{lo}, \mathrm{hi}](\mathrm{hl}_{\max})$, read off the breakdown half-life, and state \emph{both} assumptions---decay no slower than $\mathrm{hl}_{\max}$ and onset within the window (\BL{40})---since the second is the one $Q_{\min}$ cannot police. The third is the cost ledger: a 13-week, 100-geo test bounds $\Theta_L$ within $2.7\times$ its value, and establishing a long-run effect at all needs $1600 \times 52$. For MMM vendors the de-confounding construction is the more immediately usable result: any advertiser with one geo test and a three-year weekly spend panel can compute $\hat s\,b$ and $Q_{\min}$ today, tighten the long-run bound $4$--$7\times$, and treat an exploding $Q_{\min}$ as the first field detection of anticipatory spend. It is a concrete form of the experiment-as-likelihood-row idea of \cref{ch:transport}: the experiment constrains the short lags, the panel the tail, and the shared object is the kernel $\mu$.
+
+For theory the chapter joins three literatures the dive found unjoined---surrogate-index sensitivity (ACIK and the recent identified-set, persistent-confounding and efficiency work the dive surveys, none specialised to a dynamic panel with a brand-stock channel), completely monotone extrapolation (Brown and Grabovsky) and LP shape-restriction bounds (Mogstad, Santos and Torgovitsky)---and adds the observation that the confounding bias of a distributed lag has a shape identified by the spend autocorrelation. Outward links: \cref{ch:deadband} receives $[\mathrm{lo}, \mathrm{hi}](\mathrm{hl}_{\max})$ as an interval-valued posterior (\BL{41}); \cref{ch:voi} supplies the multi-pulse and switch designs that would resolve the lower bound's rate limit (\BL{38}); \cref{ch:panel} measures the memory kernel directly and could calibrate this chapter's bound.
+
+\section{Further exploration}
+
+The dive's next steps became five backlog items. \BL{37} asks for the exact chi-bar-square weights of the profile statistic on the completely monotone cone as a function of dictionary richness, so that 6.63 becomes a computed radius. \BL{38} is the $(G, H)$ frontier: since the lower bound is rate-resolution limited, two-pulse and switch designs and longer post-periods with \emph{fewer} geos at matched cost may buy it more cheaply than geos do. \BL{39} generalises the shape idea to AR(2) and two-state demand and lead-plus-lag families, with a $Q_{\min}$-driven selection rule and a derived null (linking \BL{4} and \BL{30}). \BL{40} adds a maximum-onset-lag index beside $\mathrm{hl}_{\max}$. \BL{41} feeds the interval into the act/hold protocol of \cref{ch:deadband}. The dive also proposes a field pilot with any advertiser holding one geo test and a three-year spend panel.
+
+In the compiler's judgement the most promising extension is \BL{38} joined to \BL{39}: the asymmetry result says the two ends of the interval are bought with different currencies, and the de-confounding construction says an observational panel is by far the cheapest currency for the tail. A design study treating post-period weeks, geos and panel length as one budget, with the shape family chosen by $Q_{\min}$, would turn the price of the long run from a lament into a purchase order. Second is \BL{37}, because every coverage number here rests on a constant whose theoretical status is unknown.
+
+\begin{reviewernote}[(compiler)]
+\textbf{Provenance.} The INDEX log line is stamped 2026-09-02 $\sim$04:50 but the file was written at 11:34 UTC, seven hours later, without explanation; Round 1 (box LP, ellipsoid, the refuted width law) was ``reconstructed from the code'' rather than from a writeup. Log line and writeup agree on every headline number I checked ($-28\%$, $+163\%$, $11.5 + 0.235\,L_{\mathrm{eff}}$, $\kappa$ 1.1--1.6, $1600 \times 52$, $4\times$, 0.47, $7\times$, 1.00, $-0.003$).
+
+\textbf{Replication counts.} Coverage ``1.00'' in \cref{surr:tab:joint} rests on 40 replications (E12); E22 (free-scale coverage 1.00), E23 and E24 use 20; E17, E18 and E21 use 25--30; the E13 power control uses one seed. Coverage 1.00 on 20 replications has a lower 95\% binomial limit near 0.83, indistinguishable from the 0.95 target. The headline width $1.36\times$ at $(400, 26)$ is the low end of the seed sweep's 1.36--1.45.
+
+\textbf{The calibrated radius.} $\mathrm{crit} = 6.63$ equals $\chi^2_1(0.99)$; it was calibrated on four $(\phi, G, H)$ configurations of construction 2 and applied unchanged to the joint problem \cref{eq:surr:joint}, whose boundary geometry differs (the dive concedes this); the E26 high-side failures were cured by the shape fix, not the radius, and 6.63 was never tested separately for the joint problem. \textbf{``$4\times$ more''} for ruling out a long-run effect is the grid step from $(1600, 52)$ at power 0.47 to $(6400, 52)$ at 1.00, not a matched-power computation.
+
+\textbf{Width law and sensitivity curve.} \cref{surr:law:width} was verified with noise-free $\hat\tau$ and the true $V$ from 1500 Monte Carlo draws---a setting no practitioner has---and each of the seven $\kappa$ values is a single deterministic evaluation (one $V$ per configuration), not a distribution. Recomputing $L_{\mathrm{eff}}$ from \cref{eq:surr:leff}, the fit $11.5 + 0.235\,L_{\mathrm{eff}}$ leaves residuals of $+1.1$ to $+1.3$ at $\mathrm{hl}_{\max} = 13$--$52$ (largest 1.3 at 26) and the seven points are visibly concave; the slope is an approximation.
+
+\textbf{The ACIK comparator.} The code implements the partial-$R^2$ bound as $|\mathrm{SI}|\sqrt{(1 - R^2_{W \mid S})(1 - R^2_{Y \mid S})}$, attributed to ``ACIK eq.\ 4.3'', with $R^2_{Y \mid S}$ at its population value. I could not confirm this form in the NBER version I checked, whose Theorem 4 states the bias as an average residual direct effect; the comparator's 81\% coverage is a property of the dive's rendering.
+
+\textbf{Small discrepancies.} $\hat\kappa = 1.50 \pm 0.29$ against ``about 1.2'' expected (E22) is a one-sigma miss the dive does not discuss; $Q_{\min} \approx 80$ against 63 degrees of freedom contains ``roughly $+8$ unexplained''. The surrogate-index algebra indexes weeks $1, \ldots, H$ while the code applies $\gamma$ to the first $H$ entries of the curve from week 0; the identity is unaffected. No FIM or pseudo-inverse enters the chapter, so \BL{82} does not apply.
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item Athey, S., Chetty, R., Imbens, G. and Kang, H. (2019). \emph{The Surrogate Index: Combining Short-Term Proxies to Estimate Long-Term Treatment Effects More Rapidly and Precisely}. NBER Working Paper 26463 (Review of Economic Studies, 2025). \url{https://www.nber.org/papers/w26463}
+\item Cinelli, C. and Hazlett, C. (2020). \emph{Making Sense of Sensitivity: Extending Omitted Variable Bias}. Journal of the Royal Statistical Society B 82(1), 39--67. \url{https://carloscinelli.com/files/Cinelli%20and%20Hazlett%20(2020)%20-%20Making%20Sense%20of%20Sensitivity.pdf}
+\item Hausdorff, F. (1921). \emph{Summationsmethoden und Momentfolgen I}. Mathematische Zeitschrift 9, 74--109.
+\item Brown, H. and Grabovsky, Y. (2024). \emph{On Feasibility of Extrapolation of Completely Monotone Functions}. SIAM Journal on Mathematical Analysis; arXiv:2401.15178. \url{https://arxiv.org/abs/2401.15178}
+\item Mogstad, M., Santos, A. and Torgovitsky, A. (2018). \emph{Using Instrumental Variables for Inference About Policy Relevant Treatment Parameters}. Econometrica 86(5), 1589--1619. \url{https://github.com/jkcshea/ivmte}
+\item Chernoff, H. (1954). \emph{On the Distribution of the Likelihood Ratio}. Annals of Mathematical Statistics 25(3), 573--578.
+\item Self, S. G. and Liang, K.-Y. (1987). \emph{Asymptotic Properties of Maximum Likelihood Estimators and Likelihood Ratio Tests Under Nonstandard Conditions}. Journal of the American Statistical Association 82(398), 605--610.
+\item Silvapulle, M. J. and Sen, P. K. (2005). \emph{Constrained Statistical Inference: Inequality, Order, and Shape Restrictions}. Wiley.
+\item Kallus, N., Puli, A. M. and Shalit, U. (2018). \emph{Removing Hidden Confounding by Experimental Grounding}. NeurIPS 31; arXiv:1810.11646. \url{https://arxiv.org/abs/1810.11646}
+\item Rosenman, E., Basse, G., Owen, A. and Baiocchi, M. (2023). \emph{Combining Observational and Experimental Datasets Using Shrinkage Estimators}. Biometrics; arXiv:2002.06708. \url{https://arxiv.org/abs/2002.06708}
+\item Shapiro, B. T., Hitsch, G. J. and Tuchman, A. E. (2021). \emph{TV Advertising Effectiveness and Profitability: Generalizable Results from 288 Brands}. Econometrica 89(4), 1855--1879. \url{https://onlinelibrary.wiley.com/doi/abs/10.3982/ECTA17674}
+\item Dub\'e, J.-P., Hitsch, G. J. and Manchanda, P. (2005). \emph{An Empirical Model of Advertising Dynamics}. Quantitative Marketing and Economics 3, 107--144. \url{https://link.springer.com/article/10.1007/s11129-005-0334-2}
+\item Lodish, L. M. et al.\ (1995). \emph{How T.V.\ Advertising Works: A Meta-Analysis of 389 Real World Split Cable T.V.\ Advertising Experiments}. Journal of Marketing Research 32(2), 125--139. \url{https://journals.sagepub.com/doi/abs/10.1177/002224379503200201}
+\item Binet, L. and Field, P. (2013). \emph{The Long and the Short of It}. IPA. \url{https://ipa.co.uk/knowledge/effectiveness-research-analysis/les-binet-peter-field}
+\item Frontier study (internal): \texttt{02\_open\_questions.md}, entry M5; \texttt{00\_INDEX.md}, queue item B6 and backlog entries \BL{37}--\BL{41}.
+\item Program (internal): \dive{02}, file \texttt{02\_experiment\_transport\_map.md} (operator likelihood); \dive{04}, file \texttt{04\_decision\_voi\_ext.md} (switch designs); \dive{08}/\dive{09} (deadband layer).
+\end{enumerate}
+\endgroup

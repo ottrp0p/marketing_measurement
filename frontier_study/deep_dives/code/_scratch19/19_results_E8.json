@@ -1,0 +1,16 @@
+{
+ "E8": {
+  "true_mROAS_spread_stall": [
+   0.1266213411831325,
+   0.12005237964309484
+  ],
+  "own_mROAS_spread_stall": 5.911012420275104e-16,
+  "true_mROAS_spread_explore": [
+   0.115857988966225,
+   0.110656933696629
+  ],
+  "own_mROAS_spread_explore": 5.451195050909519e-16,
+  "loss_stall": 0.13843914276306307,
+  "loss_explore": 0.1196636296605508
+ }
+}

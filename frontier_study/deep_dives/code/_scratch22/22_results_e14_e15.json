@@ -1,0 +1,36 @@
+{
+ "e14": {
+  "Itil / sd_data(alpha) / d / Psi0": "247.926 / 0.06351 / +6.4782 / 13.0123",
+  "prior sd tau (= sd_data, u=1)": "0.06351",
+  "break-even |delta*|": "0.11000",
+  "risk table header": "   delta       flat      fixed       test         eb",
+  "delta=0.0000 (0.0x d*)": "0.18085+-0.00183  0.05596+-0.00056  0.08773+-0.00156  0.08270+-0.00122",
+  "delta=0.0550 (0.5x d*)": "0.18140+-0.00179  0.08646+-0.00080  0.14705+-0.00153  0.12479+-0.00122",
+  "delta=0.1100 (1.0x d*)": "0.18255+-0.00182  0.18093+-0.00131  0.25230+-0.00163  0.20335+-0.00156",
+  "delta=0.1650 (1.5x d*)": "0.18185+-0.00182  0.33958+-0.00186  0.27258+-0.00230  0.23900+-0.00209",
+  "delta=0.2200 (2.0x d*)": "0.18375+-0.00180  0.56495+-0.00245  0.22707+-0.00253  0.23424+-0.00231",
+  "delta=0.3300 (3.0x d*)": "0.18712+-0.00184  1.20292+-0.00369  0.18782+-0.00188  0.20898+-0.00210",
+  "delta=0.5500 (5.0x d*)": "0.18324+-0.00182  3.23411+-0.00602  0.18324+-0.00182  0.19052+-0.00190",
+  "--- worst-case (max over delta) risk ratio vs flat ---": "",
+  "   fixed: max risk / flat risk (at delta/d*)": "25.3625  (at 6.00x d*)",
+  "   test: max risk / flat risk (at delta/d*)": "1.5327  (at 1.38x d*)",
+  "   eb: max risk / flat risk (at delta/d*)": "1.3234  (at 1.54x d*)",
+  "--- average risk over delta ~ N(0, tau^2) (the calibrated case) ---": "",
+  "   flat": "0.183394",
+  "   fixed": "0.096980",
+  "   test": "0.147651",
+  "   eb": "0.127124"
+ },
+ "e15": {
+  "--- deadband h*=0.4367 ---": "",
+  "  b=0.05: excess bias / noise / pi": "0.001250 / 0.001254 / pi=0.997 +- 0.003",
+  "    b=0.05 quad-loss bias/noise, move-cost bias/noise": "0.001250 / 0.001254  ,  0.000000 / 0.000000",
+  "  b=0.10: excess bias / noise / pi": "0.005000 / 0.005017 / pi=0.997 +- 0.003",
+  "    b=0.10 quad-loss bias/noise, move-cost bias/noise": "0.005000 / 0.005017  ,  0.000000 / 0.000000",
+  "  b=0.20: excess bias / noise / pi": "0.020000 / 0.020069 / pi=0.997 +- 0.003",
+  "    b=0.20 quad-loss bias/noise, move-cost bias/noise": "0.020000 / 0.020069  ,  0.000000 / 0.000000",
+  "  b=0.40: excess bias / noise / pi": "0.080000 / 0.080275 / pi=0.997 +- 0.003",
+  "    b=0.40 quad-loss bias/noise, move-cost bias/noise": "0.080000 / 0.080275  ,  0.000000 / 0.000000",
+  "--- act-always h=0 [POWER CONTROL] ---": ""
+ }
+}

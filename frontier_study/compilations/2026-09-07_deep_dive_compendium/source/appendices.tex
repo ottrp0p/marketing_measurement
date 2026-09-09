@@ -1,0 +1,67 @@
+\chapter{The open-problem ledger}
+\label{app:ledger}
+
+The program's rule 5 requires every dive that discovers a new open problem to append it to the backlog with a
+one-line rationale. Eighty-eight such items existed at compilation. \Cref{tab:ledger} lists them in numerical
+order with the dive that opened each, its status on 2026-09-07 as recorded in the index (``resolved'',
+``priced'' and ``discharged'' are the index's own words; ``partly'' marks items the index says were advanced
+but not closed), and the chapter of this compendium in which the item is discussed. The one-line rationales
+are in the chapters' ``Further exploration'' sections; the index file carries the full text.
+
+Fourteen items were closed by later dives: \BL{1}, \BL{2}, \BL{73} and \BL{75} by the Phase~D identification
+chain; \BL{5} and \BL{6} by \dive{04}; \BL{20} by \dive{08}; \BL{21} by \dive{09}; \BL{42} by \dive{14};
+\BL{57} and \BL{58} by \dive{19} (\BL{56} partly); \BL{70} was priced rather than solved by \dive{21}; and
+\BL{82} was discharged for dives 20--22 only. The index names three candidates for run 23: computing the
+shape-prior ledger on a real fitted MMM's Hessian together with the flighting-calendar rank audit
+(\BL{81} + \BL{74} + \BL{86}), the response-curve estimand for prior pricing (\BL{85}), and intermodulation
+under synergy (\BL{79}).
+
+\small
+\input{ledger_table.tex}
+\normalsize
+
+\chapter{The program's protocol}
+\label{app:protocol}
+
+The rules below are those recorded in the program's index file; they are reproduced so that the epistemic
+labels used throughout this compendium can be read against the standard each dive was held to.
+
+\begin{enumerate}[leftmargin=2em]
+\item Work the queue in order, one item per run. Sequence numbers are permanent and zero-padded.
+\item Every fourth run is an EXTEND run: instead of a new item, revisit the prior dive with the most promising
+``next steps'' section and push it further (deeper derivation, better simulation, stronger counterexample,
+more complete design). Extensions get their own sequence number with the same slug and the suffix \texttt{\_ext}.
+\item Depth standard (full protocol, as of run 03): formalise mathematically with explicit assumptions; run a
+parallel literature subagent at dive start; a minimum of three construct--attack--refine rounds, iterating
+until two consecutive rounds produce no material revision; at least eight numerical experiments including at
+least two robustness sweeps and at least one negative or power control; uncertainty estimates on every
+headline number and a devil's-advocate paragraph against every headline claim; a clean-room verification
+subagent re-derives at least one core result before write-up; established results are separated from
+speculation with clear labels. Write-ups include the attack-and-refine history.
+\item Each dive ends with ``Next steps for a future session''---the hook extensions build on.
+\item If a dive discovers a new open problem, append it to the queue backlog with a one-line rationale.
+\end{enumerate}
+
+Two consequences for the reader. Dives 01 and 02 predate the full protocol (rule 3 was adopted ``as of run
+03''): they have no attack-and-refine history and no clean-room verification, which the reviewer notes of
+\cref{ch:identification,ch:transport} take into account. And the ``clean-room'' verifier is a second
+automated agent given only the claim and the model, not an independent human; its reproductions to machine
+precision establish that a derivation is internally consistent under the stated model, not that the model
+describes any market.
+
+\chapter{File inventory}
+\label{app:files}
+
+Everything in this compendium derives from the following files, as they stood on the user's disk at
+2026-09-07 (timestamps in \cref{tab:provenance}). Paths are relative to
+\texttt{marketing\_measurement/frontier\_study/}.
+
+\begingroup\raggedright
+\begin{itemize}[leftmargin=1.2em,itemsep=1pt]
+\item Framing documents: \texttt{README.md}, \texttt{01\_state\_of\_the\_field.md}, \texttt{02\_open\_questions.md}, \texttt{03\_mmm\_adoption\_barriers.md}.
+\item Bibliographies: \texttt{resources/math\_stats.md}, \texttt{resources/engineering\_scale.md}, \texttt{resources/human\_wisdom.md}, \texttt{resources/mmm\_adoption\_barriers.md}, \texttt{resources/repos\_and\_tools.md}, \texttt{resources/books\_and\_institutes.md}.
+\item Program index: \texttt{deep\_dives/00\_INDEX.md} (queue, backlog, log).
+\item Dive reports: \texttt{deep\_dives/01\_mmm\_identified\_set.md} through \texttt{deep\_dives/22\_price\_of\_the\_prior.md} (twenty-two files; see \cref{tab:provenance}).
+\item Code and results: \texttt{deep\_dives/code/NN\_<slug>.py} for each dive, with result files \texttt{17\_results\_quick.json}, \texttt{18\_results\_quick.json}, \texttt{19\_results\_all.json}, \texttt{22\_results.json}, the \texttt{20\_*.json} experiment outputs, and the scratch directories \texttt{\_scratch19/} and \texttt{\_scratch22/}. The code was consulted to disambiguate formulas and numbers; nothing was re-run for this compendium.
+\end{itemize}
+\endgroup

@@ -1,0 +1,281 @@
+% ===========================================================================
+% Chapter: Transporting lift tests into MMM parameters (dive 02)
+% ===========================================================================
+\chapter{Transporting lift tests into MMM parameters}
+\label{ch:transport}
+
+\begin{provenance}
+\textbf{Source dives:} \dive{02} \emph{A formal transport map from lift tests to MMM parameters (M2)} (run 2026-08-31, file \texttt{02\_experiment\_transport\_map.md}, last written 2026-08-31 23:14 UTC).
+\textbf{Code:} \texttt{code/02\_experiment\_transport\_map.py}.
+\textbf{Frontier-study problem(s) addressed:} M2 --- write the Pearl--Bareinboim selection diagram for experiment-to-MMM calibration, derive when the experimental functional identifies the model functional, characterise the correction terms (adstock truncation, saturation-point mismatch), and handle several experiments as a joint, correlated posterior over the ROAS vector.
+\textbf{Backlog items closed:} none; \textbf{opened:} \BL{3} (calibration under misspecification), \BL{4} (a specification test for transport).
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item In the selection diagram for experiment-to-MMM transport the effect of spend is \emph{not} nonparametrically transportable; every calibration rests on a parametric \emph{shape-invariance} assumption, under which transport is mediated by $\theta$ and nothing licenses the scalar map iROAS $\to$ model ROI.
+\item Exact identity $\iROAS(d) = m_\infty(\theta)\,\rho\,C\,Q$ with closed-form window capture $C = 1 - \alpha^{P+1}(1-\alpha^{T_e})/(T_e(1-\alpha))$ (verified to $9\times10^{-7}$): a 4-week test on an $\alpha = 0.8$ channel analysed to test end observes 41\% of the sales it caused.
+\item Naive calibration is \emph{precisely wrong}: iROAS as a prior on marginal ROAS gives $-43.0\%$ median bias (theory $-43.8\%$) at the tightest spread of any mode (IQR 0.016), and flips to $+67.3\%$ when the test runs in geos at half the national spend.
+\item The \emph{operator} likelihood $\hat L \sim \mathcal N(\mathcal E_d(\theta), \mathrm{se}^2)$, which simulates the experiment's design inside the model, needs no correction factors, halves the uncalibrated curve error, wrecks no fits and has $65\times$ lower median decision loss than the ROI-prior mode.
+\item A scalar iROAS carries rank-1 Fisher information; the per-period trajectory of the same experiment carries rank 4 (standalone SE 0.20 on $\alpha$); joint correlated posteriors over many experiments come free from entering each as a likelihood row on the shared $\theta$.
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+An incrementality experiment measures a finite-horizon intention-to-treat effect of a specific spend change, at a specific operating point on the response curve, in a specific subpopulation, over a specific window. An MMM parameter---an average or marginal return on spend---is a steady-state structural quantity for the target population. Calibration practice equates the two: the experiment's incremental ROAS (iROAS) and its standard error become the mean and standard deviation of a prior on the model's ROI. Practitioners document the symptom (``reconciliation headaches rather than trust-building calibration'' when the experiment's KPI, geography or window differ from the model's; warnings that experiment-derived priors ``transfer bias across non-comparable populations'') without the mechanism. Problem M2 asked for the mechanism: instantiate the Pearl--Bareinboim transportability calculus, derive the exact map between the experimental and model functionals, characterise the correction terms, and say how several experiments should enter one posterior.
+
+\dive{02} answers all four parts in the single-channel adstock/Hill model of \cref{ch:identification}: a negative theorem, an exact three-factor identity with a closed form for its largest factor, a Monte Carlo demonstration that the standard shortcut is biased by tens of percent while \emph{appearing} more certain than any alternative, and a constructive fix---calibrate on the experiment's design, not on a renamed scalar---that is the marketing form of indirect inference. The dive predates the program's attack-and-refine protocol (see the reviewer's note).
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{Selection diagrams and transportability (Pearl and Bareinboim, 2011, 2014, 2016)}
+
+Transportability asks when a causal relation learned in a source population $\Pi$ (where an experiment ran) can be carried to a target $\Pi^\star$ (where only observational data exist). Starting from the causal diagram $G$ the two share, a \emph{selection diagram} adds a selection node $S_i \to V_i$ for every variable whose generating mechanism may differ between populations; the absence of an $S$-node asserts invariance. Writing $P^\star(v) = P(v \mid s^\star)$, the target effect $P^\star(y \mid do(x))$ is \emph{transportable} if it is uniquely computable from the source experimental distribution $P(y \mid do(x))$ and target observational data $P^\star(v)$. The simplest sufficient condition is \emph{s-admissibility}: if pre-treatment covariates $Z$ satisfy $(Y \perp S \mid X, Z)$ in $G_{\bar X}$ (arrows into $X$ removed) then
+\begin{equation}
+P^\star(y \mid do(x)) = \sum_z P(y \mid do(x), z)\,P^\star(z),
+\label{eq:transport:formula}
+\end{equation}
+the \emph{transport formula}: experimental conditional effects re-weighted by the target's covariate distribution. The complete characterisation (Pearl and Bareinboim, 2011, 2014) is that $P^\star(y \mid do(x))$ is transportable if and only if $P(y \mid do(x), s)$ can be reduced by do-calculus to an expression in which $S$ appears only in do-free terms; the 2016 PNAS paper extends this to fusing many sources. The negative side matters here: if an $S$-node points directly into the outcome $Y$ and nothing observed screens it off, no derivation exists and the effect is not transportable without parametric assumptions.
+
+\subsection{The geometric-adstock, Hill-saturation MMM (Jin et al., 2017)}
+
+The Bayesian MMM modern packages descend from models a KPI as baseline plus, per channel, a \emph{carryover} transform followed by a \emph{shape} transform of spend $x_t$. Carryover is geometric adstock, $a_t = x_t + \alpha a_{t-1}$ (a unit of spend contributes $\alpha^l$ after $l$ periods); the shape is the Hill function
+\begin{equation}
+h(a; K, S) = \frac{a^S}{a^S + K^S},
+\label{eq:transport:hill}
+\end{equation}
+with half-saturation $K$ and slope $S$, convex below its inflection $a^\dagger = K((S-1)/(S+1))^{1/S}$ and concave above; the channel contributes $\beta h(a_t)$ with $\beta$ the sales ceiling. Jin et al.\ show that with weekly national data the likelihood is flat along ridges in $(\alpha, K, S)$ and posteriors are prior-dominated (\cref{ch:identification} gives the mathematics). At steady spend $\bar x$ the adstock settles at $\bar a = \bar x/(1-\alpha)$; the business consumes the \emph{average ROAS} $\beta h(\bar a)/\bar x$ and the \emph{steady-state marginal ROAS} $m_\infty = \beta h'(\bar a)/(1-\alpha)$, the long-run sales per extra unit of sustained spend.
+
+\subsection{What ``calibrating to a lift test'' means in practice}
+
+\emph{Meridian} (Google) follows Zhang, Wurm et al.\ (2024): the model is reparameterised so the prior sits not on the coefficient $\beta_m$ but on the channel's ROI (incremental KPI over the data window divided by spend), $\beta_m$ becoming a deterministic function of ROI and the other parameters; a lift experiment supplies the mean and standard deviation of a lognormal ROI prior (an mROI variant, the return to a small spend increase, is also offered). The documentation concedes ``there is no single formula to translate an experiment result into a prior''. \emph{Robyn} (Meta; Runge et al., 2024) is a ridge MMM whose adstock and saturation hyperparameters come from an evolutionary search over a Pareto front; calibration enters as a third objective, the discrepancy (MAPE.LIFT) between the model's decomposed channel contribution over the experiment's date window and the experiment's absolute lift. \emph{PyMC-Marketing} holds the strongest prior art: a lift test with baseline $x$ and change $\Delta x$ enters the posterior as a Normal likelihood on the \emph{static saturation secant} $\beta[s(x + \Delta x) - s(x)]$---exact on curvature, but with no adstock dynamics, window truncation or population selection (Orduz's simulation study works in the same spirit).
+
+\subsection{Indirect inference (Gouri\'eroux, Monfort and Renault, 1993)}
+
+When a structural model can be simulated but its likelihood is awkward, indirect inference fixes an \emph{auxiliary} statistic $\hat\beta$, defines the \emph{binding function} $b(\theta)$ as the value that statistic takes on data simulated from the model at $\theta$, and sets $\hat\theta = \argmin_\theta (\hat\beta_{\mathrm{obs}} - b(\theta))^\T\Omega(\hat\beta_{\mathrm{obs}} - b(\theta))$. The auxiliary quantity is never \emph{equated} with a structural parameter, even one of the same name; the model is asked what value of the statistic it would produce, and that is matched. Under misspecification the estimator converges to a pseudo-true value.
+
+\subsection{The adstock transient as a dose-ranging sweep (\cref{ch:identification}; Heusch, 2026)}
+
+\dive{01} found that a two-level spend design identifies all four parameters through its \emph{transitions}: each step drags $a_t$ along a known exponential path, tracing an arc of the Hill curve, and discarding transient observations collapses the smallest Fisher eigenvalue about $700\times$. Heusch (2026) recovers adstock, saturation and effectiveness structurally from the temporal variation a geo experiment induces by the same fact. \cref{transport:prop:rank} applies the observation to what an experiment \emph{reports}.
+
+\section{Setup and assumptions}
+
+The model is that of \cref{ch:identification}: $y_t = \beta\,h(a_t; K, S) + \varepsilon_t$, $a_t = x_t + \alpha a_{t-1}$, $\varepsilon_t \sim \mathcal N(0, \sigma^2)$, $\theta = (\beta, K, S, \alpha)$, working point $\theta_0 = (1, 1.5, 2, 0.6)$, national mean spend $\bar x = 1$ (so $\bar a = 2.5$), $\sigma = 0.05$. Subscripts $\star$ and $e$ mark the target domain $\Pi_\star$ (national, business-as-usual spend) and the experiment domain $\Pi_e$ (a subpopulation over a window).
+
+\begin{definition}[Design and functionals]
+\label{transport:def:design}
+A design is $d = (\bar x_e, \{\delta_t\}_{t < T_e}, W = T_e + P)$: baseline spend $\bar x_e$ in the experiment geos, a pulse $\delta_t$ for $T_e$ periods, and a window of $W$ periods extending $P$ periods past the pulse. The \emph{experiment functional} is the model-implied total incremental KPI over the window,
+\begin{equation}
+\mathcal E_d(\theta) = \beta_e \sum_{t \in W}\Big[h\big(a_t(x_e + \delta)\big) - h\big(a_t(x_e)\big)\Big], \qquad
+\iROAS(d) = \frac{\mathcal E_d(\theta)}{\sum_t \delta_t},
+\label{eq:transport:Ed}
+\end{equation}
+where $x_e$ is the baseline spend path (constant at $\bar x_e$) and adstock starts at its steady state $\bar x_e/(1-\alpha)$; the experiment reports an estimate $\hat L$ of $\mathcal E_d$ with standard error se. The \emph{model functionals} are $m_\infty(\theta) = \beta_\star h'(\bar a_\star)/(1-\alpha)$ and the average ROAS $\beta_\star h(\bar a_\star)/\bar x_\star$. $\Delta a_t$ and $\Delta h_t$ denote the adstock and Hill differences the pulse induces.
+\end{definition}
+
+\begin{assumption}[Shape invariance]
+\label{transport:ass:shape}
+$(K, S, \alpha)$ are shared between $\Pi_e$ and $\Pi_\star$; only $\beta$ (and seasonality/demand) may differ.
+\end{assumption}
+
+\begin{assumption}[Internal validity and model family]
+\label{transport:ass:internal}
+$\hat L$ is unbiased for the intention-to-treat effect under $do(X)$ (no contamination or spillover); adstock is geometric and, for the closed form of $C$, the pulse is uniform.
+\end{assumption}
+
+\section{Main results}
+
+\subsection{No nonparametric transport: all calibration is parametric}
+
+The shared graph is $X_t \to A_t \to Y_t$ with an unobserved demand state $U \to X_t$, $U \to Y_t$ (severed by $do(X)$ in $\Pi_e$), plus three selection nodes: $S_\beta \to Y$ (effectiveness differs by geo), $S_x \to X$ (operating point differs), $S_g \to Y$ (seasonality and demand differ).
+
+\begin{proposition}[Non-transportability]
+\label{transport:prop:nontransport}
+\tagEstablished\ In this selection diagram the causal effect of spend on sales is not nonparametrically transportable from $\Pi_e$ to $\Pi_\star$: no do-calculus derivation of $P^\star(y \mid do(x))$ from $P(y \mid do(x))$ and $P^\star(v)$ exists.
+\end{proposition}
+
+$S_\beta$ points directly into the outcome mechanism and nothing observed screens it off, so $P(y \mid do(x), s)$ cannot be made $s$-free. The dive calls this ``direct from established theory, but worth stating sharply'' because of its consequence: every experiment-to-MMM calibration rides on a parametric invariance assumption, usually the implicit \cref{transport:ass:shape}. Under it the experiment \emph{is} informative about $\theta$ and all transport is $\theta$-mediated (experiment $\to$ likelihood on $\theta$ $\to$ any target functional). Nothing licenses a scalar map from iROAS to a model ROI; the identity below prices that shortcut.
+
+\subsection{The transport identity}
+
+\begin{theorem}[Transport identity]
+\label{transport:thm:identity}
+\tagEstablished\ For any design $d$ and any $\theta$,
+\begin{equation}
+\iROAS(d) = m_\infty(\theta)\cdot\underbrace{\rho}_{\text{selection}}\cdot\underbrace{C(\alpha; T_e, P)}_{\text{window capture}}\cdot\underbrace{Q(\delta, \bar a_e; \theta)}_{\text{curvature/secant}},
+\label{eq:transport:identity}
+\end{equation}
+with $\rho = \beta_e h'(\bar a_e)/(\beta_\star h'(\bar a_\star))$, $C = (1-\alpha)\sum_{t \in W}\Delta a_t/\sum_t \delta_t$ and $Q = \sum_t \Delta h_t/(h'(\bar a_e)\sum_t \Delta a_t)$.
+\end{theorem}
+
+The identity is exact because $Q$ absorbs the remainder by definition; its content is the closed forms and the naming of three mechanisms. The derivation is two lines: $\mathcal E_d = \beta_e h'(\bar a_e)\,Q\sum_t\Delta a_t$ and $\sum_t \Delta a_t = C\sum_t\delta_t/(1-\alpha)$ by the definitions, so $\iROAS = \beta_e h'(\bar a_e)CQ/(1-\alpha) = m_\infty\rho CQ$.
+
+\begin{lemma}[Window capture, closed form]
+\label{transport:lem:C}
+\tagEstablished\ For a uniform pulse of length $T_e$ and a window of $T_e + P$ periods,
+\begin{equation}
+C(\alpha; T_e, P) = 1 - \frac{\alpha^{P+1}\,(1-\alpha^{T_e})}{T_e\,(1-\alpha)}.
+\label{eq:transport:C}
+\end{equation}
+\end{lemma}
+
+$C$ is the fraction of the pulse's infinite-horizon adstock response that falls inside the window ($T_e = 1$ gives the folklore $1 - \alpha^{P+1}$); it follows by summing each impulse's in-window contribution $(1-\alpha^{W-s})/(1-\alpha)$ over $s < T_e$. The magnitudes are the practical point (\cref{transport:tab:C}): a 4-week test on an $\alpha = 0.8$ channel analysed only through test end has $C = 0.41$---it observes 41\% of the incremental sales it caused; at $\alpha = 0.9$, $C = 0.23$. Common practice (short tests, high-carryover channels, no post-period) bakes a 2.5--4$\times$ understatement of the long-run effect into the ``ground truth'' before any modelling starts.
+
+\begin{proposition}[Curvature/secant factor]
+\label{transport:prop:Q}
+\tagEstablished\ To second order in the pulse,
+\begin{equation}
+Q \approx 1 + \frac{h''(\bar a_e)}{2h'(\bar a_e)}\cdot\frac{\sum_t \Delta a_t^2}{\sum_t \Delta a_t},
+\label{eq:transport:Q}
+\end{equation}
+a transient-weighted generalisation of the static secant, which is the $\alpha \to 0$ case.
+\end{proposition}
+
+The sign of $Q - 1$ is that of $h''(\bar a_e)$: above the inflection $a^\dagger$ the experiment under-states the marginal slope ($Q < 1$); below it, as for a test in low-spend geos, it over-states ($Q > 1$). The expansion is accurate to under 2\% for $\delta/\bar x \le 0.25$ but fails for big tests (at $\bar a/K = 1.67$, $\delta = \bar x$: exact $Q = 0.51$ versus 0.17), so large pulses need exact evaluation. The \emph{selection factor} $\rho$ is an effectiveness ratio times an operating-point slope ratio: even with $\beta_e = \beta_\star$, a test in geos with $\bar a_e < \bar a_\star$ has $\rho > 1$, sitting on a steeper part of the curve.
+
+\begin{example}[Three numbers a practitioner might equate]
+\label{transport:ex:three}
+At $\theta_0$ with a $+50\%$, 8-week test analysed to test end ($P = 0$, $\rho = 1$): $\iROAS = 0.219$, $m_\infty = 0.389$, average ROAS $= 0.735$---a spread of $3.4\times$ in a fully standard setting. By arithmetic from these figures $CQ = 0.563$, and $C = 0.816$ from \cref{eq:transport:C}, so $Q = 0.69$: truncation and secant contribute comparably.
+\end{example}
+
+\subsection{The operator fix: calibrate on the design, not on a renamed scalar}
+
+\begin{construction}[Operator likelihood]
+\label{transport:con:operator}
+\tagEstablished\ (Novel for MMM; indirect inference in spirit.) Add to the MMM posterior the likelihood term
+\begin{equation}
+\hat L \sim \mathcal N\big(\mathcal E_d(\theta),\ \mathrm{se}^2\big),
+\label{eq:transport:operator}
+\end{equation}
+where $\mathcal E_d(\theta)$ of \cref{eq:transport:Ed} simulates the experiment's actual design inside the model at every posterior draw: baseline path, delta path, adstock transient, window truncation, experiment-geo operating point.
+\end{construction}
+
+No correction factors are needed because nothing is transported scalar-to-scalar; $C$, $Q$ and $\rho$ are computed implicitly and exactly at each $\theta$. In indirect-inference terms the experiment's estimator is the auxiliary statistic and $\mathcal E_d$ its binding function; PyMC-Marketing's secant likelihood is the static ($\alpha = 0$, full-window, no-selection) special case. The cost is that the experiment report must carry its design, not just $(\iROAS, \mathrm{se})$: the \emph{calibration header} of \cref{transport:tab:header}, every field of which the experimenter already has. Reporting the total lift with the design attached makes the result transport-safe; reporting the trajectory upgrades a rank-1 constraint to rank 4 (\cref{transport:prop:rank}).
+
+\begin{table}[htbp]
+\centering\small
+\caption{The calibration header: design metadata an experiment must ship for $\mathcal E_d(\theta)$ to be computable (\dive{02} \S4).}
+\label{transport:tab:header}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+Field & Content and purpose \\
+\midrule
+channel, kpi & model channel id; KPI must match the model's $y$ \\
+baseline\_spend\_path & per-period spend in the experiment geos (not just the mean): fixes $\bar a_e$, $\rho$ \\
+delta\_spend\_path & per-period pulse $\delta_t$: fixes $Q$ and, with the window, $C$ \\
+window, post\_period\_len & start, end, $P$: fixes the truncation \\
+population & geo ids or share-of-country weights, baseline spend share: fixes selection \\
+estimate & $(\hat L, \mathrm{se})$ as total incremental KPI, \emph{not} iROAS \\
+trajectory (optional) & per-period treated-minus-control with $\mathrm{se}_t$: rank 1 becomes rank 4 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{The scalar summary discards identifying power; joint posteriors are free}
+
+\begin{proposition}[Rank of the experimental information]
+\label{transport:prop:rank}
+\tagNumerical\ At $\theta_0$, for an 8-week pulse ($\delta = 0.5$, $\bar x_e = 1$) with 6 post-periods and per-period noise 0.05 on the differenced treated-minus-control series, the Fisher information from the full trajectory has rank 4, eigenvalues $(2.7\times10^{-5},\ 0.059,\ 7.8,\ 577)$, and a standalone Cram\'er--Rao SE of 0.20 for $\alpha$; the Fisher information from the scalar iROAS of the same experiment has rank 1.
+\end{proposition}
+
+A single number constrains one direction in $\theta$-space and carries no separate information about $\alpha$; the trajectory shows ramp-up and decay (hence $\alpha$) and its transient traces an arc of the Hill curve. The dive's corollary: $k$ scalar summaries constrain $k$ directions, so scalar calibration under shape invariance needs at least three well-separated designs plus the observational level to point-identify $(\beta, K, S, \alpha)$; trajectory calibration needs one experiment.
+
+\begin{corollary}[Joint, correlated posterior]
+\label{transport:cor:joint}
+\tagEstablished\ Because each experiment enters as a likelihood row \cref{eq:transport:operator} on the shared $\theta$, the posterior over any vector of derived ROAS quantities is automatically jointly correlated: the joint posterior M2 asks for is a consequence of refusing to convert experiments into independent per-channel scalar priors.
+\end{corollary}
+
+Two experiments on one channel at different deltas jointly constrain $(K, S)$ in a way two independent ROI priors cannot express---they would simply conflict, and \cref{transport:sec:numerics} shows what conflict does.
+
+\section{Numerical evidence}
+\label{transport:sec:numerics}
+
+\emph{Experiment A} compares \cref{eq:transport:C} with brute-force simulation of an infinitesimal pulse ($\delta = 10^{-6}$) on the grid of \cref{transport:tab:C}---$\alpha \in \{0.3, 0.6, 0.8, 0.9\}$ and six $(T_e, P)$ pairs spanning $T_e = 1$ to $13$ and $P = 0$ to $26$---with maximum discrepancy $9\times10^{-7}$. \emph{Experiment B} compares exact $Q$ with \cref{eq:transport:Q} at $\bar a/K \in \{0.5, 1, 1.67, 2.5\}$ and $\delta/\bar x \in \{0.1, 0.25, 0.5, 1\}$, giving the accuracy statements after \cref{transport:prop:Q}. \emph{Experiment D} computes the Fisher matrices of \cref{transport:prop:rank} by finite differences of the model-implied 14-period trajectory and of its sum (whose variance is $W$ times the per-period variance).
+
+\begin{table}[htbp]
+\centering\small
+\caption{Window-capture factor $C(\alpha; T_e, P)$ from \cref{eq:transport:C} on the Experiment A grid, where the closed form matches simulation to $9\times10^{-7}$. Columns are (pulse length $T_e$, post-period $P$) in weeks.}
+\label{transport:tab:C}
+\begin{tabular}{lcccccc}
+\toprule
+$\alpha$ & (1, 0) & (4, 0) & (8, 0) & (8, 4) & (8, 26) & (13, 8) \\
+\midrule
+0.3 & 0.700 & 0.894 & 0.946 & 1.000 & 1.000 & 1.000 \\
+0.6 & 0.400 & 0.674 & 0.816 & 0.976 & 1.000 & 0.998 \\
+0.8 & 0.200 & 0.410 & 0.584 & 0.830 & 0.999 & 0.951 \\
+0.9 & 0.100 & 0.226 & 0.359 & 0.580 & 0.959 & 0.778 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\emph{Experiment C} is the head-to-head of calibration modes. Each of 60 replications draws a weakly identifying national series ($T = 104$ weeks, AR(1) log-spend with about $\pm10\%$ variation, $\sigma = 0.05$) and one well-powered experiment ($\bar x_e = 1$, $\delta = 0.5$, $T_e = 8$, $P = 0$, se $= 5\%$ of the true lift). Four modes are fitted by multistart least squares, the calibration entering as one extra standardised residual: \emph{uncalibrated}; \emph{naive-avg} (Meridian-style, $\widehat{\iROAS}$ centring a prior on average ROAS $\beta h(\bar a)$); \emph{naive-marg} ($\widehat{\iROAS}$ centring a prior on $m_\infty$); \emph{operator} (\cref{eq:transport:operator}). Metrics: median relative bias and IQR of $\hat m_\infty$; median maximum error of the fitted response curve over $x \in [0.05, 2.5]$ (units of the sales ceiling); share of ``wrecked'' replications (curve error above 0.5); median profit loss from allocating at the fitted optimum (margin 3).
+
+\begin{table}[htbp]
+\centering\small
+\caption{Experiment C, matched operating point: 60 Monte Carlo replications, $T = 104$, one experiment with se $= 5\%$ of lift. Medians; the dive reports no Monte Carlo standard errors.}
+\label{transport:tab:modes}
+\begin{tabular}{lccccc}
+\toprule
+Mode & $m_\infty$ median bias & $m_\infty$ IQR & med.\ max curve err. & wrecked reps & med.\ profit loss \\
+\midrule
+uncalibrated & $-7.4\%$ & 0.108 & 0.262 & 3\% & 0.0057 \\
+naive-avg & $+4.0\%$ & 0.301 & 0.228 & 30\% & 0.1368 \\
+naive-marg & $-43.0\%$ & 0.016 & 0.352 & 12\% & 0.0212 \\
+operator & $-3.8\%$ & 0.093 & 0.124 & 0\% & 0.0021 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Four findings follow. First, theory predicts the naive bias to within a point: with $\rho = 1$, $CQ\rho - 1 = -43.8\%$ against $-43.0\%$ observed. Second, naive calibration is \emph{precisely wrong}: naive-marg has the tightest spread of any mode (IQR 0.016, about $7\times$ tighter than the uncalibrated fit) centred 43\% off the truth---calibration bought confidence, not accuracy, the quantitative form of the adoption study's ``precision theatre'', produced here by the sophisticated method. Third, naive-avg creates likelihood \emph{conflict}, not bias: the iROAS (0.219) contradicts the observational sales level $\beta h(\bar a) = 0.735$ that 104 weeks of data pin down; the data win on the level but the fit escapes along the identification ridge, 30\% of replications end with a wrecked curve, and median profit loss is $65\times$ the operator's. This is the mechanism behind the reconciliation headaches: the two evidence sources are made to disagree by the transport error itself. Fourth, the operator dominates everywhere.
+
+The \emph{operating-point mismatch} variant reruns the design with the test in geos at 50\% of national spend ($\bar x_e = 0.5$, $\delta = 0.25$). Naive-marg flips to $+67.3\%$ bias (theory $+72.5\%$): same pipeline, opposite sign, depending on where the test happened to run. The operator's median curve error \emph{improves} to 0.048 (from 0.124 matched): through the correct map an off-operating-point experiment is more informative, because it probes the curve where it bends; through the naive map it is more toxic.
+
+\section{Limitations and the devil's advocate}
+
+The dive's own counterarguments are five. \emph{Shape invariance is an assumption, not a result}: if $(K, S, \alpha)$ differ between the experiment geos and the nation the operator transports incorrectly too; unlike the naive map it makes the assumption explicit and testable (two experiments in different strata over-determine the shared shape), but hierarchical $\beta_g$ only partially absorbs $S_\beta$ and nothing absorbs an $S_K$ node without multi-stratum experiments (\BL{4}). \emph{Misspecification transfers}: if the true adstock is delayed-peak and the model geometric, the operator matches the experiment by distorting $\theta$ to pseudo-true values; naive calibration is also wrong in that case (\BL{3}). \emph{Internal validity is taken as given}: contamination, spillover and control-market disruption are upstream. \emph{The closed form for $C$ assumes geometric adstock and a uniform pulse}; non-uniform pulses need the per-impulse sum, and sales-lag dynamics beyond adstock are not modelled. \emph{Experiment C uses MAP-style point fits}, not posteriors; the ``precisely wrong'' IQR should be re-confirmed with MCMC widths, expected to be starker. No attack-and-refine round changed a result, because none was run.
+
+\section{Discussion: impacts}
+
+For practice the message is that the object a lift test should hand to an MMM is a \emph{design plus a total}, not a number. Every current mechanism loses something: Meridian's ROI prior transports a scalar into a parameter measuring a different quantity (\cref{transport:ex:three} shows a $3.4\times$ gap at the working point); Robyn's MAPE.LIFT compares a windowed contribution but as an objective to trade off rather than a likelihood; PyMC-Marketing's secant is the operator with $\alpha = 0$ and no window. The operator is a small change to any of them---a forward simulation of the design at each draw---and the calibration header is the interface change that enables it. The identity also lets an experimentation platform report what it has \emph{not} measured, since $C$ follows from its own window and the channel's retention.
+
+For CMO decision-making the ``precisely wrong'' finding is the sharper lesson: naive-marg is the mode a careful analyst would prefer on the evidence in front of them---the tightest interval---and it is the most biased. Conversely, the mismatch variant turns a governance liability (tests run wherever politics allows) into an asset under the correct map.
+
+For theory the chapter settles M2's first three parts in the parametric setting and shows the fourth to be free. Outward links: \cref{ch:voi} uses $\mathcal E_d(\theta)$ as the forward map of its value-of-information design chooser and finds the average-ROI level that Meridian-style priors chiefly move nearly worthless for fixed-budget allocation, while \dive{04} finds the rank-4 trajectory information does \emph{not} project onto the cross-channel contrasts that decision needs (decision-value index 0.29 $\to$ 0.30): the trajectory identifies the channel, not the allocation. \cref{ch:fusion} ingests experiments through the operator in a closed loop; \cref{ch:aggregation} proposes de-biasing nationally fitted $(K, S)$ before operator transport (\BL{17}); \cref{ch:panel} would transport a panel-measured memory kernel through the same likelihood (\BL{61}).
+
+\section{Further exploration}
+
+Of the dive's six next steps, two became backlog items: the misspecification study (\BL{3}: delayed-peak truth fitted with a geometric operator, measure the pseudo-true bias, try a sandwich or inflated-se likelihood as a patch) and the specification test (\BL{4}: two experiments in different geo strata plus a shared-shape model, with a posterior-predictive check as a formal test of shape invariance---the field has no specification test for calibration at all). The others are an \texttt{add\_experiment\_operator()} prototype against PyMC-Marketing's API; a multi-channel operator able to express the cross-channel contamination (treated-geo budget reallocations) a scalar iROAS cannot; feeding $\mathcal E_d$ to the VOI chooser (done in \cref{ch:voi}); and an analytic account of the naive-avg conflict-to-ridge-escape mechanism.
+
+In the compiler's judgement the most promising extension is \BL{4} combined with the trajectory header: if every experiment ships its per-period trajectory, any two experiments on one channel over-determine $(K, S, \alpha)$ and their posterior-predictive discrepancy tests shape invariance at no extra experimental cost, turning the chapter's one unfalsifiable premise into a routine diagnostic. Second is the multi-channel operator, since \cref{ch:deadband} and \cref{ch:feedback} show allocation decisions live in cross-channel contrasts the single-channel identity does not reach.
+
+\begin{reviewernote}[(compiler)]
+\textbf{Protocol.} \dive{02} predates the depth standard adopted ``as of run 03'' (attack-and-refine rounds, clean-room re-derivation, uncertainty on every headline). Nothing here has been independently re-derived within the program, and \cref{transport:tab:modes} reports medians over 60 replications with no standard errors: ``30\% wrecked'' is 18 replications, ``12\%'' is 7, ``3\%'' is 2, and the operator's ``0\%'' is a bound of roughly one in sixty. ``Within a point'' ($-43.0\%$ versus $-43.8\%$) has no standard error on the median.
+
+\textbf{The rank-4 claim is nominal.} The smallest trajectory eigenvalue, $2.7\times10^{-5}$, is $4.7\times10^{-8}$ of the largest; the code declares rank by the threshold $10^{-8}\times$ the largest eigenvalue, so the fourth direction clears it by a factor of about five, and the CRLB along that eigenvector is $\approx 1/\sqrt{2.7\times10^{-5}} \approx 190$. The honest reading is ``rank 3 strong plus one very weak direction''. The 0.20 SE for $\alpha$ is plausible (the weak direction lives in $(\beta, K, S)$, the level ridge an experiment cannot see) but comes from inverting a matrix of condition number $\sim 2\times10^{7}$ without the $s_{\min}/s_{\max}$ audit \BL{82} later made mandatory for FIM-based standard errors. The ``three well-separated designs'' corollary is a counting heuristic, not a proved statement.
+
+\textbf{Decision relevance was later softened.} \dive{04} found trajectory readouts ``worthless'' for fixed-budget cross-channel allocation ($\kappa$ 0.29 $\to$ 0.30); \cref{transport:prop:rank} concerns identification of one channel, not decision value.
+
+\textbf{Prior-art survey.} The current Meridian documentation (checked 2026-09-07) describes a \texttt{CalibrationBuilder} that adjusts experiment results for spend scale, duration and recency before forming the ROI prior; the dive does not mention it. It is not the design-simulating operator, but a reader should check how much of $C$ and $Q$ it implements before crediting ``never stated in the MMM calibration literature'' with full force. The indirect-inference lineage is asserted, not surveyed.
+
+\textbf{Consistency checks passed.} The INDEX log line agrees with the writeup on every number; $65\times$ is $0.1368/0.0021 = 65.1$; ``$7\times$ tighter'' is $0.108/0.016 = 6.75$ against the uncalibrated mode ($5.8\times$ against the operator); $m_\infty = 0.389$, average ROAS 0.735 and $C = 0.816$ reproduce from $\theta_0$. The mismatch variant's ``theory $+72.5\%$'' and the operator's 0.048 appear in the text only, with no table. The log timestamp ($\sim$21:15) precedes the file's last write (23:14 UTC) by two hours without explanation.
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item Pearl, J. and Bareinboim, E. (2014). \emph{External Validity: From Do-Calculus to Transportability Across Populations}. Statistical Science 29(4), 579--595. \url{https://doi.org/10.1214/14-STS486}
+\item Pearl, J. and Bareinboim, E. (2011). \emph{Transportability of Causal and Statistical Relations: A Formal Approach}. Proc.\ AAAI-11. \url{https://dl.acm.org/doi/10.5555/2900423.2900462}
+\item Bareinboim, E. and Pearl, J. (2016). \emph{Causal Inference and the Data-Fusion Problem}. PNAS 113(27), 7345--7352. \url{https://www.pnas.org/doi/abs/10.1073/pnas.1510507113}
+\item Jin, Y., Wang, Y., Sun, Y., Chan, D. and Koehler, J. (2017). \emph{Bayesian Methods for Media Mix Modeling with Carryover and Shape Effects}. Google research report. \url{https://research.google/pubs/bayesian-methods-for-media-mix-modeling-with-carryover-and-shape-effects/}
+\item Zhang, Y., Wurm, M., et al. (2024). \emph{Media Mix Model Calibration With Bayesian Priors}. Google research report. \url{https://storage.googleapis.com/gweb-research2023-media/pubtools/pdf/a09f404fdc3107fafb7a52cc5af6a80e4d0fda2b.pdf}
+\item Google (2024--26). \emph{Meridian documentation: calibrate treatment priors; ROI, mROI and contribution parameterizations}. \url{https://developers.google.com/meridian/docs/advanced-modeling/roi-priors-and-calibration}
+\item Runge, J., Skokan, I., Zhou, G. and Pauwels, K. (2024). \emph{Packaging Up Media Mix Modeling: An Introduction to Robyn's Open-Source Approach}. arXiv:2403.14674. \url{https://arxiv.org/abs/2403.14674}
+\item PyMC Labs (2024--26). \emph{PyMC-Marketing: lift-test calibration of an MMM} (documentation notebook). \url{https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas.html}
+\item Orduz, J. (2024). \emph{MMM and experimental calibration: a simulation study}. Blog. \url{https://juanitorduz.github.io/mmm_roas/}
+\item Gouri\'eroux, C., Monfort, A. and Renault, E. (1993). \emph{Indirect Inference}. Journal of Applied Econometrics 8(S1), S85--S118.
+\item Heusch, A. (2026). \emph{Structural Estimation of MMM Parameters from Geo-Experiments}. arXiv:2608.21128. \url{https://arxiv.org/abs/2608.21128}
+\item Frontier study (internal): the open-questions catalogue \texttt{02\_open\_questions.md}, entry M2, and the adoption-barriers catalogue \texttt{03\_mmm\_adoption\_barriers.md}, entries O7, B5 and M5.
+\item Program (internal): \dive{01}, file \texttt{01\_mmm\_identified\_set.md}, sections 3.2 and 3.5; \dive{04}, file \texttt{04\_decision\_voi\_ext.md}, finding F4.
+\end{enumerate}
+\endgroup

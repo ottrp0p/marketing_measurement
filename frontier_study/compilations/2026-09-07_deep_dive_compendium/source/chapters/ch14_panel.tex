@@ -1,0 +1,298 @@
+% ===========================================================================
+% Chapter: The human-mechanism panel (dive 17)
+% ===========================================================================
+\chapter{The human-mechanism panel: attention, memory, purchase}
+\label{ch:panel}
+
+\begin{provenance}
+\textbf{Source dives:} \dive{17} \emph{The human-mechanism panel: what a single-source panel can identify, the two-instrument design, and the SNR ladder} (run 2026-09-03, file \texttt{17\_human\_mechanism\_panel.md}, written 2026-09-03 14:24 UTC; results \texttt{code/17\_results\_quick.json}).
+\textbf{Code:} \texttt{code/17\_human\_mechanism\_panel.py}.
+\textbf{Frontier-study problem(s) addressed:} H1 --- the chain attention $\to$ memory (category-entry-point links) $\to$ later purchase ``has never been measured end to end''; design the minimal longitudinal single-source panel (instruments, power mathematics, cost model). Touches H3 and H5.
+\textbf{Backlog items closed:} none; \textbf{opened:} \BL{59}--\BL{62}.
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item With person-randomised ad suppression and repeated memory surveys, the exposure-to-memory kernel $(\kappa, \lambda)$ is identified from wave contrasts at 20--70$\sigma$ (half-life $6.6 \pm 0.75$ weeks from $N = 3{,}000$; clean-room $\hat\lambda = 0.900 \pm 0.007$) while the same experiment measures the purchase link at $t = 1.4$ over two years: the purchase half of the chain sits in Lewis--Rao's regime.
+\item Tracking-only decay is biased upward (0.93 versus 0.90) and $3$--$7\times$ noisier: persistent heavy attenders masquerade as slow memory.
+\item Sales-fitted geometric adstock is not the memory half-life: a 20\% direct share collapses the pseudo-true $\alpha$ from 0.90 to 0.55 (half-life 6.6 $\to$ 1.2 weeks); agreement is uninformative and the gap measures the direct share.
+\item A rotating half-sample survey turns panel conditioning into a second randomised memory instrument that point-identifies the mediated share (otherwise only upper-bounded); the ads $=$ survey equality test is powerless at $N \le 10$k, so direct paths are detected by timing (35\% share at 65/95/100\% power for $N = 3$k/10k/30k).
+\item Within-person OLS attenuates $\beta_Y$ $8$--$10\times$ (within-person reliability 0.19) and sign-flips under feedback while both instruments hold; design laws (spacing $\approx$ one time constant, span $\approx$ two, a 26-week pre-period worth $2.3\times N$) give a memory-only panel of $N \approx 500$ (\$0.3M) and the H1 panel of $N \approx 3{,}500$ (\$2.2M).
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+Every long-term effect in marketing measurement is inferred through a convention---an adstock decay fitted to aggregate sales, an extrapolation, a 60:40 rule---rather than observed. Problem H1 names the mechanism these conventions proxy for (attention at exposure, encoding into memory linked to category entry points, retrieval at a purchase occasion months later) and the asset that would observe it, a longitudinal single-source panel with attention, memory and purchase on the same people, ``arguably the field's deepest empirical gap''. It does not say what such a panel would \emph{identify} that geo experiments and MMMs cannot, how large it must be, or what it costs.
+
+\dive{17} treats the panel as a measurement instrument: which objects in the chain are identified, under which randomisation, by which contrast; the precision of each as a function of panel size $N$, waves $W$, spacing $\Delta$, survey reliability and purchase frequency $f$; and a priced minimal design. The answer is asymmetric. The memory half of the chain is identified an order of magnitude more precisely than sales data allow, because a survey contrast between randomised arms sees a memory difference directly; the purchase half sits exactly where Lewis and Rao (2015) put it and is rescued only by design. Along the way the dive poses a test nobody had run---whether an MMM's sales-fitted adstock and an independently measured memory decay should agree---and shows that in general they should not.
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{Mental availability and category entry points (Sharp, 2010; Romaniuk and Sharp, 2016; Romaniuk, 2023)}
+
+The Ehrenberg-Bass account of advertising is a memory account. When a category need arises buyers retrieve a few brands from memory; a brand's \emph{mental availability} is its propensity to be thought of in such situations, and the retrieval cues are \emph{category entry points} (CEPs), the needs, occasions and companions that define a purchase situation. Mental availability is the breadth and freshness of the brand's brand--CEP links; Romaniuk's trackers ask, per CEP, which brands the respondent associates with it, and report the brand's share of all links (mental market share). Advertising builds and refreshes links (Ehrenberg's ``reinforcement, not persuasion''); because links decay, continuous reach matters. The dive's latent memory state $M_{it}$ is this construct on one dimension: link strength, refreshed by attention, decaying between exposures.
+
+\subsection{Attention as a dose (Nelson-Field, 2020; ARF, 2024)}
+
+Viewability is not attention. Nelson-Field's panels record gaze with the device camera during natural media use and classify each second of an exposure as active (eyes on the ad), passive or none; attentive seconds per exposure vary several-fold across platforms at equal viewability, and short-term advertising strength and its decay track attentive seconds, not impressions. Hence the dive's dose is attentive seconds $A_{it}$. The construct is not standardised (the ARF's 2024 validation across 12 providers found convergent validity inconsistent across method classes), so the dive checks that only the instrument's relative timing, not its level, matters.
+
+\subsection{Single-source panels (Lodish et al., 1995; Jones, 1995)}
+
+IRI's BehaviorScan split-cable panels (about 3,000 households per market, exposure randomised by cable address) yielded Lodish et al.'s meta-analysis of 389 TV tests, roughly half with a significant sales effect, 55 estimates of persistence, and more than 150 cessation tests of which just over half showed no significant loss. Jones's STAS panel (2,000 households, meters plus scanners) compared brand share among households exposed in the seven days before purchase with the unexposed, a design Ehrenberg, Broadbent and McDonald contested because heavy buyers are heavy viewers. Modern assets (NCS, Kantar Worldpanel, Numerator, Amplified Intelligence) each cover at most two of the three nodes. Randomisation made BehaviorScan credible; co-observation without it does not separate effect from selection.
+
+\subsection{The unfavourable economics of ad measurement (Lewis and Rao, 2015)}
+
+From 25 large randomised display experiments Lewis and Rao showed why returns to advertising are nearly unmeasurable: individual purchases have a coefficient of variation $\mathrm{CV} = \sigma/\mu$ near 10 for a typical retailer while a profitable campaign moves them by a few percent. For a two-arm test of relative lift $\ell$,
+\begin{equation}
+n_{\mathrm{per\ arm}} \approx 2\,(z_{1-\alpha/2} + z_{1-\beta})^2\,(\mathrm{CV}/\ell)^2,
+\label{panel:eq:lewisrao}
+\end{equation}
+so $\mathrm{CV} = 10$ and $\ell = 0.05$ need about $6 \times 10^{5}$ people per arm at 80\% power; their median ROI confidence interval exceeded 100 percentage points. The dive's simulated brand is kinder ($\mathrm{CV} \approx 0.93$ over two years) but \cref{panel:eq:lewisrao} still governs it: the purchase rung scales as $\sqrt{Nf}$, the memory rung is independent of $f$.
+
+\subsection{Heterogeneity versus state dependence (Heckman, 1981; Kenny and Zautra, 1995)}
+
+In panel data past outcomes predict current ones both under true persistence (state dependence) and under a persistent individual effect (heterogeneity); a covariance estimator reads both as persistence, and only structure or exogenous variation separates them. Kenny and Zautra's STARTS model (stable trait plus autoregressive trait plus state) gives the covariance between waves $k$ apart as
+\begin{equation}
+c(k) = V_m + V_x\,\phi^{k}, \qquad k \ge 1,
+\label{panel:eq:starts}
+\end{equation}
+identifiable from four or more waves; a tracker estimating memory decay from its own autocorrelations fits it.
+
+\subsection{Causal mediation and encouragement designs (Imai, Keele and Yamamoto, 2010; Imai, Tingley and Yamamoto, 2013)}
+
+With treatment $Z$, mediator $M$ and outcome $Y$, the average causal mediation effect $\E[Y(z, M(1)) - Y(z, M(0))]$ is identified under \emph{sequential ignorability}: treatment ignorable given covariates, and the mediator ignorable given treatment and covariates. Randomising $Z$ buys the first, never the second; the sensitivity analysis parameterises the violation by $\rho = \Corr(\varepsilon_M, \varepsilon_Y)$ and reports the $\rho$ at which the effect vanishes. Imai, Tingley and Yamamoto showed that a randomised \emph{encouragement} of the mediator with an exclusion restriction (it affects $Y$ only through $M$) identifies the effect without the second assumption, by a Wald ratio of outcome contrast to mediator contrast. The dive's rotating survey is such an encouragement design; the exclusion restriction is its price.
+
+\subsection{The mere-measurement effect (Morwitz, Johnson and Schmittlein, 1993; Chandon, Morwitz and Reinartz, 2005)}
+
+Households asked about their intention to buy a car or a computer subsequently bought at higher rates than unasked households. Chandon, Morwitz and Reinartz attribute this to \emph{self-generated validity} (measurement makes the attitude more accessible, so it drives behaviour more) and find repeated measurement polarises; survey methodologists call it panel conditioning (Warren and Halpern-Manners, 2012). For the dive this is prior art that a survey is a memory intervention: a CEP battery refreshes links by some $\delta$, a silent bias in a fixed panel and, once randomised, an instrument.
+
+\subsection{Adstock, half-life, pseudo-true values, exponential design (Broadbent, 1979; Jin et al., 2017; Box and Lucas, 1959)}
+
+Broadbent's adstock $a_t = x_t + \alpha a_{t-1}$ was introduced as an advertising \emph{stock} in memory decaying geometrically and is still reported as a half-life $\ln\tfrac12/\ln\alpha$ (6.6 weeks at $\alpha = 0.90$). The Bayesian MMM of Jin et al.\ fits $\alpha$ to weekly aggregate sales, where \cref{ch:identification} shows a nearly flat likelihood ridge. When the true impulse response is not geometric, least squares returns a \emph{pseudo-true} $\alpha$, the closest member of the geometric family. Box and Lucas showed that the D-optimal observation time for the rate $\theta$ of $D_0 e^{-\theta t}$ is the time constant $1/\theta$; and \cref{ch:surrogacy} (\dive{12}) established the known-shape/unknown-scalar trick, regressing a noisy response on a temporal shape known from elsewhere so only a scalar is estimated.
+
+\section{Setup and assumptions}
+
+Persons $i = 1, \ldots, N$, weeks $t = 1, \ldots, T$ ($T = 104$); half randomised to a holdout $Z_i = 0$, half exposed. Impressions per exposed person-week are $\mathrm{Poisson}(\mu_t)$ on a flighted schedule (6 weeks on, 7 off, $\mu = 3$); attentive seconds $A_{it}$ sum Gamma-distributed dwell over impressions with a persistent propensity $a_i \sim \mathrm{Gamma}(2, 1)$ (mean 2 s per impression). Memory is $M_{it} = m_i + x_{it}$, a trait $m_i \sim \mathcal N(0, 1)$ plus a transient
+\begin{equation}
+x_{it} = \lambda\, x_{i,t-1} + \kappa A_{it} + \eta_{it}, \qquad \eta_{it} \sim \mathcal N(0, 0.15^2),\quad \lambda = 0.90,\ \kappa = 0.012.
+\label{panel:eq:memory}
+\end{equation}
+The survey $S_{it} = M_{it} + e_{it}$, $e_{it} \sim \mathcal N(0, 0.7^2)$, is observed at wave weeks ($\Delta = 8$, $W = 12$), cross-sectional reliability $\approx 0.72$, sd $\sigma_S \approx 1.3$; optionally the survey adds $\delta$ to $x_{it}$ ($\delta = 0.3$ in attacked runs) and a \emph{rotating} design surveys a random half at each wave, $R_{iw} \in \{0, 1\}$. Category occasions are $\mathrm{Poisson}(f)$ per week ($f = 0.5$; swept 0.05--1.5), the brand chosen with probability $\mathrm{expit}(\alpha_i + b M_{it} + d A_{it})$, $b = 0.25$, $d = 0$ (a \emph{direct} path $d > 0$ is the alternative), $\alpha_i = -2 + 0.5 z_{1} + \sqrt{0.75}\, z_{2}$ so that purchase propensity correlates 0.5 with the memory trait; feedback $\psi$ optionally adds $\psi$ to memory per purchase. Base numbers: 4.4 brand purchases per person-year, exposed-arm lift $\approx 5.4\%$, two-year purchase CV $\approx 0.93$. Targets: (T1) $(\kappa, \lambda)$; (T2) $\beta_Y := \partial \E[Y_{it}]/\partial M_{it} = f b\,p(1-p)$ averaged over persons (truth 0.0152 per week per unit); (T3) the mediated share $s$; (T4) the sales-fitted $\alpha$ against $\lambda$.
+
+\begin{assumption}[Person-level randomised exposure]
+\label{panel:ass:random}
+Exposure can be suppressed for randomly chosen panelists on their own devices; without it nothing below the memory contrast is identified.
+\end{assumption}
+
+\begin{assumption}[Known attention path, linear memory]
+\label{panel:ass:path}
+The exposed arm's expected attention path $\E[A_t]$ is known up to scale; memory is the linear AR(1) state \cref{panel:eq:memory} with one decay.
+\end{assumption}
+
+\begin{assumption}[Survey exclusion, Level C only]
+\label{panel:ass:exclusion}
+Taking the survey affects purchase only through memory.
+\end{assumption}
+
+\section{Main results}
+
+\subsection{The identification ladder}
+
+\begin{construction}[Four contrasts, four objects]
+\label{panel:con:ladder}
+\tagEstablished\ \emph{Level A} (memory kernel): the between-arm wave contrast is a convolution of the known attention path with the kernel,
+\begin{equation}
+\E[S_{iw} \mid Z = 1] - \E[S_{iw} \mid Z = 0] = \kappa \sum_{j \ge 0} \lambda^{j}\, \E[A_{w-j}],
+\label{panel:eq:levelA}
+\end{equation}
+and weighted nonlinear least squares on the $W$ contrasts recovers $(\kappa, \lambda)$ with no stationarity assumption, no natural variation and no purchase data. \emph{Level B} (purchase scale): under pure memory mediation the weekly purchase contrast $\mathrm{diff}_t = \E[Y_t \mid Z = 1] - \E[Y_t \mid Z = 0]$ equals $\beta_Y \cdot \mathrm{shape}_t$ with $\mathrm{shape}_t$ the Level-A memory path, so only a scalar is estimated from purchases, by a matched filter $\hat c = \sum_t w_t\, \mathrm{diff}_t$---a difference of arm means of $q_i = \sum_t w_t Y_{it}$, so its standard error is exact. \emph{Level C}: \cref{panel:con:survey}. \emph{Level D}: \cref{panel:prop:levelD}.
+\end{construction}
+
+The Level-A numbers are the headline (\cref{panel:tab:levels}): $\hat\lambda = 0.896$ with Monte Carlo sd 0.012 from 3,000 people, a half-life of $6.6 \pm 0.75$ weeks, a single wave's contrast at $|t| = 6.7$ on average. Level B from the same experiment gives $t = 1.58$ for the matched filter and $1.39$ for the plain two-year total: memory at 7$\sigma$ per wave, purchases at 1.4$\sigma$ over two years.
+
+\begin{construction}[The rotating survey as an ad-free memory instrument]
+\label{panel:con:survey}
+\tagConjecture\ (The dive's speculative step.) If the survey refreshes memory by $\delta$, randomising which half is surveyed at each wave creates $NW/2$ randomised memory bumps carrying no ad content. The bump is identified from the next wave, $\delta\lambda^{\Delta} = \E[S_{i,w+1} \mid R_{iw} = 1] - \E[S_{i,w+1} \mid R_{iw} = 0]$, and the purchase response by the Wald ratio
+\begin{equation}
+\hat\beta_Y^{\mathrm{survey}} = \frac{\hat g}{\hat\delta \sum_{k=1}^{\Delta - 1} \hat\lambda^{k}},
+\label{panel:eq:wald}
+\end{equation}
+with $\hat g$ the person $\times$ wave two-way demeaned contrast of purchases in the $\Delta - 1$ weeks after a wave between surveyed and unsurveyed waves.
+\end{construction}
+
+At $\delta = 0.3$, $N = 3{,}000$ (E4) the instrument returns $\hat\delta = 0.307$ and $\hat\beta_Y^{\mathrm{survey}} = 0.0147$ ($t = 2.2$) against the ad instrument's 0.0162 ($t = 2.0$) and truth 0.0152; at $\delta = 0$ it returns $\hat\delta = 0.003$ (sd 0.059) and is void. The half-sample halves survey cost, and the conditioning bias a fixed panel suffers silently becomes an estimated quantity.
+
+\begin{proposition}[Partial identification of the mediated share]
+\label{panel:prop:levelD}
+\tagEstablished\ Write the purchase impulse response as $h_Y = \beta_Y h_M + h_\perp$, with $h_\perp$ unmeasured parallel paths. Level A gives $h_M$, Level B gives $h_Y$; proportionality $h_Y \propto h_M$ is necessary for pure mediation but not sufficient, since a parallel path with the same decay is invisible. From Levels A--B the share $s = \beta_Y \sum h_M / \sum h_Y$ is bounded below by 0 and above by the proportional part of $h_Y$. Under \cref{panel:ass:exclusion}, Level C point-identifies $\beta_Y$ and $s$, and $\beta_Y^{\mathrm{survey}} = \beta_Y^{\mathrm{ads}}$ becomes a testable implication of pure mediation.
+\end{proposition}
+
+\subsection{Tracking-only decay: heterogeneity masquerading as persistence}
+
+\begin{proposition}[Tracking-only decay is biased and noisy]
+\label{panel:prop:tracking}
+\tagNumerical\ Estimating $\lambda$ from the tracker's between-wave covariances by \cref{panel:eq:starts} without an experiment is biased upward and $3$--$7\times$ noisier than Level A (E2, 20 replications): pooled $\hat\phi^{1/8} = 0.929$ (sd 0.035), arm-demeaned 0.915 (0.037), exposed-only 0.926 (0.056), holdout-only 0.889 (0.078), experimental 0.892 (0.010); clean-room 0.938 (0.033) pooled, 0.902 (0.064) holdout.
+\end{proposition}
+
+Heavy attenders accumulate persistently higher memory across flights and the covariance decomposition reads that as slower decay; the holdout arm is unbiased but has so little transient variance that its sd balloons. A tracker without randomised exposure cannot separate memory persistence from audience persistence at any $N$ (the H5 debate). The sign depends on the heterogeneity being in exposure response; what survives is that the bias is unsigned and unbounded without an experiment.
+
+\subsection{Sales-fitted adstock is not the memory half-life}
+
+\begin{proposition}[Pseudo-true adstock under a direct path]
+\label{panel:prop:adstock}
+\tagEstablished\ (Clean-room exact.) If the true sales impulse response is $h_k = \omega\,\ind[k = 0] + (1 - \omega)(1 - \lambda)\lambda^{k}$, a share $\omega$ instantaneous and the rest memory, the least-squares geometric adstock $\alpha^\star = \argmin_a \min_c \sum_k (h_k - c\,a^{k})^2$ takes the values of \cref{panel:tab:adstock}: at $\lambda = 0.90$, $\omega = 0.2$ gives $\alpha^\star = 0.548$, a fitted half-life of 1.2 weeks against a true 6.6.
+\end{proposition}
+
+The geometric family cannot represent a spike plus a tail, and least squares, dominated by lag 0, sacrifices the tail. In the finite-sample MMM version (E7b: $N = 20{,}000$ aggregate weekly sales, flighted spend) the pure-memory world returns $\alpha = 0.904 \pm 0.018$ but the 20\%-direct world (a setting E15 measures at a 19.6\% share of the lift) returns $0.80 \pm 0.10$, between the two pseudo-true values on the ridge of \cref{ch:identification}. The sales-fitted $\alpha$ is thus neither the memory half-life nor a stable pseudo-true value; only the panel's $\lambda$ is a property of humans rather than of an estimator. The H1 test of the adstock convention is $\hat\alpha_{\mathrm{MMM}}$ versus $\hat\lambda_{\mathrm{panel}}$: a gap is expected whenever a direct path exists, and its size measures $\omega$.
+
+\subsection{Design laws}
+
+\begin{law}[Wave spacing and span]
+\label{panel:law:spacing}
+\tagEstablished\ (Fisher law clean-room exact.) After a burst the memory contrast decays as $D_0 \lambda^{\tau}$; with $W$ waves at lags $0, \Delta, \ldots, (W-1)\Delta$ and noise $2\sigma_S^2/N$ per wave, the linearised se of $\hat\lambda$ is minimised at $\Delta = 11, 8, 6, 4$ weeks for $W = 2, 3, 4, 6$ (se $0.0092, 0.0073, 0.0064, 0.0055$ at $D_0 = 1$): the span converges to about two time constants ($2/(-\ln\lambda) = 19$ weeks), the Box--Lucas point $9.5$ weeks is the $W = 2$ optimum, and extra waves inside the span buy little ($W$: 2 $\to$ 6 cuts the se $1.7\times$ for $3\times$ the surveys).
+\end{law}
+
+The attack round found the single-burst law optimistic (E3, three waves at the realistic $D_0 = 0.34$: Monte Carlo sd $0.034/0.041/0.050/0.168$ at $\Delta = 3/6/10/16$ against theory $0.030/0.022/0.022/0.029$, i.e.\ $1.5$--$2\times$ the Fisher value for $\Delta \ge 6$, with heavy tails at $\Delta = 16$); the refinement (E3b) compares repeated flights with regular waves at fixed budget $N(300 + 4W)$ dollars: $W = 4/6/12/24$ ($N = 3{,}303/3{,}222/3{,}000/2{,}636$) gives $\mathrm{sd}(\hat\lambda) = 0.054/0.033/0.019/0.016$ and survey-instrument $t = 0.5/1.0/2.2/2.2$. The knee is $\Delta \approx$ one time constant; halving it again is neutral.
+
+\begin{proposition}[A 26-week pre-period is worth $2.3\times N$]
+\label{panel:prop:preperiod}
+\tagNumerical\ Because purchase heterogeneity ($\alpha_i$) is persistent, each panelist's pre-campaign purchase rate is the strongest covariate available: with flights from week 30 (E14) the total-effect $t$ rises $1.47 \to 1.67 \to 1.86 \to 2.22$ with $0/4/13/26$ pre-weeks, $1.51\times$ in $t$ and about $2.3\times$ in $N$-equivalent (clean-room $1.96 \to 2.70$, $1.38\times$).
+\end{proposition}
+
+The matched filter, by contrast, gains only $1.58/1.39 = 1.14\times$ under the base flighting; its gain, $\sqrt{T\sum_t s_t^2}/\sum_t s_t$, grows with sparser flights.
+
+\subsection{Detecting a direct path by timing, not scale}
+\label{panel:sec:shape}
+
+The equality test of \cref{panel:prop:levelD} has no power at feasible $N$ (E6): with a 20\% direct share the ad instrument reads 0.0197 against the survey's 0.0147 at $N = 3{,}000$, a 25--34\% gap, but the mean $z$ is 0.49 and the rejection rate 0--2.5\% at $N \le 10{,}000$.
+
+\begin{proposition}[Shape-transfer test]
+\label{panel:prop:shape}
+\tagNumerical\ Regress the weekly purchase contrast on the Level-A memory shape \emph{and} the contemporaneous attention path $\E[A_t]$ (a lag-0 term) with the exact person-level standard errors of \cref{panel:con:ladder}; a direct path loads on the lag-0 term. Against a 17\% direct share the test rejects at 15/40/88\% for $N = 3$k/10k/30k, against 35\% at 65/95/100\%; the null rate is 0.05--0.10 (E5b, 60 replications: 0.067 at 3k, 0.10 at 30k), mildly anti-conservative because the shape is estimated.
+\end{proposition}
+
+Shape misspecification manufactures a direct path: with heterogeneous decay ($\lambda \in \{0.7, 0.97\}$, half each) the one-exponential fit follows the slow component ($\hat\lambda = 0.962$) and the fast component's residual loads on lag 0, a false rejection rate of 0.183 at $N = 30{,}000$. Fitting a two-exponential kernel to the wave contrasts (identifiable at 30,000, components $0.69$--$0.79$ and $0.97$ recovered; weakly at 3,000) brings false rejection to 0.05, with the base-model null rate 0.117 versus 0.10. The mediated-share estimator (E13) is point-identified but expensive: pure mediation gives median 1.01 (IQR 0.81--1.29) at $N = 10{,}000$ and 0.97 (0.88--1.09) at 30,000; a 20\% direct share (truth 0.80) gives 0.84 (0.65--0.94) and 0.78 (0.70--0.87).
+
+\subsection{The within-person regression is worthless}
+
+\begin{proposition}[Attenuation and sign reversal of within-person OLS]
+\label{panel:prop:ols}
+\tagNumerical\ OLS of purchases on the measured memory score with person and wave fixed effects gives 0.0016 against 0.0152, a $9.5\times$ attenuation (clean-room $7.75\times$), because the \emph{within-person} reliability of the score is 0.19 although its cross-sectional reliability is 0.72. With purchase-to-memory feedback $\psi = 0.3/0.6$ the OLS slope turns negative ($-0.0018/-0.0037$; on the true $M$, $-0.007/-0.0095$) while both instruments hold (survey $0.0140/0.0153$, ads $0.0156/0.0153$).
+\end{proposition}
+
+Within a person the transient memory variance (sd 0.34 plus the exposure lift) is small against survey error (0.7). The panel's value is in its randomisations, not in co-observation---the individual-level form of Gordon et al.'s (2019) finding that observational methods fail against RCT ground truth.
+
+\section{Numerical evidence}
+
+All experiments run the simulator of the Setup at base parameters, with 40 replications (E1, E14), 20 (E2, E8--E10), 30 (E3b, E4), 60 (E5b), 16 (E13), 12 per cell (E11) and 10 (E7b).
+
+\begin{table}[htbp]
+\centering\small
+\caption{The identification ladder at $N = 3{,}000$, two years, $\Delta = 8$, $W = 12$ (E1, E4, E8). Monte Carlo means (MC sd); truth $\lambda = 0.90$, $\kappa = 0.012$, $\beta_Y = 0.0152$; ``lin.\ se'' is the dive's conservative linearised standard error.}
+\label{panel:tab:levels}
+\begin{tabular}{llccc}
+\toprule
+Level & Estimand & Estimate (MC sd) & $t$ & Clean-room \\
+\midrule
+A & $\lambda$, wave contrasts & 0.896 (0.012); lin.\ se 0.017 & 54 & 0.8998 (0.0072) \\
+A & $\kappa$, wave contrasts & 0.0124 (0.0015) & 7.0 & 0.01226 (0.00136) \\
+B & $\beta_Y^{\mathrm{ads}}$, matched filter & 0.0133 (0.0074) & 1.58 & --- \\
+B & total effect, purchases per 2 yr & 0.42 (se 0.30) & 1.39 & se 0.29--0.30, $t$ 1.74 \\
+C & $\delta$, rotating survey ($\delta = 0.3$) & 0.307 (0.080) & --- & --- \\
+C & $\beta_Y^{\mathrm{survey}}$ & 0.0147 (0.0057) & 2.2 & --- \\
+--- & within-person OLS on $S$ & 0.0016 & --- & 0.0019 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Pseudo-true geometric adstock $\alpha^\star$ fitted by least squares to a spike-plus-memory impulse response with direct share $\omega$ and memory decay $\lambda$ (E7; clean-room identical to 3--4 digits in all 15 cells).}
+\label{panel:tab:adstock}
+\begin{tabular}{lccccc}
+\toprule
+$\lambda \backslash \omega$ & 0 & 0.1 & 0.2 & 0.3 & 0.5 \\
+\midrule
+0.80 & 0.80 & 0.73 & 0.60 & 0.40 & 0.17 \\
+0.90 & 0.90 & 0.847 & 0.548 & 0.253 & 0.096 \\
+0.95 & 0.95 & 0.915 & 0.238 & 0.124 & 0.050 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{SNR ladder (E11): $t$-statistics after two years with 12 rotating waves at $\Delta = 8$, by category frequency $f$ (occasions per week; brand purchases per year in parentheses). Cells are $N = 1{,}000\,/\,3{,}000\,/\,10{,}000$; 12 replications per cell, $t$ uncertain by $\pm 15\%$.}
+\label{panel:tab:ladder}
+\begin{tabular}{lcccc}
+\toprule
+$f$ (purch./yr) & $t(\lambda)$ & $t(\beta_Y^{\mathrm{ads}})$ & $t(\beta_Y^{\mathrm{survey}})$ & $t$(total) \\
+\midrule
+0.05 (0.46) & 23 / 38 / 72 & 0.5 / 1.0 / 2.1 & 0.7 / 0.8 / 1.0 & 0.4 / 0.9 / 2.0 \\
+0.2 (1.8) & 24 / 39 / 73 & 0.8 / 1.6 / 2.7 & 0.9 / 1.4 / 2.1 & 0.8 / 1.6 / 2.6 \\
+0.5 (4.6) & 23 / 38 / 72 & 1.1 / 1.9 / 3.3 & 1.4 / 2.1 / 4.1 & 1.0 / 1.9 / 3.0 \\
+1.5 (13.7) & 22 / 40 / 71 & 1.4 / 2.5 / 4.1 & 1.8 / 3.5 / 6.3 & 1.3 / 2.4 / 3.9 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+In \cref{panel:tab:ladder} the memory kernel is category-independent at 20--70$\sigma$; the purchase link scales as $\sqrt{Nf}$, and the survey instrument overtakes the ad instrument as $f$ rises because it repeats $NW/2$ times within person. For 80\% power ($t \approx 2.8$) at a 5\% lift, $\sqrt N$ scaling gives frequent CPG ($f = 0.5$) $N \approx 7{,}400$ (ads) or 4,800 (survey), about 3,300 with a 26-week pre-period; weekly categories $2{,}000$--$4{,}700$; infrequent categories ($f = 0.05$) $18{,}000$ (8,000 with pre-period), where the survey instrument is useless (72,000).
+
+Controls: attrition (E9) with per-wave hazards of about 10\% depending on the memory trait or purchase propensity (retention 28--34\%) leaves $(\kappa, \lambda)$ unbiased ($\hat\lambda$ 0.891--0.898) because dropout is independent of $Z$. Misspecification (E10): saturating encoding gives $\hat\lambda = 0.883$ (sd 0.035) and $\hat\kappa = 0.0086$ ($-30\%$, the small-dose tangent) with both $\beta$'s intact; an attention level mis-estimated $\times 1.3$ rescales $\hat\kappa$ exactly ($0.0089 = 0.0116/1.3$) and nothing else; survey noise $\times 2$ moves the $\lambda$ sd from 0.022 to 0.035, $\div 2$ to 0.018. Cost (E12; assumed prices: recruit \$40, attention device \$120/yr, purchase capture \$60/yr, incentive \$60/yr, survey \$8): \$568 per person for two years, so $N = 1{,}000/3{,}000/10{,}000/30{,}000$ costs \$0.57M/\$1.7M/\$5.7M/\$17M. Two designs follow. \emph{Design M} (memory only): $N \approx 500$, one year, 6--8 waves at $\Delta = 8$ after two flights, randomised holdout; $\mathrm{se}(\hat\lambda) \approx 0.03$ (half-life $\pm 2$ weeks), $\kappa$ at $3\sigma$, the $\hat\alpha_{\mathrm{MMM}}$-versus-$\hat\lambda$ test for one brand, \$0.2--0.3M, nothing on purchase. \emph{Design P} (the H1 panel): $N \approx 3{,}500$ in a frequent CPG category (8--10k in an infrequent one), a 26-week purchase-only pre-period, two years of flighted exposure with holdout, 12 rotating half-sample waves, device attention on the exposed arm, about \$2.2M; delivers $(\kappa, \lambda)$ at $40\sigma$, $\beta_Y$ at $\approx 2.8\sigma$ per instrument ($4\sigma$ pooled), 65--95\% power against a 35\% direct path and a mediated share with IQR $\pm 0.15$. A $\pm 0.1$ share or 88\% power against a 17\% path needs $N \approx 30{,}000$ (\$17M).
+
+\section{Limitations and the devil's advocate}
+
+The dive attacks its own headlines. The 40$\sigma$ kernel needs person-randomisable exposure and an attention path known up to scale; a panel that measures attention but cannot suppress ads is back to \cref{panel:prop:tracking}. Memory is one-dimensional and linear; if CEP links are many and saturate, $\kappa$ is a small-dose tangent and $\lambda$ a dominant-mode decay (0.962 for a mixture's slow component), a property of humans but not what a single-$\lambda$ adstock means. The adstock table assumes white-noise spend weighting; under flighted spend the MMM sits on a ridge and might land near $\lambda$ by luck, so only ``agreement is uninformative, disagreement expected under a direct path'' survives. The survey instrument needs a measurable $\delta$ (the mere-measurement evidence concerns intentions questions and durables; at $\delta = 0.1$ the instrument's $t$ falls $3\times$) and an exclusion restriction that self-generated validity arguably violates in the \emph{same} direction as memory. ``3,500 people and \$2.2M'' holds for a 5\% lift in a frequent category with a pre-period: halve the lift and $N$ quadruples, drop the pre-period and it doubles, move to a quarterly category and it triples; the device price may be optimistic by $2\times$.
+
+The attack rounds changed four things: the single-burst optimum gave way to the fixed-budget flighted comparison; the equality test was demoted to a consistency check and the shape-transfer test built; the two-exponential shape was added after heterogeneous decay produced false direct paths; and in Round 4 the pre-period gain fell from $2.5\times$ to $1.51\times$ after the clean-room disagreed (the unadjusted arm had summed pre-period weeks into the outcome). Unmodelled: inter-purchase timing and stockpiling, interference, ghost-ad non-compliance (\BL{48}), seasonality, attention measurement error, and creative (one brand, so $\kappa$ is confounded with H4).
+
+\section{Discussion: impacts}
+
+For practice the chapter reorders what a single-source panel is for. The industry's reason to build one, linking exposure to purchase on the same people, is what it does worst: at any affordable $N$ the purchase link is a 1--3$\sigma$ object rescued by a pre-period and category choice, as \cref{panel:eq:lewisrao} predicts. What it does uniquely well is measure memory dynamics, and Design M already tests a convention every MMM vendor ships. \cref{panel:prop:adstock} tells Meridian, Robyn and PyMC-Marketing users what the test means: a fitted $\alpha$ far below a measured $\lambda$ is an estimate of the direct share, not a contradiction, and a fitted $\alpha$ near $\lambda$ is not confirmation. For brand-tracking vendors \cref{panel:prop:tracking} is the uncomfortable one: decay from tracker autocorrelations cannot be trusted without exposure randomisation, whatever the sample. For experimentation teams the design laws are directly usable: a memory wave every time constant, a span of two, a rotating half-sample that halves cost and turns the conditioning artefact into an instrument, and a purchase-only pre-period.
+
+For theory, the ladder makes precise what ``measuring the mechanism'' buys: an upper bound on the mediated share from kernel proportionality for free, a point at the price of an exclusion restriction, and the lesson that co-observation of mediator and outcome is worth nothing without randomisation. Outward links: the Level-A kernel is the known shape \cref{ch:surrogacy} needs to de-confound long-run effects from observational sales; \BL{61} transports $(\kappa, \lambda)$ into an adstock prior through the operator likelihood of \cref{ch:transport} and prices it in the decision loss of \cref{ch:voi}; the unstable sales-fitted $\alpha$ lives on the ridge of \cref{ch:identification}; and Lodish's cessation tests, the only existing ``$\lambda$ from purchases'', are under \cref{panel:prop:adstock} consistent with either fast memory decay or a large direct share---Design M discriminates.
+
+\section{Further exploration}
+
+Four next steps became backlog items. \BL{59} replaces the AR(1) with a bounded count of decaying CEP links and asks what the Level-A contrast then estimates and whether the $\alpha$-versus-$\lambda$ test survives a non-exponential kernel. \BL{60} is the $\delta$ pilot: a rotating, memory-only design at $N \approx 500$ to measure the CEP-survey refresh before Design P is funded, with an Imai--Keele--Yamamoto $\rho$-sensitivity for the exclusion. \BL{61} is the value-of-information case for Design M; \BL{62} randomises format (skippable versus not) within the exposed arm for a second dose level, testing whether encoding is linear in attentive seconds (H3). Unlisted: a heavy-tail ladder at Lewis--Rao's $\mathrm{CV} \approx 10$, and the join to \cref{ch:surrogacy}'s frontier with a measured shape.
+
+In the compiler's judgement the most valuable extension is \BL{60}: everything distinguishing this design from BehaviorScan-with-a-survey rests on $\delta$ being usable and excludable, a \$0.3M pilot settles the first and bounds the second, and if $\delta$ is small the panel reduces to a memory-kernel instrument plus a Lewis--Rao experiment. Second is \BL{61}, since $\mathrm{se}(\hat\lambda) \approx 0.03$ from 500 people is worth exactly what it moves in an MMM's decisions.
+
+\begin{reviewernote}[(compiler)]
+\textbf{What ``20--70$\sigma$'' means.} The ladder's $t(\lambda)$ is $\hat\lambda/\mathrm{se}(\hat\lambda)$, a test against $\lambda = 0$; against the alternatives that matter ($\lambda = 0.8$, say) the contrast is $(0.90 - 0.80)/0.017 \approx 6\sigma$ at $N = 3{,}000$. The honest headline is $\mathrm{se}(\hat\lambda) \approx 0.01$--$0.02$, and Design P's ``40$\sigma$'' is not a 40$\sigma$ discrimination between half-lives.
+
+\textbf{Numbers that differ between writeup and results file.} E3's Monte Carlo row is sd $0.034/0.041/0.050/0.168$ with $\Delta = 16$ mean 0.845 in the writeup but $0.037/0.045/0.060/0.188$ and 0.821 in \texttt{17\_results\_quick.json}; no re-run is recorded. The clean-room's $\lambda$ sd (0.0072) is 30--40\% tighter than the dive's (0.012), attributed to weighting; by the delta method the half-life uncertainty is $\pm 0.8$ weeks from 0.012 and $\pm 0.5$ from 0.0072. The INDEX log stamps the dive ``$\sim$10:30'' while the file was written 14:24 UTC.
+
+\textbf{The $9.5\times$ attenuation is two factors.} In E8 the within-person OLS on the \emph{true} memory gives 0.0087, already $1.7\times$ below 0.0152, because purchases in the seven weeks after a wave are regressed on memory at the wave; times the within-person reliability 0.193 this is 0.0017, the reported 0.0016. Reliability explains a factor of about 5; the writeup attributes the whole to it.
+
+\textbf{Labels and single-seed numbers.} The code prints ``50\% direct share'' for the setting $d = 0.5\,b \cdot 0.30/6$ (JSON key \texttt{direct50}); E15 measures its realised share at 19.6\% and the writeup correctly says 20\%; E5's 17\% and 35\% are likewise realised shares of nominal 0.3 and 0.5. The ``$\approx 10\%$'' lift in the claim sheet was a single-seed number corrected to 5.4\% (E15) at verification (\S5 of the writeup); the 80\%-power sizes rest on $\sqrt N$ scaling from 12-replication $t$-values ($\pm 15\%$), so $N \approx 7{,}400$ is roughly $\pm 30\%$. The mere-measurement link in the dive's sources carries the title of Morwitz and Fitzsimons (2004), not Morwitz, Johnson and Schmittlein (1993).
+
+\textbf{Softened or under-supported claims.} Level C is labelled speculative in \S1 and \S7 of the writeup, but the INDEX line says ``point-identifies the mediated share'' without the caveat. The two-exponential fix's base-model null rate (0.117) is slightly worse than the one-exponential's (0.10); ``no loss'' is generous. Design M costs ``\$0.2--0.3M'' in the writeup, ``\$0.3M'' in the INDEX. On \BL{82}: E1's linearised se comes from \texttt{pinv} of a $2 \times 2$ Gauss--Newton matrix; the problem is well conditioned and the Monte Carlo sd is reported alongside, so the audit does not bite, but the ladder's $t(\lambda)$ column uses the linearised se. Checks passed: $\ln\tfrac12/\ln 0.9 = 6.58$, $\ln\tfrac12/\ln 0.548 = 1.15$, $1.51^2 = 2.28$, $0.0777/0.0104 = 7.5$; \cref{panel:tab:adstock} and E7b, E8, E9, E10, E12, E14, E15 match the JSON.
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item Sharp, B. (2010). \emph{How Brands Grow: What Marketers Don't Know}. Oxford University Press. \url{https://marketingscience.info/}
+\item Romaniuk, J. and Sharp, B. (2016; rev.\ 2021). \emph{How Brands Grow Part 2}. Oxford University Press.
+\item Romaniuk, J. (2023). \emph{Better Brand Health: Measures and Metrics for a How Brands Grow World}. Oxford University Press; CEP guide at \url{http://www.jenniromaniuk.com/blog/2023/1/19/increasing-mental-market-share-by-using-category-entry-points}
+\item Nelson-Field, K. (2020). \emph{The Attention Economy and How Media Works}. Springer. \url{https://link.springer.com/book/10.1007/978-981-15-1540-8}
+\item Advertising Research Foundation (2024). \emph{Attention Measurement Validation Initiative, Phase 2}. \url{https://thearf.org/arf-events/attention-2025/}
+\item Lodish, L. M. et al. (1995). \emph{How T.V. Advertising Works: A Meta-Analysis of 389 Real World Split Cable T.V. Advertising Experiments}. Journal of Marketing Research 32(2), 125--139; and \emph{A Summary of Fifty-Five In-Market Experimental Estimates of the Long-Term Effect of TV Advertising}. Marketing Science 14(3), G133--G140. \url{https://journals.sagepub.com/doi/10.1177/002224379503200201}
+\item Jones, J. P. (1995). \emph{When Ads Work: New Proof That Advertising Triggers Sales}. Lexington Books.
+\item Lewis, R. A. and Rao, J. M. (2015). \emph{The Unfavorable Economics of Measuring the Returns to Advertising}. Quarterly Journal of Economics 130(4), 1941--1973. \url{https://academic.oup.com/qje/article-abstract/130/4/1941/1914592}
+\item Gordon, B. R., Zettelmeyer, F., Bhargava, N. and Chapsky, D. (2019). \emph{A Comparison of Approaches to Advertising Measurement: Evidence from Big Field Experiments at Facebook}. Marketing Science 38(2), 193--225. \url{https://pubsonline.informs.org/doi/10.1287/mksc.2018.1135}
+\item Heckman, J. J. (1981). \emph{Heterogeneity and State Dependence}. In S. Rosen (ed.), Studies in Labor Markets, University of Chicago Press.
+\item Kenny, D. A. and Zautra, A. (1995). \emph{The Trait-State-Error Model for Multiwave Data}. Journal of Consulting and Clinical Psychology 63(1), 52--59. \url{https://davidakenny.net/cm/ar.htm}
+\item Imai, K., Keele, L. and Yamamoto, T. (2010). \emph{Identification, Inference and Sensitivity Analysis for Causal Mediation Effects}. Statistical Science 25(1), 51--71. \url{https://doi.org/10.1214/10-STS321}
+\item Imai, K., Tingley, D. and Yamamoto, T. (2013). \emph{Experimental Designs for Identifying Causal Mechanisms}. Journal of the Royal Statistical Society A 176(1), 5--51.
+\item Morwitz, V. G., Johnson, E. and Schmittlein, D. (1993). \emph{Does Measuring Intent Change Behavior?} Journal of Consumer Research 20(1), 46--61; Morwitz, V. G. and Fitzsimons, G. J. (2004). \emph{The Mere-Measurement Effect}. Journal of Consumer Psychology 14(1--2), 64--74.
+\item Chandon, P., Morwitz, V. G. and Reinartz, W. J. (2005). \emph{Do Intentions Really Predict Behavior? Self-Generated Validity Effects in Survey Research}. Journal of Marketing 69(2), 1--14. \url{https://journals.sagepub.com/doi/10.1509/jmkg.69.2.1.60755}
+\item Warren, J. R. and Halpern-Manners, A. (2012). \emph{Panel Conditioning in Longitudinal Social Science Surveys}. Sociological Methods \& Research 41(4), 491--534. \url{https://journals.sagepub.com/doi/abs/10.1177/0049124112460374}
+\item Broadbent, S. (1979). \emph{One Way T.V. Advertisements Work}. Journal of the Market Research Society 21(3), 139--166.
+\item Jin, Y., Wang, Y., Sun, Y., Chan, D. and Koehler, J. (2017). \emph{Bayesian Methods for Media Mix Modeling with Carryover and Shape Effects}. Google research report. \url{https://research.google/pubs/bayesian-methods-for-media-mix-modeling-with-carryover-and-shape-effects/}
+\item Box, G. E. P. and Lucas, H. L. (1959). \emph{Design of Experiments in Non-Linear Situations}. Biometrika 46(1/2), 77--90.
+\item Frontier study (internal): \texttt{02\_open\_questions.md}, entries H1, H3, H5 and grand challenge 2. Program (internal): \dive{01} (adstock ridge), \dive{02} (operator likelihood), \dive{12} (known-shape trick), files \texttt{01\_mmm\_identified\_set.md}, \texttt{02\_experiment\_transport\_map.md}, \texttt{12\_surrogacy\_horizon\_bounds.md}.
+\end{enumerate}
+\endgroup

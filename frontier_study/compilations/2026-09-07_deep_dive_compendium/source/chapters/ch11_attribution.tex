@@ -1,0 +1,377 @@
+% ===========================================================================
+% Chapter: An impossibility theorem for causal attribution, and the designs
+% that escape it (dives 13 + 14)
+% ===========================================================================
+\chapter[Causal attribution: the impossibility and its escape]{An impossibility theorem for causal attribution, and the designs that escape it}
+\label{ch:attribution}
+
+\begin{provenance}
+\textbf{Source dives:} \dive{13} \emph{An impossibility theorem for causal attribution: the cross-journey table} (run 2026-09-02, file \texttt{13\_attribution\_impossibility.md}, written 15:40 UTC); \dive{14} \emph{EXTEND of 13: the experimental route to causal Shapley --- a proof of the design theorem, the holdout-only design, and the precision--lift--aliasing frontier} (run 2026-09-02, file \texttt{14\_attribution\_impossibility\_ext.md}, written 19:44 UTC).
+\textbf{Code:} \texttt{code/13\_attribution\_impossibility.py}, \texttt{code/14\_attribution\_impossibility\_ext.py}.
+\textbf{Frontier-study problem(s) addressed:} M8 --- characterise the class of journey-value functions for which Shapley attribution equals an average of per-touch causal effects, and prove that no observational attribution rule can jointly satisfy efficiency, symmetry and a counterfactual-consistency axiom under confounded exposure.
+\textbf{Backlog items closed:} \BL{42} (opened by \dive{13}, resolved by \dive{14}); \textbf{opened:} \BL{43}--\BL{45} (from \dive{13}), \BL{46}--\BL{50} (from \dive{14}).
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item Journey-level Shapley on observational conversion rates (Google-style DDA) is the efficient, causal-null allocation of realised lift \emph{iff} exposure is unconfounded; its bias is the Shapley value of a bias-game family on the off-diagonal of the cross-journey table $c(S,A) = \E[Y(\one_A) \mid Z = \one_S]$, the only unidentified object. Shao--Li population Shapley fails even unconfounded, by ignoring reach.
+\item Impossibility: no rule computed from the observational law satisfies causal efficiency and causal null (symmetry not needed). Two smooth monotone models at $n = 2$ agree on every observable cell to $10^{-17}$ and on the total lift 0.0502 yet assign all credit to different channels; at $n \ge 3$ parametric families are identified by functional form alone.
+\item In a three-channel benchmark a causally null retargeting channel earns 30\% of DDA credit; a cross-journey selection odds ratio of $\Gamma \approx 1.10$--$1.26$ overturns DDA's ranking while the true channel odds ratios run 1.28--2.54.
+\item The escape: under a $k$-way interaction cap, expose-$\le m_b$ / hold-out-$\le m_t$ cells identify the causal Shapley allocation iff $m_b + m_t \ge \min(k, n-1)$ (proved; 1,070/1,070 clean-room): $\mathrm{Sh}_j = \tfrac12(\text{solo} + \text{removal})$ from $2n+2$ cells under pairwise interactions, exact aliasing $|\text{leak}| = 1/((k+1)\binom{k}{m_b})$; global plus single holdouts never suffice for $n \ge 3$.
+\item Every exactly-capped design carries one over-identifying restriction, ``credits add up to the global-holdout lift'': a df-1 cap test (power 82--100\%) and a $2.3$--$7\times$ variance gain for the BLUE, paid in aliasing onto innocent channels. The precision--lift frontier obeys $N\ell\,\tr V \to \kappa$; the $2n+2$ design is within 5--16\% of optimal, holdout-only designs $2.8$--$5.6\times$ off and collapsing like $n^4$.
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+Multi-touch attribution allocates each conversion among the channels that touched the converting user, from journey logs alone. Last touch, equal split, Markov removal effects and the ``data-driven'' Shapley allocations of Google Analytics all take the observed conversion rate of each journey as input and return credits summing to observed conversions. Practitioners suspect the credits are not causal---a retargeting channel that fires at users about to buy collects credit for conversions it did not cause---and observational lift is known to fail against randomised ground truth (Gordon et al., 2019, 2023). Attribution has nevertheless escaped a formal verdict because its object is an \emph{allocation}, whose axioms live on a cooperative game rather than on potential outcomes. Problem M8 asked for the verdict: characterise the journey-value functions for which Shapley attribution is an average of per-touch causal effects, and prove that no observational rule satisfies efficiency, symmetry and counterfactual consistency under confounded exposure. Berman (2018) had shown the divergence as an equilibrium phenomenon; the study wanted an identification theorem.
+
+\dive{13} answers with one object, the cross-journey table $c(S,A)$: what users who received journey $S$ would have converted at had only the sub-journey $A$ reached them. Its diagonal is what attribution tools see; every causal axiom pulls on its off-diagonal, which nothing observational identifies. This yields the characterisation, the impossibility theorem (symmetry dropped; an exact swap inside a smooth family), sharp sensitivity bounds with attribution robustness values, and a first-order law for how targeting manufactures credit. It also opens the escape: randomised multi-cell holdouts identify the causal Shapley allocation if the menu is rich enough, and the ghost-ads menu is not. \dive{14} turns that into a design theory: a proved identification theorem, a closed-form estimator with an exact aliasing coefficient, a df-1 test of the interaction cap, and a convex precision--lift frontier pricing every design in one currency.
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{The Shapley value and Harsanyi dividends (Shapley, 1953; Harsanyi, 1963; Grabisch, 1997)}
+
+A cooperative game on $N = \{1, \ldots, n\}$ is a set function $v: 2^N \to \R$. The Shapley value averages marginal contributions over all arrival orders,
+\begin{equation}
+\mathrm{Sh}_j(v) = \sum_{B \subseteq N \setminus \{j\}} \frac{|B|!\,(n - |B| - 1)!}{n!}\,\big[v(B \cup \{j\}) - v(B)\big],
+\label{eq:attr:shapley}
+\end{equation}
+and is the unique allocation satisfying \emph{efficiency} ($\sum_j \mathrm{Sh}_j = v(N) - v(\emptyset)$), \emph{null player} ($v(B \cup \{j\}) = v(B)$ for all $B$ implies $\mathrm{Sh}_j = 0$), \emph{symmetry} (interchangeable players get equal credit) and \emph{additivity} ($\mathrm{Sh}(v + w) = \mathrm{Sh}(v) + \mathrm{Sh}(w)$: Shapley is linear on the $2^n$-dimensional game space). The M\"obius inverse on the subset lattice gives the \emph{Harsanyi dividends}
+\begin{equation}
+D_v(T) = \sum_{B \subseteq T} (-1)^{|T \setminus B|}\, v(B), \qquad v(A) = \sum_{T \subseteq A} D_v(T), \qquad \mathrm{Sh}_j(v) = \sum_{T \ni j} \frac{D_v(T)}{|T|},
+\label{eq:attr:mobius}
+\end{equation}
+the part of $v(T)$ not explained by proper subsets (main effects, pairwise interactions, and so on), each shared equally among its members. Grabisch (1997) calls $v$ \emph{$k$-additive} if $D_v(T) = 0$ for $|T| > k$; the chapter's ``interaction cap'' is $k$-additivity.
+
+\subsection{Data-driven attribution: Shapley on observational rates (Shao and Li, 2011, and successors)}
+
+Shao and Li (2011) estimate from logs the conversion rates $P(y \mid x_i)$ of users who saw channel $i$ and $P(y \mid x_i, x_j)$ of users who saw both, crediting $i$ with its own rate plus half of each pairwise excess: a truncated Shapley value of the game whose value at a channel set is the observed conversion rate of users exposed to it. Dalessandro et al.\ (2012) argued Shapley is the ``causally motivated'' allocation and computed it on the same rates; Zhao et al.\ (2018) extended it to ordered journeys; Anderl et al.\ (2016) fitted a Markov chain to journey states and defined a channel's \emph{removal effect} as the drop in the chain's conversion probability when its state is deleted. Google's DDA works per realised journey: it compares the conversion probability of each observed path with that of the path minus each touchpoint, distributes the path's conversions by the Shapley formula, and sums over paths. None states an identification condition; the value function is observational and the causal reading is asserted.
+
+\subsection{The causal critiques: Berman (2018) and Singal et al.\ (2022)}
+
+Berman (2018) treats the attribution rule as an incentive contract between an advertiser paying per attributed conversion and publishers choosing whom to show ads to. Under last touch, publishers ``exploit the baseline'' by advertising to users who would convert anyway, so attributed and causal contribution diverge in equilibrium; Shapley on the \emph{interventional} revenue function---each publisher's marginal contribution to conversions that would not otherwise occur---is the benchmark restoring efficient incentives. Singal, Besbes, Desir, Goyal and Iyengar (2022) give the only axiomatic treatment with a counterfactual flavour: in a Markov journey model, \emph{counterfactual efficiency} (credits sum to the model's incremental conversions) and a \emph{counterfactual null player} axiom characterise $\mathrm{CASV} = \mathrm{SV}(M) - \mathrm{SV}(M_{\mathrm{cf}})$, the Shapley value of the fitted model minus that of the model with advertising effects removed. The counterfactual is \emph{model-internal}, so the axioms are satisfiable exactly because exposure is unconfounded within the model. The explanation literature has analogues for a fixed function---conditional Shapley violates the dummy axiom (Sundararajan and Najmi, 2020); complete linear attributions cannot test counterfactual behaviour (Bilodeau et al., 2024)---not for a confounded treatment.
+
+\subsection{Multi-channel potential outcomes and the evidence against observational lift}
+
+A unit's potential outcomes are indexed by the full exposure vector, $Y(z)$ for $z \in \{0,1\}^n$, so ``the effect of channel $j$'' is a contrast $Y(z + e_j) - Y(z)$ depending on the other channels present: a per-touch causal effect is a marginal contribution in the game $A \mapsto Y(\one_A)$, which is why Shapley is the natural bridge. Exposure is \emph{unconfounded} if $Z$ is independent of the potential outcomes; targeting on purchase intent violates this by construction. Gordon et al.\ (2019) compared 15 large Facebook experiments with observational methods on the same data: observational lift overstated RCT lift by about $3\times$ in half the studies, and one study with a 6.6\% exposure rate reported 1,306\% against 2.4\%. Gordon, Moakler and Zettelmeyer (2023), on 663 experiments, found double machine learning and stratified propensity matching giving median lifts of 83\% and 173\% against 29\%.
+
+\subsection{Sensitivity analysis: Rosenbaum's $\Gamma$, Tan's marginal model, robustness values}
+
+Rosenbaum (2002) parametrises hidden bias by one odds ratio $\Gamma \ge 1$: two units alike on observables may differ in their odds of treatment by at most $\Gamma$; one computes the inferences consistent with each $\Gamma$ and reports where the conclusion first becomes ambiguous. Tan (2006) states the \emph{marginal sensitivity model}, bounding the odds ratio between the propensity given the potential outcome and the propensity given observables, which yields sharp bounds for effects linear in the unobserved cells. Cinelli and Hazlett (2020) package the output as a \emph{robustness value}: the minimal confounding strength that brings an estimate to zero or overturns a conclusion.
+
+\subsection{Ghost ads, multi-cell holdouts and optimal design (Johnson, Lewis and Nubbemeyer, 2017; Zhou et al., 2025)}
+
+A lift experiment randomises users into an exposed group and a holdout never shown the ad; the classic holdout wastes public-service impressions and cannot tell which holdout users \emph{would} have been exposed. \emph{Ghost ads} (Johnson, Lewis and Nubbemeyer, 2017) fix both: the platform logs when a holdout user would have won the auction and serves the next-best ad, identifying the counterfactually exposed subgroup at no media cost. Multi-cell versions (Gordon et al., 2019; Waisman and Gordon, 2025) vary intensity or creative of one campaign, never the \emph{subset} of channels. Here a ``cell'' is a random slice in which a specified channel set is suppressed; the ghost-ads menu is the global holdout plus one single-channel holdout per channel. Allocating users to cells is \emph{L-optimal} design---minimise $\tr(L\,\Var\hat\theta)$ for a linear criterion, here the summed variance of the Shapley vector---and is convex because the information matrix is linear in cell shares. Zhou, Mee, Hamers and Zheng (2025) recover Shapley values from regular fractional factorials under a low-order truncation with classical aliasing tables; the designs below are Hamming-weight shells, not regular fractions, so their aliasing must be derived afresh. Feit and Berman (2019) price a single holdout's opportunity cost in a Bayesian ``test and roll''.
+
+\section{Setup and assumptions}
+
+\begin{definition}[Exposure, the cross-journey table, three games]
+\label{attr:def:table}
+Unit $i$ has exposure set $Z_i \in \{0,1\}^n$ and potential outcomes $\{Y_i(z)\}$; $\one_S$ is the indicator of $S \subseteq N$ and $Z \wedge \one_A$ the coordinatewise minimum. The observational law $P$ is summarised by $P(S) := \Prob(Z = \one_S)$ and $v_{\mathrm{obs}}(S) := \E[Y \mid Z = \one_S]$. The \emph{cross-journey table} is
+\begin{equation}
+c(S, A) := \E\big[Y(\one_A) \,\big|\, Z = \one_S\big], \qquad A \subseteq S,
+\label{eq:attr:table}
+\end{equation}
+with observed diagonal $c(S,S) = v_{\mathrm{obs}}(S)$ and unobserved off-diagonal. Three games: $v_\star(A) := \E[Y(\one_A)]$ (everyone exposed to exactly $A$); $v_{\mathrm{pop}}(A) := \E[Y(Z \wedge \one_A)] = \sum_S P(S)\,c(S, S \cap A)$ (channels in $A$ keep their realised delivery, the rest are switched off); the bias game $b := v_{\mathrm{obs}} - v_\star$. The \emph{realised lift} is $v_{\mathrm{pop}}(N) - v_{\mathrm{pop}}(\emptyset) = \E[Y(Z) - Y(0)]$.
+\end{definition}
+
+\begin{definition}[Rules and axioms]
+\label{attr:def:rules}
+An \emph{observational rule} is any map $\varphi(P) \in \R^n$. Rules studied: population-game Shapley $\mathrm{Sh}(v_{\mathrm{obs}})$ (Shao--Li style); journey-level DDA, $\mathrm{DDA}_j := \sum_S P(S)\,\mathrm{Sh}_j(v_{\mathrm{obs}}|_S)$; the removal effect $\tau_j := \E[Y(Z) - Y(Z - e_j)]$, what a single-channel ghost-ad holdout measures; equal split. Axioms: (E) \emph{causal efficiency}, $\sum_j \varphi_j = \E[Y(Z) - Y(0)]$; (N) \emph{causal null}, $\varphi_j = 0$ whenever $Y_i(z)$ does not depend on $z_j$ for every unit; (S) symmetry; (L) linearity.
+\end{definition}
+
+\begin{assumption}[Scope]
+\label{attr:ass:scope}
+Journeys are sets, not ordered or repeated paths; outcomes are binary; in experimental cells suppression is perfect and cells do not interfere. The theorems are nonparametric; the numerical DGPs use one latent confounder with logistic links.
+\end{assumption}
+
+The \emph{benchmark DGP} has $n = 3$, $U \sim \mathcal N(0,1)$, $Z_j \mid U \sim \mathrm{Bern}(\sigma(a_j + g_j U))$ with $\sigma$ the logistic function, $a = (-0.5, -1.0, -1.5)$ and targeting slopes $g = (0.4, 1.0, 1.6)$, and $Y(z) \mid U \sim \mathrm{Bern}(\sigma(\beta_0 + \beta U + \theta^\T z))$ with $\beta_0 = -2.5$, $\beta = 1$, $\theta = (0.5, 0.5, 0)$: channel 3 is the ``retargeting'' channel, most targeted, lowest reach, causally null. Population quantities are exact by Gauss--Hermite quadrature (error $< 10^{-12}$).
+
+\begin{definition}[Cells, caps and two-layer designs (\dive{14})]
+\label{attr:def:design}
+A cell $A$ exposes a random slice to the channels in $A$ and suppresses the rest; its mean is $v(A) := v_{\mathrm{pop}}(A)$, with dividends $D(T)$ and causal Shapley $\mathrm{Sh}_j = \sum_{T \ni j} D(T)/|T|$. A \emph{$k$-way cap} imposes $D(T) = 0$ for $|T| > k$. The two-layer design $B(m_b, m_t) := \{A : |A| \le m_b \text{ or } |N \setminus A| \le m_t\}$ holds the expose-at-most-$m_b$ (bottom) and hold-out-at-most-$m_t$ (top) cells; \dive{13}'s layered design is $L_m = B(m,m)$, the ghost-ads menu is $B(0,1)$, the \emph{holdout-only} design $B(0,k)$ never deprives a user of more than $k$ channels. A linear functional of $D$ is identified iff its coefficient vector lies in the row space of the incidence matrix $X[A,T] = \ind[T \subseteq A]$ restricted to $|T| \le k$. Cell $A$ gets share $f_A$ of $N$ users, has variance $s_A^2 = v(A)(1 - v(A))$ and forgoes lift $\ell_A = [v(N) - v(A)]/[v(N) - v(\emptyset)]$ per user; $\ell = \sum_A f_A \ell_A$. The \emph{leak} of a dividend $T$, $|T| > k$, into an estimator with cell weights $c$ is $\sum_A c_{jA}\ind[T \subseteq A] - \ind[j \in T]/|T|$.
+\end{definition}
+
+\section{Main results}
+
+\subsection{Decomposition identities and the journey-level lemma}
+
+By linearity, $\mathrm{Sh}(v_{\mathrm{obs}}) = \mathrm{Sh}(v_\star) + \mathrm{Sh}(b)$, and $\mathrm{Sh}(v_\star)$ is by construction a Shapley-weighted average of per-touch causal effects.
+
+\begin{proposition}[The class asked for in M8(i)]
+\label{attr:prop:class}
+\tagEstablished\ Shapley on the observational game equals a Shapley average of per-touch causal effects exactly on $v_\star + \ker \mathrm{Sh}$, an affine subspace of codimension $n$; in dividend coordinates $\ker \mathrm{Sh} = \{b : \sum_{T \ni j} D_b(T)/|T| = 0\ \forall j\}$, containing every symmetric bias $b(S) = h(|S|)$ with $h(n) = h(0)$ and every constant (uniform-selection) bias. Targeting-generated confounding lands in it only by measure-zero cancellation.
+\end{proposition}
+
+For the journey-level rule the causal target is $v_{\mathrm{pop}}$ and the bias is a \emph{family} indexed by the realised journey. Since $B \mapsto c(S, S \cap B)$ is the subgame on $S$ with outside players null, $\mathrm{Sh}_j(v_{\mathrm{pop}}) = \sum_S P(S)\,\mathrm{Sh}_j(A \mapsto c(S,A))$, whereas DDA replaces $c(S,A)$ by $c(A,A)$:
+\begin{equation}
+\mathrm{DDA}_j - \mathrm{Sh}_j(v_{\mathrm{pop}}) = \sum_S P(S)\,\mathrm{Sh}_j(b_S), \qquad b_S(A) := c(A,A) - c(S,A),\quad A \subseteq S.
+\label{eq:attr:ddabias}
+\end{equation}
+Because $b_S(S) = 0$, efficiency gives $\sum_j \mathrm{Sh}_j(b_S) = c(S,\emptyset) - c(\emptyset,\emptyset)$: DDA's total credit exceeds the realised lift by exactly $\E[Y(0)] - \E[Y(0) \mid Z = \emptyset]$, the classic baseline selection bias.
+
+\begin{lemma}[Journey-level lemma]
+\label{attr:lem:journey}
+\tagEstablished\ If exposure is unconfounded ($c(S,A) = c(A,A)$ for all $A \subseteq S$) then $\mathrm{DDA} = \mathrm{Sh}(v_{\mathrm{pop}})$ exactly (E1: $\max|\mathrm{DDA} - \mathrm{Sh}(v_{\mathrm{pop}})| = 2.8\times10^{-17}$ at $g = 0$): journey-level Shapley on observational rates is the efficient, symmetric, causal-null allocation of realised lift. The population-game rule is not: $\mathrm{Sh}(v_\star)$ allocates the lift of a world in which everyone sees every channel. With equal per-exposure effects and reach $(0.38, 0.18, 0.08)$ its shares are $(\tfrac13, \tfrac13, \tfrac13)$ against causal shares $(0.586, 0.291, 0.123)$ (E22).
+\end{lemma}
+
+\subsection{The impossibility theorem}
+
+\begin{theorem}[Impossibility of causal attribution from observational data]
+\label{attr:thm:impossible}
+\tagEstablished\ Let $n \ge 2$ and $\mathcal D$ be any class of DGPs closed under the swap construction below. No observational rule $\varphi(P)$ satisfies (E) and (N) on $\mathcal D$. Symmetry and linearity are not needed, and the conclusion survives (i) restriction to monotone targeting ($g > 0$), monotone confounding ($\beta > 0$) and non-negative effects, (ii) a global holdout (realised total lift known), and (iii) restriction to a smooth single-index parametric family.
+\end{theorem}
+
+The nonparametric proof is in principal-strata form: let the latent type be the exposure set itself, so that any table $\{c(S,A)\}$ with the observed diagonal is realised by some DGP with law $P$; for each $j$ choose the off-diagonal so that $j$ is inert ($c(S,A) = c(S, A \setminus j)$) and all $n$ tables share the same total lift $\Delta > 0$. Then $\varphi(P)$ is one vector, (N) forces every $\varphi_j(P) = 0$ and (E) forces $\sum_j \varphi_j(P) = \Delta$. The identified part of the table is its diagonal and every causal axiom pulls on the off-diagonal; the Shapley operator is not at fault---Singal et al.'s axioms are all satisfiable given the off-diagonal. The failure is identification, not axiomatics.
+
+\begin{proposition}[Exact swap inside a smooth family, $n = 2$]
+\label{attr:prop:swap}
+\tagEstablished\ With Gaussian $U$ and logistic links, DGP A ($a = (-0.5, -1.5)$, $g = (0.6, 1.8)$, $\beta_0 = -2$, $\beta = 1.2$, $\theta = (0.8, 0)$: channel 2 null) and DGP B ($a = (-0.947, -1.036)$, $g = (2.779, 0.517)$, $\beta_0 = -1.724$, $\beta = 1.063$, quadratic confounder term $\beta_2 = -0.193$, $\theta = (0, 1.001)$: channel 1 null) have identical $\Prob(Z = \one_S, Y = y)$ on all eight cells (maximum difference $5.6\times10^{-17}$; clean-room $1.4\times10^{-17}$) and identical realised lift 0.0502. Under A, $\mathrm{Sh}(v_{\mathrm{pop}}) = (0.0502, 0)$; under B, $(0, 0.0502)$. Both satisfy $g > 0$, $\beta > 0$, $\theta \ge 0$; every observational rule---DDA $(0.0664, 0.0523)$, population Shapley $(0.200, 0.213)$, Markov, last touch, equal split---returns the same answer for both (E15).
+\end{proposition}
+
+\begin{remark}[The parametric boundary at $n \ge 3$]
+\label{attr:rem:boundary}
+\tagNumerical\ At $n = 3$ the rigid logit/logit/Gaussian family (11 parameters against 15 observable degrees of freedom) admits no exact swap: the best channel-1-null fit to the channel-3-null truth leaves a maximum cell mismatch of $7.0\times10^{-3}$ (about 2\% of the cell), with or without a two-component mixture for $U$ (E19). Functional form identifies the allocation at $n \ge 3$ the way Heckman selection is identified without an exclusion restriction---detectably only with of order $10^5$ users per journey cell, and only if the family is right; with nonparametric $U$ the swap always exists.
+\end{remark}
+
+\subsection{Sensitivity bounds and attribution robustness values}
+
+$\mathrm{Sh}_j(v_{\mathrm{pop}}) = \sum_{S, A \subseteq S} \mathrm{coef}_j(S,A)\,c(S,A)$ is linear in the table with signed coefficients (Shapley weights times $P(S)$), so any cell-wise sensitivity model on the unidentified cells gives \emph{sharp} bounds by plugging the upper cell bound where the coefficient is positive and the lower where it is negative.
+
+\begin{construction}[Cross-journey odds-ratio models and robustness values]
+\label{attr:con:gamma}
+\tagTransported\ Three models on the off-diagonal: the \emph{global box}, $\mathrm{odds}\,c(S,A) \in \mathrm{odds}\,c(A,A)\cdot[1/\Gamma, \Gamma]$ for every $A \subsetneq S$; the \emph{channelwise} model, $\mathrm{odds}\,c(S,A) \in \mathrm{odds}\,c(A,A)\cdot\prod_{k \in S \setminus A}[1/\Gamma_k, \Gamma_k]$, in which the log-odds selection shift is additive in the \emph{missing} channels (what the first-order law below implies) and the analyst sets one number per channel; and \emph{monotone} (positive) selection, $c(S,A) \ge c(A,A)$. The smallest channelwise parameters consistent with a DGP solve an LP (minimise $\sum_k \log\Gamma_k$ subject to every cell's log-odds ratio being at most $\sum_{k \in S \setminus A}\log\Gamma_k$). The \emph{attribution robustness values} are the $\Gamma$ at which channel $j$'s interval first contains zero and the $\Gamma$ at which the top-two DDA ordering becomes ambiguous, with DDA as the $\Gamma = 1$ point.
+\end{construction}
+
+For the benchmark $\Gamma_k^\star = (1.28, 1.82, 2.54)$ while the global $\Gamma^\star = 5.31$ (one extreme cell dominates); \cref{attr:tab:gamma} gives widths and robustness values. The ranking is overturned at $\Gamma = 1.10$ (channelwise), $1.12$ (box) or $1.20$--$1.26$ (monotone): a 10--25\% cross-journey selection odds ratio makes DDA's ranking uninterpretable while the true $\Gamma_k^\star$ run 1.3--2.5. The intervals are conservative---the truth sits 0.22--0.44 of the way up the channelwise intervals across four targeting regimes (0.37--0.60 for the box), a further factor 2--3 against the single-index truth (\BL{43}).
+
+\subsection{The targeting-intensity bias law}
+\label{attr:sec:biaslaw}
+
+With Gaussian $U$ and a log-linear tilt, $\Prob(Z = \one_S \mid U)/P(S) \approx 1 + U\,L(S)$, $L(S) = \sum_k g_k(s_k - \bar e_k)$, $\bar e_k = \sigma(a_k)$, so to first order in the targeting slopes
+\begin{equation}
+b(S) \approx \beta_S\,L(S), \quad \beta_S := \E[U\,p(\one_S, U)]; \qquad b_S(A) \approx \beta_A[L(A) - L(S)] = -\beta_A \sum_{k \in S \setminus A} g_k,
+\label{eq:attr:firstorder}
+\end{equation}
+with $p(z, U) := \Prob(Y(z) = 1 \mid U)$ and $\beta_S$ the outcome's $U$-slope under exposure $S$.
+
+\begin{law}[Targeting-intensity bias: operator form holds, closed form refuted]
+\label{attr:law:operator}
+\tagNumerical\ $\mathrm{Sh}(b) \approx \mathrm{Sh}(\beta_\cdot L)$ and $\mathrm{DDA} - \mathrm{Sh}(v_{\mathrm{pop}}) \approx \sum_S P(S)\,\mathrm{Sh}(b_S)$ with $b_S$ from \cref{eq:attr:firstorder}. The operator predictions are within 1--4\% of the exact bias for targeting scale $\le 0.2$ ($g \le 0.32$), within 10\% up to $g \approx 0.6$, then over-predict by up to $2\times$ at the benchmark scale as the logistic tilt saturates (E3); across probit links, bimodal and skewed $U$ and $U$-dependent persuasion they hold to $\pm5\%$ at scale 0.1 and $\pm10\%$ at 0.25 (E11). \tagRefuted\ Were the outcome slope exposure-invariant ($\beta_S \equiv \bar\beta$) the law would collapse to $\mathrm{Sh}_j(b) \approx \bar\beta g_j$ and $\mathrm{DDA}_j - \mathrm{Sh}_j(v_{\mathrm{pop}}) \approx \bar\beta g_j \Prob(j \in Z)$---credit inflation equal to a channel's own targeting slope times the confounder's outcome slope, independent of its true effect and of the other channels. Round 2 refuted this even as $g \to 0$: the ratios exact/closed-form converge to $1.37, 1.08, 1.01$, not 1, because in a logistic model $\beta_S$ varies $1.7\times$ across exposure sets, so channel 1's bias carries the others' targeting through $\beta_S$. The repaired form uses the Shapley-weighted slope $\bar\beta_j = \sum_B w_j(B)\,\beta_{B \cup j}$, exact for the strongly targeted channel (ratio 1.01--1.05 at scale $\le 0.2$).
+\end{law}
+
+Sign and ordering survive: the null channel's DDA credit rises monotonically from 0 at $g_3 = 0$ through 0.0271 at the benchmark $g_3 = 1.6$ to 0.0394 at $g_3 = 2.5$ (41\% of total credit), and its population-Shapley rank goes from third to first at $g_3 \approx 2$ (E2). A 50\% gap in targeting slope ($g_2 = 1.5$ against $g_1 = 1.0$) overturns a 50\% gap in true effect (0.6 against 0.4) (E13). The exchange rate $\partial\mathrm{DDA}_j/\partial g_j \div \partial\mathrm{DDA}_j/\partial\theta_j$ is 0.45--0.59: a unit of targeting slope buys about half the credit of a unit of log-odds causal effect (E14; \BL{45}).
+
+\subsection{The design theorem}
+
+A cell suppressing $H$ identifies $v_{\mathrm{pop}}(N \setminus H) = \sum_{T \subseteq N \setminus H} D(T)$. \dive{13} found by rank computation that the ghost-ads menu identifies only $\tau_j$ and the total, never $\mathrm{Sh}$ for $n \ge 3$ under any cap (rank 4 of 7 at $n = 3$), and that $L_m$ identifies $\mathrm{Sh}$ under a $k$-way cap iff $m \ge \min(\lceil k/2 \rceil, \lfloor n/2 \rfloor)$, exhaustively for $n \le 8$, proved only at $k = 2$ (\BL{42}). \dive{14} proved the general statement.
+
+\begin{theorem}[Identification of causal Shapley from two-layer designs]
+\label{attr:thm:design}
+\tagEstablished\ Under a $k$-way cap the causal Shapley allocation is identified from $B(m_b, m_t)$ iff $m_b + m_t \ge \min(k, n-1)$. (Exhaustive rank check $n = 3, \ldots, 8$: 1,042 cases, 0 mismatches; clean-room 1,070 cases, $n \le 7$, 0 mismatches.)
+\end{theorem}
+
+The proof fixes $j$ and works in the $G = \mathrm{Stab}(j) \subset S_n$ symmetric sector: design, cap and $\mathrm{Sh}_j$ are $G$-invariant, so $\mathrm{Sh}_j$ is identified iff it lies in the span of the $G$-averaged cell functionals. With $\sigma_t := \sum_{T \ni j, |T| = t} D(T)$ and $\omega_t := \sum_{T \not\ni j, |T| = t} D(T)$, the averaged bottom cells span exactly $\{D_\emptyset, \sigma_t, \omega_t : t \le m_b\}$, and the top layer, after a M\"obius transform on the holdout lattice ($Q(H) := \sum_{T \supseteq H} D(T)$, an alternating sum of the cells $v((N \setminus H) \cup B)$, $B \subseteq H$), gives the averaged co-dividend sums
+\begin{equation}
+R_h := \sum_{H \ni j, |H| = h} Q(H) = \sum_t \binom{t-1}{h-1}\sigma_t, \qquad h = 1, \ldots, m_t.
+\label{eq:attr:Rh}
+\end{equation}
+Modulo the bottom layer the unknowns are $\sigma_t, \omega_t$ for $t = m_b + 1, \ldots, k$ and the target is $1/t$ on the $\sigma$'s, 0 on the $\omega$'s. \emph{Sufficiency}: if $m_b + m_t \ge n - 1$ the design is the full factorial; otherwise $k - m_b \le m_t$ and the rows $R_h$ are polynomials $\binom{t-1}{h-1}$ of degrees $0, \ldots, m_t - 1$ at $k - m_b \le m_t$ points, which interpolate $1/t$. \emph{Necessity}: a degree-$\le(m_t - 1)$ polynomial cannot equal $1/t$ at $k - m_b \ge m_t + 1$ points, since the $m_t$-th divided difference of $1/t$ over positive points is $(-1)^{m_t}/\prod t_i \ne 0$. Explicit witness at $n = 4$, $k = 3$, $L_1$: a 3-additive game with every $L_1$ cell zero and $\mathrm{Sh} = (\tfrac16, -\tfrac16, 0, 0)$.
+
+\begin{corollary}[Pairwise interactions: $2n + 2$ cells]
+\label{attr:cor:pairwise}
+\tagEstablished\ Under $k = 2$, $B(1,1)$---global holdout, no holdout, $n$ single holdouts, $n$ single-channel-only exposures---identifies $\mathrm{Sh}$ for every $n$ through
+\begin{equation}
+\mathrm{Sh}_j = \tfrac12\big[v(\{j\}) - v(\emptyset)\big] + \tfrac12\big[v(N) - v(N \setminus j)\big] = \tfrac12(\text{solo} + \text{removal}),
+\label{eq:attr:halfrule}
+\end{equation}
+since for 2-additive games $\mathrm{Sh}_j = D_j + \tfrac12\sum_i D_{ij}$ and both brackets are dividend sums (\dive{13}; clean-room proved, checked to $4\times10^{-16}$). Its error under a true 3-way dividend is $D_{123}/6$ per channel, uniform.
+\end{corollary}
+
+\begin{corollary}[Holdout-only designs]
+\label{attr:cor:holdout}
+\tagEstablished\ $B(0,k)$ identifies $\mathrm{Sh}$ under a $k$-way cap; for $k = 2$,
+\begin{equation}
+\mathrm{Sh}_j = \big[v(N) - v(N \setminus j)\big] - \tfrac12\sum_{i \ne j}\big[v(N) - v(N \setminus i) - v(N \setminus j) + v(N \setminus \{i,j\})\big],
+\label{eq:attr:holdoutonly}
+\end{equation}
+the removal effect minus half the pairwise removal interactions (exact to $10^{-15}$). The ``expose only $j$'' cells are not necessary for identification; what they buy is precision.
+\end{corollary}
+
+\subsection{The closed-form estimator and the aliasing law}
+
+\begin{construction}[Symmetrised estimator]
+\label{attr:con:estimator}
+\tagEstablished\ With $r = k - m_b$ and $\lambda$ solving the $r \times r$ binomial-Vandermonde system $\sum_h \lambda_h \binom{t-1}{h-1} = 1/t$, $t = m_b + 1, \ldots, k$,
+\begin{equation}
+\hat{\mathrm{Sh}}_j = \sum_{t \le m_b} \frac{\hat\sigma_t}{t} + \sum_{h=1}^{r} \lambda_h\Big[\hat R_h - \sum_{t \le m_b}\binom{t-1}{h-1}\hat\sigma_t\Big],
+\label{eq:attr:estimator}
+\end{equation}
+with $\hat\sigma_t$ from M\"obius inversion of bottom cells and $\hat R_h$ from alternating sums of top cells. For $(m_b, m_t, k) = (1,1,2)$, $\lambda = \tfrac12$ gives \cref{eq:attr:halfrule}; for $(0,2,2)$, $\lambda = (1, -\tfrac12)$ gives \cref{eq:attr:holdoutonly}. Exact on random $k$-additive games in nine configurations up to $n = 8$ (error $\le 4\times10^{-15}$).
+\end{construction}
+
+\begin{law}[Aliasing of uncapped dividends]
+\label{attr:law:alias}
+\tagEstablished\ Applied to a game with a dividend of order $t' > k$ on $T$, the cap-$k$ estimator's coefficient on $\sigma_{t'}$ is $p(t')$, the degree-$(r-1)$ polynomial interpolating $1/t$ at $t = m_b + 1, \ldots, k$, so for $j \in T$
+\begin{equation}
+\text{leak} = p(t') - \frac1{t'} = (-1)^{r+1}\,\frac{\prod_{t = m_b+1}^{k}(t' - t)}{t' \prod_{t = m_b+1}^{k} t}, \qquad |\text{leak}|_{t' = k+1} = \frac{m_b!\,(k - m_b)!}{(k+1)!} = \frac{1}{(k+1)\binom{k}{m_b}},
+\label{eq:attr:leak}
+\end{equation}
+with sign $(-1)^{k - m_b + 1}$; for $j \notin T$ the leak is exactly zero.
+\end{law}
+
+The leak is minimised by the \emph{balanced} design $m_b = \lfloor k/2 \rfloor$ and worst, $1/(k+1)$, for the one-sided $B(0,k)$ and $B(k,0)$: $1/6$ against $1/3$ at $k = 2$, $1/12$ against $1/4$ at $k = 3$ (verified to machine precision, $k \le 5$, $n \le 7$; E3). Higher orders extrapolate: for $B(0,3)$ the order-5 and order-6 leaks are 0.8 and 1.67, for $B(1,2)$ and $B(2,1)$ at most $1/3$. Summed over $j \in T$, one order-$(k+1)$ dividend moves the \emph{total} credit by $(-1)^{k - m_b + 1} D(T)/\binom{k}{m_b}$, a sign-known diagnostic of cap violation.
+
+\subsection{The one over-identifying restriction: add-up test and BLUE}
+
+\begin{proposition}[Credits add up]
+\label{attr:prop:addup}
+\tagNumerical\ Every exactly-capped design $B(m_b, m_t)$ with $m_b + m_t = k \le n - 2$ has $\rank X = \#\text{cells} - 1$ (E14, $n = 4, \ldots, 8$, seven families; clean-room $n \le 7$), and the one restriction is $\sum_j \hat{\mathrm{Sh}}_j = v(N) - v(\emptyset)$: the closed-form credits sum to the global-holdout lift (the discrepancy's weight vector spans $\mathrm{null}(X^\T)$, cosine $1.000000$ in every case). For $2n + 2$ cells it reads $\sum_i[v(N \setminus i) - v(\{i\})] = (n-2)[v(N) - v(\emptyset)]$.
+\end{proposition}
+
+In the $S_n$-symmetric sector the top layer supplies $m_t + 1$ equations for $m_t$ unknowns, one more than needed; the general df-1 theorem is \BL{47}. Two consequences. The \emph{add-up test}: the df-1 lack-of-fit $\chi^2$ of the cap is the standardised add-up gap, whose mean under one order-$(k+1)$ dividend is $D(T)/\binom{k}{m_b}$ (E15: gap $+0.0037$ against $D_{123}/2 = +0.0045$ at $n = 5$, the shortfall being other 3- and 4-way dividends). And the cap-unbiased estimators form a \emph{line} $c(\alpha) = c_{\mathrm{closed}} + \alpha\nu$, $\nu$ the add-up discrepancy's weight vector, on which variance is quadratic and aliasing affine. The BLUE $c = \Sigma^{-1}X(X^\T\Sigma^{-1}X)^{+}w$ ($\Sigma$ the diagonal cell covariance, $w$ the Shapley coefficient vector on capped dividends) cuts the closed form's $\sum_A c_A^2$ from 1.000 to 0.437, 0.429, 0.443 for $B(1,1)$ at $n = 4, 5, 8$, from 4.0 to 0.86 for $B(0,2)$ at $n = 5$, from 15.9 to 2.27 for $B(0,3)$ at $n = 6$ (E4, E14): a $2.3$--$7\times$ gain, of which the hand rule---subtract the add-up gap equally from every channel---captures 85--99\% (0.500, 0.480, 0.469). The price is unstructured aliasing: under the BLUE a 3-way dividend biases channels outside it, including a null one (\cref{attr:sec:numerics}).
+
+\subsection{The precision--lift frontier and the $\kappa$ law}
+\label{attr:sec:frontier}
+
+For a fixed design $\tr\Var_{\mathrm{BLUE}}(f)$ is matrix-convex in the allocation $f$, so $\min_f \tr V + \mu\,\ell(f)$ is a convex programme: L-optimal design with a lift penalty.
+
+\begin{law}[The lift price of a Shapley allocation]
+\label{attr:law:kappa}
+\tagEstablished\ As $\ell \to 0$ (mass concentrating on the no-holdout cell),
+\begin{equation}
+N\,\ell\,\tr V \;\to\; \kappa := \min_{C \text{ cap-unbiased}} \Big(\sum_{A \ne N} \norm{C_{\cdot A}}_2\, s_A \sqrt{\ell_A}\Big)^2,
+\label{eq:attr:kappa}
+\end{equation}
+with optimal shares $g_A \propto \norm{C_{\cdot A}}\,s_A/\sqrt{\ell_A}$ (Cauchy--Schwarz on $\sum_A \norm{C_A}^2 s_A^2/f_A$ against $\sum_A f_A \ell_A$; the no-holdout cell is free). Verified to three decimals in 17 $(n, k, \text{design})$ cases (E13; clean-room 0.71041 against 0.71044, under 0.01\%).
+\end{law}
+
+$\kappa$ prices an allocation in users times lift forgone per unit of Shapley variance: $\sum_j \Var(\hat{\mathrm{Sh}}_j) = \delta^2$ needs $N\ell \ge \kappa/\delta^2$. With five channels, $\mathrm{Sh}_j \approx 0.01$--$0.035$ and target sd 0.002 per channel, $\delta^2 = 2\times10^{-5}$ and $N\ell \approx 55{,}000$: with 5M users the layered design costs 1.1\% of the slice's lift, the holdout-only design 2.9\%. The frontier product is within 3\% of $\kappa$ already at $\ell = 5$--10\%.
+
+\section{Numerical evidence}
+\label{attr:sec:numerics}
+
+\cref{attr:tab:benchmark} gives the exact benchmark allocations (identities to $\le 3\times10^{-17}$, reproduced clean-room to all digits): the null channel takes 30\% of DDA credit and ranks second on population Shapley, both observational rules invert the two real channels, and removal effects over-allocate by double-counting the small positive interaction. Finite-panel DDA is unbiased for its population value (E9: $N = 10^4, 10^5, 10^6$, 30 replications), so this is bias, not noise---it exceeds the sampling sd by $1.6$--$7.9\times$ at $N = 10^4$ and $16$--$103\times$ at $10^6$; at $n = 6$ with 44\% of 64 journey cells under 30 users ($N = 3\times10^4$) unconfounded DDA bias is at most 11\% of the credit and vanishes by $N = 10^6$ (E21). The power control is a global-holdout Hausman test of ``DDA total equals incremental total'' (statistic $\bar Y_0 - \hat v(\emptyset)$; E10, 200 replications, $N = 2\times10^5$): rejection $0.04 \pm 0.014$ under no confounding, $t = 29.5 \pm 1.1$ under benchmark and $16.9 \pm 1.1$ under half confounding.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Benchmark DGP ($n = 3$, channel 3 causally null): exact allocations by rule (\dive{13} E1, quadrature error $< 10^{-12}$).}
+\label{attr:tab:benchmark}
+\begin{tabular}{lcccl}
+\toprule
+Rule & Ch.\ 1 & Ch.\ 2 & Ch.\ 3 (null) & Sum \\
+\midrule
+$\mathrm{Sh}(v_{\mathrm{pop}})$, causal target & 0.0230 & 0.0220 & 0.0000 & 0.04497 (realised lift) \\
+Removal effects $\tau_j$ & 0.0241 & 0.0230 & 0 & 0.0471 \\
+Journey-level DDA & 0.0274 & 0.0365 & 0.0271 & 0.0911 ($= \E Y - v_{\mathrm{obs}}(\emptyset)$) \\
+Population Shapley $\mathrm{Sh}(v_{\mathrm{obs}})$ & 0.104 & 0.154 & 0.133 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Bounds on $\mathrm{Sh}_j(v_{\mathrm{pop}})$ at the true sensitivity parameters ($\Gamma^\star = 5.31$, $\Gamma_k^\star = (1.28, 1.82, 2.54)$) and robustness values from the DDA point (\dive{13} E5, E16; grid resolution 0.01). RV$_0$: $\Gamma$ at which each credit's interval touches 0; RV$_{\mathrm{rank}}$: $\Gamma$ at which the top-two ordering is ambiguous.}
+\label{attr:tab:gamma}
+\begin{tabular}{lccc}
+\toprule
+Model & Widths (ch.\ 1, 2, 3) & RV$_0$ & RV$_{\mathrm{rank}}$ \\
+\midrule
+Global box & (0.16, 0.15, 0.13) & (1.8, 2.3, 2.0) & 1.12 \\
+Channelwise & (0.054, 0.063, 0.066) & (1.6, 1.85, 1.65) & 1.10 \\
+Channelwise + monotone & (0.035, 0.042, 0.045) & --- & 1.20--1.26 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The experimental route recovers the truth: at $n = 3$, $N = 2$M users over 8 cells, the pairwise-cap design gives mean $(0.0230, 0.0220, 0.0001)$ with sd 0.0005, equal to a two-arm lift test with the same $N$ ($0.90$--$0.98\times$; E8); under strong synergy ($\theta_{12} = \theta_{23} = 2$, 3-way dividend $-0.019$) its bias is 0.0016 on every channel, uniform as predicted (E18). At $n = 4$ the layered design (10 cells) beats the size-$\le 2$-holdout design (12 cells) on precision, sd 0.00051 against 0.00056, but forgoes more lift, 51.5\% against 43.6\% (E20).
+
+\dive{14}'s Monte Carlo uses binomial cells, $N = 2$--$4$M, 40--60 replications (sd of a reported sd about 10\%; biases carry sd $\approx 0.00006$); empirical sds match predictions (0.00034--0.00043 against 0.00037--0.00038) and identified designs are unbiased to $1.7\times10^{-4}$ when the cap holds. \cref{attr:tab:designs} collects the comparison. The negative control is the ghost-ads menu $B(0,1)$ with an additive cap, which under pairwise synergy at $n = 5$ is biased $+0.0087$ on $\mathrm{Sh}_1 = 0.036$, $-0.0084$ on $\mathrm{Sh}_3 = 0.009$ and $-0.0047$ on the null channel, 12--29 sd (E6). The misspecification control adds a 3-way term ($\theta_3 = 0.8$, $D_{123} = +0.009$): the closed form on $B(1,1)$ biases channels 1--3 by $+0.0013$ each and channel 5 by exactly 0, while the BLUE biases channels 1--3 by $+0.0002$--$0.0003$ but channels 4 and 5 by $-0.0013$ and $-0.0011$, the latter causally null (3--4 sd at sd 0.0003--0.0004 in E6; the dive's headline ``5.7 sd on the null channel at $N = 4$M'' is E15's exact computation, quoted for $\theta_3 = 1.5$); $B(1,2)$ under a 3-way cap is unbiased to $1.7\times10^{-4}$. The add-up test rejects 2--3/60 under the null and 49/60 ($B(1,1)$), 57/60 ($B(1,2)$), 60/60 (full) against $D_{123} = 0.009$ at $N = 2$M, 18--29/60 against 0.0042 (E7). Non-identified designs have row-space residuals 0.12--0.35 and pseudo-estimates erring by 0.07--0.38 on unit-scale games; identified ones err by 0 (E10). A KernelSHAP-style size-uniform allocation over all 32 cells is 18\% less precise than the 12-cell $B(1,1)$ at equal lift (E12); Neyman allocation gains only 3--10\% over equal (E8).
+
+\begin{table}[htbp]
+\centering\footnotesize
+\caption{Design comparison under a pairwise cap unless stated (\dive{14} E3, E4, E9, E11, E13, E14). $\sum c^2$: squared weight sum, closed form $\to$ BLUE (equal cell variances); $\kappa$: lift price of \cref{eq:attr:kappa}; last column: Neyman-allocated BLUE $\tr V \cdot N$ on a monotone pairwise game ($n = 3 \to 8$, E9), and for $B(1,2)$ the $n = 5$ logistic DGP against $B(1,1)$ (E11). Ratios are exact given the game and vary $\pm15\%$ across the six games tried.}
+\label{attr:tab:designs}
+\begin{tabular}{lcccccc}
+\toprule
+Design & Cells, $n{=}5$ & Leak, order $k{+}1$ & $\sum c^2$ & $\kappa$, $n{=}5$ & $\kappa$, $n{=}6$ & $\tr V N$, $n{=}3 \to 8$ \\
+\midrule
+Full factorial & 32 & --- & --- & 1.05 & 1.29 & --- \\
+$B(1,1)$, $2n+2$ cells & 12 & 1/6 & $1.00 \to 0.43$ & 1.11 & 1.50 & $0.81 \to 6.1$ \\
+$B(0,2)$, holdout-only & 17 & 1/3 & $4.0 \to 0.86$ & 2.91 & 7.26 & $0.81 \to 156$ \\
+$B(2,0)$, bottom-only & 17 & 1/3 & --- & 5.01 & 16.3 & --- \\
+$B(1,2)$, 3-way cap & 22 & 1/12 & --- & optimum & --- & 2.29 vs 2.20 ($n{=}5$) \\
+$B(0,3)$, 3-way cap, $n{=}6$ & --- & 1/4 & $15.9 \to 2.27$ & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+On the frontier at $n = 5$, $k = 2$ (E5) the variance-optimal allocation forgoes 54\% of the slice's lift; moving to 10\% forgone costs $4.3\times$ in variance for the full factorial and $B(1,1)$ alike; $B(0,2)$ sits $2.8$--$3.7\times$ above the full-factorial frontier at every lift level, $B(2,0)$ $3$--$5\times$; $B(1,1)$ is within 11\% of the 32-cell optimum; and at $k = 3$ the 22-cell $B(1,2)$ \emph{is} the optimum, the programme putting zero mass on the ten pairs-exposed cells. Cap-raising is nearly free at $n = 5$ ($B(1,2)$ under a 3-way cap: $\tr V \cdot N = 2.29$ against 2.20, $+4\%$) and $B(2,2)$ under a 4-way cap beats $B(1,1)$ at $n = 7$ (3.68 against 4.40), at 2--4$\times$ the cells (E11). Scaling in $n$ is decisive for holdout-only designs: $\tr V \cdot N$ grows $0.81 \to 6.1$ for $B(1,1)$ from $n = 3$ to 8 (about $n^2$) but $0.81 \to 156$ for $B(0,2)$ (about $n^4$: $\binom{n}{2}$ cells each with weight $\tfrac12$), $25\times$ worse at $n = 8$, $3.5\times$ at $n = 5$ (E9).
+
+\section{Limitations and the devil's advocate}
+
+The dives' strongest counterarguments: \emph{``Confounding breaks identification---trivial.''} As a slogan; the content is survival under monotone restrictions, a known total and a smooth family at $n = 2$, the sharpness that follows from the obstruction being one table's off-diagonal, and the honest boundary that at $n \ge 3$ single-index families are identified by the Gaussian-logistic shape, which the same data cannot test. \emph{``Tools use paths and regularised models.''} Ordering and repetition add unobserved cells but no off-diagonal source; regularisation changes $\hat v_{\mathrm{obs}}$, not its estimand. \emph{``The bias law is first order.''} Agreed; it over-predicts by up to $2\times$ at the benchmark and serves to motivate the channelwise model and fix sign and ordering. \emph{``Bounds at $\Gamma_k^\star$ are tautologically covering.''} The deliverable is the robustness value; the intervals are conservative by $2$--$3\times$. \emph{``The design is commercially unrealistic.''} ``Expose only $j$'' cells cost about 50\% of a slice's lift at equal allocation; \dive{14}'s answer is that the lift budget, not the cell count, binds, and it can be 1--3\% by concentrating mass on the no-holdout cell---though cross-platform holdout coordination exists today only inside walled gardens. \emph{``Advertisers want removal effects.''} But $\sum_j \tau_j \ne$ total lift: $-20\%$ under overlapping reach ($\sum(|T| - 1)D(T) = -0.079$ on 0.39) and $+47\%$ under synergy (E6). \emph{``Caps are arbitrary.''} Testable at 82--100\% power, but with df 1: a 3-way dividend cancelling in the symmetric sector is invisible. \emph{``The $\kappa$ law is an asymptotic.''} Within 3\% at $\ell = 5$--10\%.
+
+What the attack rounds changed: the closed-form bias law was refuted and replaced by the operator law; box-$\Gamma$ bounds gave way to the channelwise model ($3\times$ tighter); a discrete-$U$ swap that would not converge under the total-lift constraint was replaced by the continuous-$U$ construction with a quadratic confounder term; \dive{13}'s ``costs the precision of one lift test'' was found to \emph{overstate} the cost, the closed form paying $2.3\times$ in variance against the BLUE; and the aliasing law was found to describe the closed form only, the BLUE's aliasing being design-dependent and only computed. Remaining limits: binary outcomes (revenue changes $s_A$ only; the $\Gamma$ models need Tan-style density-ratio bounds); perfect suppression (\BL{48}); pilot-rate plug-ins; the trace criterion; the df-1 result proved only for the symmetric sector; no dynamic or adaptive delivery, whose divergence bias (\cref{ch:algorithmic}) compounds this one (\BL{44}); and a cost model counting lift forgone but not coordination cost or option value.
+
+\section{Discussion: impacts}
+
+For practice the first message is a verdict: DDA credits cannot be causal, not because Shapley is the wrong operator but because the data lack the off-diagonal cells every causal axiom needs. The benchmark prices this at realistic scale---30\% of credit to a null channel, a ranking that flips under a 10\% selection odds ratio---and \cref{attr:con:gamma} gives any attribution vendor a sensitivity column to add today: one $\Gamma_k$ per channel and the $\Gamma$ at which the ranking dissolves. The global-holdout Hausman test is a cheap companion, since DDA's total minus a global holdout's lift is exactly $\E[Y(0)] - \E[Y(0) \mid Z = \emptyset]$. For platforms whose delivery creates the confounding, \cref{attr:law:operator} says inflation scales with targeting slope at an exchange rate of about one half against causal effect (\BL{45}), the identification-side counterpart of Berman's incentive result.
+
+The second message is constructive. An advertiser already running ghost-ad holdouts can add ``this channel only'' cells and obtain from $2n + 2$ cells a Shapley allocation that adds up to the global-holdout lift, with a free specification test whose sign names the missing interaction, priced in users times lift forgone. \dive{14}'s protocol: choose $k$ from a pilot's add-up test (or start at 2) and run $B(\lfloor k/2 \rfloor, \lceil k/2 \rceil)$, never holdout-only for $n \ge 5$; put nearly all users in the no-holdout cell and spread the lift budget with $g_A \propto \norm{C_A} s_A/\sqrt{\ell_A}$, sizing by $N\ell \ge \kappa/\delta^2$; estimate three ways (closed form, null channels protected; add-up-projected; BLUE) and report the add-up $\chi^2_1$; feed $\hat{\mathrm{Sh}}_j \pm \mathrm{sd}$ into the act/hold layer of \cref{ch:deadband}. Inside one walled garden, with placements as channels, it is implementable now.
+
+For theory the chapter settles M8 nonparametrically and sharpens it parametrically: the class in M8(i) is $v_\star + \ker\mathrm{Sh}$, the impossibility in M8(ii) needs neither symmetry nor linearity, and the one Stab$(j)$-sector lemma that proves the design theorem also yields the estimator, the exact aliasing coefficients and the single over-identifying restriction. It touches the $k$-additive approximation literature (Grabisch; Pelegrina et al., 2026, who state that no guarantee exists when only a subset of coalitions is observed) and the odd-part representation of Fumagalli et al.\ (2026), whose $f(S) - f(S^c)$ is the closest existing statement to ``bottom and top layers enter additively'' (\BL{50}). Outward: \cref{ch:algorithmic} supplies the fixed-policy estimand with which the table must merge for paths and pacing (\BL{31}, \BL{44}); \cref{ch:voi} owns the EVSI machinery that closes the cost loop (\BL{46} merges with \BL{7}); \cref{ch:fusion}'s scheduler hosts adaptive cap-raising (\BL{49}); \cref{ch:deadband} consumes the intervals.
+
+\section{Further exploration}
+
+\dive{13}'s next steps were the general design proof (now \cref{attr:thm:design}); single-index LP bounds replacing the cell-wise model by the identified set of $(\beta, g, a, \theta)$ under a smooth family with free $U$-distribution, to see how much of the $2$--$3\times$ conservatism disappears (\BL{43}); the table for ordered and repeated exposure, with the bias family indexed by policy as well as journey (\BL{44}); a field run of the $\tfrac12(\text{solo} + \text{removal})$ rule reporting $D_{123}/6$ as the residual; the Berman-style equilibrium with the exchange rate (\BL{45}); and the decision layer (\BL{41}). \dive{14} adds the multi-channel Test \& Roll maximising EVSI minus $\kappa$-priced lift (\BL{46}); the df-1 theorem via the $S_n$-isotypic decomposition of Hamming-weight shells (\BL{47}); compliance-aware cells with an exposure-weighted incidence matrix (\BL{48}); an always-on $B(1,1)$ whose add-up statistic triggers the $B(1,2)$ cells, with \cref{ch:fusion}'s scheduler and \cref{ch:deadband}'s threshold machinery (\BL{49}); and the paired-allocation conjecture $f_A = f_{N \setminus A}$, which might give $\kappa$ a closed form (\BL{50}).
+
+In the compiler's judgement the most promising extension is \BL{48} together with the field protocol: ghost-ad suppression is never perfect, and if logged compliance can enter the incidence matrix without losing the add-up restriction, one walled-garden campaign could deliver the first causal Shapley allocation with a specification test attached. Second is \BL{43}, because the $2$--$3\times$ gap between cell-wise bounds and the single-index truth is exactly the price of the parametric assumption that \cref{attr:rem:boundary} says does all the identifying work in any ``causal attribution'' model fitted to logs alone.
+
+\begin{reviewernote}[(compiler)]
+\textbf{The exact swap needs a term the family description omits.} DGP B of \cref{attr:prop:swap} carries a quadratic confounder coefficient $\beta_2 = -0.193$ while A has none; ``smooth single-index family'' means the family with $U^2$ in the outcome index, introduced in Round 3 after the discrete-$U$ swap failed (max table difference $6\times10^{-3}$). Eight free parameters against seven cell probabilities plus the total-lift constraint make the swap exactly determined by counting, so $10^{-17}$ exactness is a solved square system; the content is existence under the sign restrictions.
+
+\textbf{Parameter count at $n = 3$.} \cref{attr:rem:boundary} quotes ``11 parameters''; the E19 code optimises 10 (three $a$, three $g$, $\beta_0$, $\beta$, two free $\theta$). The conclusion is unaffected.
+
+\textbf{Two $\theta_3$ values for one dividend.} \dive{14} \S1 attributes $|D_3| \le 0.009$ to $\theta_3 = 0.8$ and E6 runs at 0.8, but the Round-2 attack and the INDEX log line cite ``$D_{123} = +0.009$ \ldots (5.7 sd at $N = 4$M for $\theta_3 = 1.5$)''. The E15 code computes exact biases and sds at $N = 4$M for $\theta_3 \in \{0, 0.8, 1.5\}$, so the 5.7 sd almost certainly belongs to the larger $\theta_3 = 1.5$ dividend, not to $D_{123} = 0.009$; the E6 bias of $-0.0013/-0.0011$ at sd 0.0003--0.0004 (3--4 sd) is the number to trust for the 0.009 case, and \cref{attr:sec:numerics} reports both.
+
+\textbf{Clean-room case counts are different enumerations.} ``1,042 cases ($n \le 8$)'' against ``1,070 cases ($n \le 7$)'' is not a contradiction: the code enumerates $(m_b, m_t) \in \{0, \ldots, n-1\}^2$ with $m_b + m_t \le n + 1$, the clean room evidently $\{0, \ldots, n\}^2$ ($48 + 100 + 180 + 294 + 448 = 1{,}070$). Neither set contains the other; both report zero mismatches.
+
+\textbf{Ranges from different experiments.} ``$B(1,1)$ within 5--16\%'' is the $\kappa$ ratio at $n = 5, 6$ ($1.11/1.05$, $1.50/1.29$) while ``within 11\%'' is the E5 frontier at $n = 5$; ``$2.8$--$5.6\times$'' for $B(0,k)$ is $\kappa$-based and ``$2.8$--$3.7\times$'' frontier-based. ``85--99\%'' of the BLUE gain captured by the add-up projection is not reproducible from the three quoted triples (89--95\%). ``$\approx n^4$'' for holdout-only variance is a heuristic: $0.81 \to 156$ is a factor 193 against $(8/3)^4 = 51$, so the exponent is if anything understated.
+
+\textbf{Corrections across dives and log lines.} \dive{13}'s log line says the $2n + 2$ design identifies Shapley ``at the precision of one lift test''; \dive{14} E4 shows that closed form pays $2.3\times$ in variance against the BLUE on the same cells, so the true cost is lower. The same log line states the layered rule as ``$m = \lceil k/2 \rceil$'' without the $\lfloor n/2 \rfloor$ boundary the verifier added in Round 4.
+
+\textbf{Monte Carlo widths and pinv.} The rejection rate $0.04 \pm 0.014$ (200 replications) and the power counts 49/60, 57/60 carry binomial uncertainty of about $\pm 0.05$. Identification checks are exact ranks of 0/1 incidence matrices, so no \BL{82}-type FIM dependence; but the BLUE uses a pseudo-inverse of $X^\T\Sigma^{-1}X$ (rcond $10^{-12}$), and the verifier found the frontier optimiser collapsing onto $f_N = 1$, where that matrix is singular and the pseudo-inverse silently returns $\tr V = 0$---the dive therefore trusts only the fixed-$\ell$ and group-$L_1$ forms. Log timestamps ($\sim$15:40, $\sim$19:45) match the file writes (15:40, 19:44 UTC).
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item Shapley, L.\ S. (1953). \emph{A Value for n-Person Games}. In Contributions to the Theory of Games II, Princeton University Press, 307--317.
+\item Harsanyi, J.\ C. (1963). \emph{A Simplified Bargaining Model for the n-Person Cooperative Game}. International Economic Review 4(2), 194--220.
+\item Grabisch, M. (1997). \emph{k-Order Additive Discrete Fuzzy Measures and Their Representation}. Fuzzy Sets and Systems 92(2), 167--189. \url{https://www.sciencedirect.com/science/article/pii/S0165011497001681}
+\item Shao, X.\ and Li, L. (2011). \emph{Data-Driven Multi-Touch Attribution Models}. Proc.\ KDD 2011. \url{https://dl.acm.org/doi/10.1145/2020408.2020453}
+\item Dalessandro, B., Perlich, C., Stitelman, O.\ and Provost, F. (2012). \emph{Causally Motivated Attribution for Online Advertising}. Proc.\ ADKDD 2012. \url{https://dl.acm.org/doi/10.1145/2351356.2351363}
+\item Zhao, K., Mahboobi, S.\ H.\ and Bagheri, S.\ R. (2018). \emph{Shapley Value Methods for Attribution Modeling in Online Advertising}. arXiv:1804.05327. \url{https://arxiv.org/abs/1804.05327}
+\item Anderl, E., Becker, I., von Wangenheim, F.\ and Schumann, J.\ H. (2016). \emph{Mapping the Customer Journey: Lessons Learned from Graph-Based Online Attribution Modeling}. International Journal of Research in Marketing 33(3), 457--474. \url{https://www.sciencedirect.com/science/article/abs/pii/S0167811616300349}
+\item Google (2024--26). \emph{Data-driven attribution methodology} (Analytics Help). \url{https://support.google.com/analytics/answer/3191594}
+\item Berman, R. (2018). \emph{Beyond the Last Touch: Attribution in Online Advertising}. Marketing Science 37(5), 771--792. \url{https://pubsonline.informs.org/doi/10.1287/mksc.2018.1104}
+\item Singal, R., Besbes, O., Desir, A., Goyal, V.\ and Iyengar, G. (2022). \emph{Shapley Meets Uniform: An Axiomatic Framework for Attribution in Online Advertising}. Management Science 68(10). \url{https://pubsonline.informs.org/doi/10.1287/mnsc.2021.4263}
+\item Sundararajan, M.\ and Najmi, A. (2020). \emph{The Many Shapley Values for Model Explanation}. Proc.\ ICML 2020. \url{https://proceedings.mlr.press/v119/sundararajan20b.html}
+\item Bilodeau, B., Jaques, N., Koh, P.\ W.\ and Kim, B. (2024). \emph{Impossibility Theorems for Feature Attribution}. PNAS 121(2). \url{https://www.pnas.org/doi/10.1073/pnas.2304406120}
+\item Gordon, B.\ R., Zettelmeyer, F., Bhargava, N.\ and Chapsky, D. (2019). \emph{A Comparison of Approaches to Advertising Measurement: Evidence from Big Field Experiments at Facebook}. Marketing Science 38(2), 193--225. \url{https://pubsonline.informs.org/doi/10.1287/mksc.2018.1135}
+\item Gordon, B.\ R., Moakler, R.\ and Zettelmeyer, F. (2023). \emph{Close Enough? A Large-Scale Exploration of Non-Experimental Approaches to Advertising Measurement}. Marketing Science. \url{https://arxiv.org/abs/2201.07055}
+\item Rosenbaum, P.\ R. (2002). \emph{Observational Studies}, 2nd ed. Springer.
+\item Tan, Z. (2006). \emph{A Distributional Approach for Causal Inference Using Propensity Scores}. Journal of the American Statistical Association 101(476), 1619--1637.
+\item Cinelli, C.\ and Hazlett, C. (2020). \emph{Making Sense of Sensitivity: Extending Omitted Variable Bias}. Journal of the Royal Statistical Society B 82(1), 39--67.
+\item Johnson, G.\ A., Lewis, R.\ A.\ and Nubbemeyer, E.\ I. (2017). \emph{Ghost Ads: Improving the Economics of Measuring Online Ad Effectiveness}. Journal of Marketing Research 54(6), 867--884. \url{https://journals.sagepub.com/doi/10.1509/jmr.15.0297}
+\item Waisman, C.\ and Gordon, B.\ R. (2025). \emph{Multi-Cell Experiments for Marginal Treatment Effect Estimation of Digital Ads}. arXiv:2302.13857. \url{https://arxiv.org/abs/2302.13857}
+\item Zhou, Y., Mee, R., Hamers, T.\ and Zheng, W. (2025). \emph{Shapley Value Estimation via Fractional Factorial Designs}. Journal of the American Statistical Association. \url{https://www.tandfonline.com/doi/abs/10.1080/01621459.2025.2529027}
+\item Feit, E.\ M.\ and Berman, R. (2019). \emph{Test \& Roll: Profit-Maximizing A/B Tests}. Marketing Science 38(6), 1038--1058. \url{https://pubsonline.informs.org/doi/10.1287/mksc.2019.1194}
+\item Pelegrina, G.\ D., Kolpaczki, P.\ and H\"ullermeier, E. (2026). \emph{k-Additive Approximations of Shapley Values}. Proc.\ AAAI 2026. \url{https://arxiv.org/abs/2502.04763}
+\item Fumagalli, F., et al. (2026). \emph{OddSHAP}. Proc.\ ICML 2026. \url{https://arxiv.org/abs/2602.01399}
+\item Frontier study (internal): \texttt{02\_open\_questions.md}, entry M8; \texttt{03\_mmm\_adoption\_barriers.md}; \texttt{resources/math\_stats.md} entries 24--29, 46--48, 55, 57.
+\item Program (internal): \dive{10}, file \texttt{10\_algorithmic\_delivery\_estimands.md} (\BL{31}); \dive{03}/\dive{04} (EVSI, \BL{7}); \dive{05} (scheduler); \dive{08}/\dive{09} (act/hold protocol, \BL{41}).
+\end{enumerate}
+\endgroup

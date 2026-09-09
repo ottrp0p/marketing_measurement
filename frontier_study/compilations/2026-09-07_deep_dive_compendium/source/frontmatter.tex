@@ -1,0 +1,132 @@
+% ---------------------------------------------------------------------------
+% Front matter: title page, about this compendium, legend, provenance index
+% ---------------------------------------------------------------------------
+\begin{titlepage}
+\centering
+\vspace*{1.6in}
+{\Huge\bfseries New Mathematics for\\[4pt] Marketing Measurement\par}
+\vspace{14pt}
+{\LARGE A Compendium of the Deep-Dive Program\par}
+\vspace{10pt}
+{\large Runs 01--22, 31 August -- 7 September 2026\par}
+\vspace{1.4in}
+{\large Compiled and reviewed 7 September 2026\par}
+\vspace{6pt}
+{\normalsize from \texttt{marketing\_measurement/frontier\_study/deep\_dives/}\par}
+\vfill
+\begin{minipage}{0.86\textwidth}\small
+This document stitches together twenty-two automated research runs into fifteen self-contained chapters.
+Each chapter reproduces the background ideas its dive builds on, states the dive's constructions and results
+with the dive's own epistemic labels, tabulates the headline numerical evidence, and closes with a
+scientific-paper style discussion of impacts and further exploration. Compiler's reviewer notes (orange boxes)
+flag what a referee would want checked before believing a claim. Appendix~\ref{app:ledger} is the ledger of all
+88 open problems the program spawned and their status at compilation.
+\end{minipage}
+\vspace{0.5in}
+\end{titlepage}
+
+\chapter*{About this compendium}
+\addcontentsline{toc}{chapter}{About this compendium}
+\markboth{About this compendium}{}
+
+\section*{What was compiled}
+
+Between 31 August and 7 September 2026 a scheduled task executed twenty-two ``deep dives'' into the open
+problems catalogued by the frontier study of marketing measurement (\texttt{01\_state\_of\_the\_field.md},
+\texttt{02\_open\_questions.md}, \texttt{03\_mmm\_adoption\_barriers.md}). Each run took one item from a queue,
+worked it under a fixed depth protocol (formalisation with explicit assumptions, a literature search, at least
+three construct--attack--refine rounds, at least eight numerical experiments including robustness sweeps and a
+negative or power control, a clean-room re-derivation of at least one core result by an independent subagent,
+uncertainty on every headline number, and a devil's-advocate paragraph against every headline claim), and wrote
+a markdown report with accompanying code. Every fourth run was an \emph{extension} that pushed the most
+promising prior dive further. The program's index file (\texttt{deep\_dives/00\_INDEX.md}) holds the queue,
+the backlog of open problems each dive spawned (``BL'' items), and a one-line log of each run's finding.
+
+This compendium was assembled on 7 September 2026 from the twenty-two reports and their code as they stood on
+disk at that date (the provenance index below records each file's last-written timestamp). Its purpose is
+to let a reader review, on paper, what ideas were actually developed---without having to open the dives, the
+papers they cite, or the index.
+
+\section*{How the chapters are organised}
+
+There is one chapter per dive, except that a dive and its extension are merged into a single chapter
+(dives 03+04, 08+09, 13+14, 16+19), and the four dives that form one continuous thread on identification
+(01, then the Phase D chain 20, 21, 22) are merged into \cref{ch:identification}. Chapters otherwise follow
+the program's run order. Every chapter has the same skeleton:
+
+\begin{description}[leftmargin=1.6em,itemsep=1pt]
+\item[Provenance] which dives, files, code and frontier-study problem the chapter covers, and which backlog items it opened or closed.
+\item[Key ideas] the chapter's central results in a few sentences, with their headline numbers.
+\item[Problem and motivation] what the dive set out to answer and what the field believed before.
+\item[Background] the ideas the dive builds on, reproduced in summary so that the chapter is self-contained: for every paper or established result the dive synthesises, its central construction or equation, what it assumes, and what it delivers.
+\item[Setup and assumptions] the formal model and notation.
+\item[Main results] the dive's constructions, theorems and laws, with key derivation steps and the dive's own epistemic labels (see the legend).
+\item[Numerical evidence] the headline experiments as tables, with the uncertainty the dive reports, including negative and power controls.
+\item[Limitations and the devil's advocate] the dive's own strongest counterarguments and what the attack-and-refine rounds changed.
+\item[Discussion: impacts] what changes for practice and for theory.
+\item[Further exploration] the dive's next steps, the backlog items it opened, and the compiler's view of the most promising extension.
+\item[Reviewer's notes] the compiler's own flags, as a referee would write them.
+\item[Sources] the papers summarised or relied on, with links where the program's bibliographies had them.
+\end{description}
+
+\section*{Legend}
+
+Results carry the label the dive itself gave them. \tagEstablished\ marks a result derived in the dive and, where
+the dive says so, reproduced by its clean-room verifier. \tagTransported\ marks a known result carried into the
+MMM setting from another literature. \tagNumerical\ marks a result established by simulation rather than proof.
+\tagConjecture\ marks speculation the dive labelled as such. \tagRefuted\ marks a claim the dive itself made and
+then overturned in a later round---these are kept because the refutations are among the more instructive
+findings. \dive{NN} refers to run NN; \BL{NN} to backlog item NN in \cref{app:ledger}. Orange boxes are the
+compiler's reviewer notes and are the only content in the chapters that does not come from the dives.
+
+Two program-wide caveats apply to every number in this book. First, all results are from simulation on
+synthetic data under the model each dive states; none has been run on an advertiser's data. Second,
+\dive{21}'s verifier found that pseudo-inverses at default tolerance had silently manufactured finite standard
+errors from singular Fisher matrices; \dive{22} audited dives 20--22 (\BL{82}) but the FIM-based standard
+errors in earlier dives (notably 02, 09, 16, 19) have not had that audit. The reviewer notes say where this
+matters.
+
+\section*{Provenance index}
+
+\Cref{tab:provenance} lists every source dive, its file, the run date recorded in the program log, the
+file's last-written timestamp on disk at compilation, its length, and the chapter that covers it. Each dive's
+code lives beside it in \texttt{deep\_dives/code/} under the same stem.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Source dives and their dates (UTC). ``Run'' is the start time recorded in the program log; ``Written'' is the report file's last modification time on disk on 2026-09-07. Word counts are of the markdown reports.}
+\label{tab:provenance}
+\begin{tabular}{@{}l l l l r c@{}}
+\toprule
+Dive & File (\texttt{deep\_dives/}) & Run (log) & Written & Words & Ch. \\
+\midrule
+01 & \texttt{01\_mmm\_identified\_set.md} & 2026-08-31 19:00 & 2026-08-31 22:08 & 2{,}003 & 1 \\
+02 & \texttt{02\_experiment\_transport\_map.md} & 2026-08-31 21:15 & 2026-08-31 23:14 & 2{,}225 & 2 \\
+03 & \texttt{03\_decision\_voi.md} & 2026-09-01 00:21 & 2026-09-01 00:21 & 1{,}582 & 3 \\
+04 & \texttt{04\_decision\_voi\_ext.md} (ext.\ of 03) & 2026-09-01 02:30 & 2026-09-01 01:25 & 1{,}982 & 3 \\
+05 & \texttt{05\_fusion\_loop.md} & 2026-09-01 05:30 & 2026-09-01 03:39 & 2{,}184 & 4 \\
+06 & \texttt{06\_aggregation\_privacy.md} & 2026-09-01 07:45 & 2026-09-01 07:36 & 2{,}582 & 5 \\
+07 & \texttt{07\_refresh\_stability.md} & 2026-09-01 12:30 & 2026-09-01 11:56 & 2{,}507 & 6 \\
+08 & \texttt{08\_decision\_deadband.md} & 2026-09-01 15:30 & 2026-09-01 16:55 & 2{,}936 & 7 \\
+09 & \texttt{09\_decision\_deadband\_ext.md} (ext.\ of 08) & 2026-09-01 20:05 & 2026-09-01 20:01 & 3{,}933 & 7 \\
+10 & \texttt{10\_algorithmic\_delivery\_estimands.md} & 2026-09-01 23:30 & 2026-09-01 23:43 & 3{,}962 & 8 \\
+11 & \texttt{11\_data\_archaeology\_compiler.md} & 2026-09-01 21:20\,$^{a}$ & 2026-09-02 03:33 & 4{,}024 & 9 \\
+12 & \texttt{12\_surrogacy\_horizon\_bounds.md} & 2026-09-02 04:50 & 2026-09-02 11:34 & 3{,}640 & 10 \\
+13 & \texttt{13\_attribution\_impossibility.md} & 2026-09-02 15:40 & 2026-09-02 15:40 & 4{,}535 & 11 \\
+14 & \texttt{14\_attribution\_impossibility\_ext.md} (ext.\ of 13) & 2026-09-02 19:45 & 2026-09-02 19:44 & 4{,}536 & 11 \\
+15 & \texttt{15\_calibrated\_simulator.md} & 2026-09-02 23:30 & 2026-09-02 23:32 & 4{,}258 & 12 \\
+16 & \texttt{16\_feedback\_loop\_inference.md} & 2026-09-03 03:30 & 2026-09-03 03:44 & 5{,}149 & 13 \\
+17 & \texttt{17\_human\_mechanism\_panel.md} & 2026-09-03 10:30 & 2026-09-03 14:24 & 5{,}021 & 14 \\
+18 & \texttt{18\_heavy\_tail\_efficiency.md} & 2026-09-03 16:10 & 2026-09-03 16:01 & 5{,}642 & 15 \\
+19 & \texttt{19\_feedback\_loop\_inference\_ext.md} (ext.\ of 16) & 2026-09-03 14:45\,$^{a}$ & 2026-09-03 21:41 & 5{,}489 & 13 \\
+20 & \texttt{20\_price\_of\_identification.md} & 2026-09-04 09:55 & 2026-09-04 17:20 & 5{,}236 & 1 \\
+21 & \texttt{21\_spectral\_comb.md} & 2026-09-06 11:20 & 2026-09-06 19:17 & 6{,}293 & 1 \\
+22 & \texttt{22\_price\_of\_the\_prior.md} & 2026-09-07 16:45 & 2026-09-07 16:46 & 6{,}484 & 1 \\
+\midrule
+\multicolumn{6}{@{}l@{}}{\footnotesize $^{a}$ The log time is earlier than the file's own timestamps and than the preceding run's; it is taken as a logging error.} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The program's index file was last written at 2026-09-07 16:47 UTC and lists run 23 (an extension) as the
+next item in the queue; nothing from run 23 or later is in this compendium.

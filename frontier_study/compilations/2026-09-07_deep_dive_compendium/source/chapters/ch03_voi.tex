@@ -1,0 +1,331 @@
+% ===========================================================================
+% Chapter: Decision-calibrated uncertainty and the EVSI power plateau
+% Source dives 03 + 04 (M10). ASCII only.
+% ===========================================================================
+\chapter[Decision value of information]{Decision-calibrated uncertainty and the EVSI power plateau}
+\label{ch:voi}
+
+\begin{provenance}
+\textbf{Source dives:} \dive{03} \emph{Decision-calibrated uncertainty \& value of information (M10)} (run 2026-09-01, file \texttt{03\_decision\_voi.md}); \dive{04} \emph{EXTEND of dive 03: the anatomy and the edge of the EVSI power plateau (M10, BL5, BL6)} (run 2026-09-01, file \texttt{04\_decision\_voi\_ext.md}).
+\textbf{Code:} \texttt{code/03\_decision\_voi.py}, \texttt{code/04\_decision\_voi\_ext.py} (the extension imports the model, posterior and experiment operator of the original).
+\textbf{Frontier-study problem(s) addressed:} M10 --- ``(a) tractable Bayes-optimal budget allocation under a joint posterior over multi-channel response curves --- a stochastic program with rank-correlated uncertainty; (b) value-of-information theory for the next experiment: which geo test, at what spend delta, maximally reduces expected budget-decision regret? Test \& Roll solves the two-arm case; the multi-channel, curve-level problem is open.''
+\textbf{Backlog items closed:} \BL{5}, \BL{6} (opened by \dive{03}, resolved by \dive{04}); \BL{7} partially advanced; \textbf{opened:} \BL{8}--\BL{10}.
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item Under a fixed budget the Bayes-optimal allocation beats the plug-in allocation by 0.027\% of revenue, while perfect knowledge of the response curves is worth 1.76\% (exact EVPI $0.0420 \pm 0.0036$ on revenue 2.381): information, not optimization, is the asset.
+\item A common multiplicative error in every channel's effectiveness parameter is \emph{exactly} decision-null under a fixed budget; decision value lives only in cross-channel contrasts of marginal ROAS and in curvature.
+\item A rank-1 decision-aligned EVSI score is correct where its linear-quadratic assumptions hold (Pearson 0.945 against nested Monte Carlo at quarter posterior width), but its prediction that D-optimal design selection forfeits 42\% of decision value is refuted: well-powered scalar-readout designs tie within MC resolution (the ``power plateau''), while underpowered designs lose about 85\% at $16\sigma$.
+\item \dive{04}'s LQC estimator (exact importance-weighted conditioning, quadratic decision layer) reproduces nested-MC rankings exactly (Spearman 1.000) for a 39-design grid in 4.7 s; the plateau is a ceiling structure $\kappa(d) \le \rho^2(d)\,\lambda_1/\tr A$ with per-channel share ceilings $\kappa_j \le s_j$, verified numerically.
+\item The plateau ends across experiment \emph{count} (dual experiment $+47\%$) and via a budget-neutral \emph{switch} design aligned with the top decision contrast ($+22\%$), both MC-confirmed; oversized switches collapse nonmonotonically ($\kappa$ 0.47 $\to$ 0.21), trajectory readouts are worthless for allocation, and the conjecture that a free budget rehabilitates D-optimality is refuted.
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+A marketing-mix model delivers a joint posterior over channel response curves, and the posterior is only worth what it changes about the budget. Problem M10 asks two things of it. Part (a) is a stochastic program: practitioners maximize revenue against the posterior-\emph{mean} curves (the plug-in allocation), whereas the Bayes-optimal allocation maximizes \emph{expected} revenue under the full posterior; with saturating curves, a simplex constraint and rank-correlated uncertainty these can differ. Part (b) is an information problem: of all the geo tests one could run next --- which channel, what spend delta, how long, with or without a post-period --- which most reduces the expected regret of the budget decision? Test \& Roll (Feit and Berman, 2019) answers a two-arm version of (b) in closed form; the multi-channel, curve-level version was open.
+
+The field's implicit belief was that both halves matter comparably, and that (b) is an optimal-experimental-design problem: pick the test that most shrinks the posterior, presumably by a D-optimal criterion of the kind \cref{ch:identification} develops. \dive{03} priced both halves in one linear-quadratic frame and found the emphasis inverted: the Bayes-versus-plug-in refinement is a rounding error, the information is worth sixty times more, and the natural decision-aligned design score ranks designs correctly only where the frame is exact. Outside that regime, exact preposterior Monte Carlo shows that every adequately powered single-channel pulse delivers about the same decision value --- a \emph{power plateau}. \dive{04} explained the plateau (a ceiling structure in a two-dimensional decision spectrum), replaced the failing closed form with an estimator that ranks designs as nested Monte Carlo does at a fraction of the cost, and found the two ways the plateau ends: more simultaneous readouts, or one readout realigned with the top decision contrast by a budget-neutral switch experiment. The always-on scheduler of the frontier study's grand challenge (E6 + M10) needs exactly such a scorer, built around the decision's sufficient statistic --- the marginal-ROAS vector --- rather than parameter information.
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{Bayesian decision theory and preposterior analysis (Raiffa and Schlaifer, 1961)}
+
+Let $\theta$ be the unknown state with prior $\pi$, $b$ an action and $R(b,\theta)$ the payoff; the Bayes action is $b^\star = \argmax_b \E_\pi[R(b,\theta)]$. The \emph{expected value of perfect information} is the expected gain from learning $\theta$ before acting,
+\begin{equation}
+\mathrm{EVPI} = \E_\theta\big[\max_b R(b,\theta)\big] - \max_b \E_\theta\big[R(b,\theta)\big],
+\label{voi:eq:evpi-def}
+\end{equation}
+which equals the expected regret of the incumbent action. The \emph{expected value of sample information} of an experiment $d$ producing data $\ell$ is
+\begin{equation}
+\mathrm{EVSI}(d) = \E_\ell\big[\max_b \E_{\theta\mid\ell}[R(b,\theta)]\big] - \max_b \E_\theta[R(b,\theta)],
+\label{voi:eq:evsi-def}
+\end{equation}
+so $0 \le \mathrm{EVSI}(d) \le \mathrm{EVPI}$. Computing it is a \emph{preposterior} analysis: integrate over data not yet observed and, for each hypothetical data set, re-solve the decision under the corresponding posterior. The brute-force estimator is nested Monte Carlo (Heath and Baio, 2018): draw $(\theta_i,\ell_i)$ from the prior predictive (outer loop), approximate the posterior given $\ell_i$ (inner loop), optimize and evaluate; the cost is outer $\times$ inner $\times$ one optimization, and the inner maximum carries a winner's-curse bias unless the sample that chooses the action is separated from the sample that evaluates it.
+
+Health economics, which prices clinical trials, built cheaper estimators. Strong, Oakley, Brennan and Breeze (2015) observe that for a \emph{finite} action set $\E[R(a,\theta)\mid\ell]$ is a smooth function of a low-dimensional summary of $\ell$, fit it by nonparametric regression across the prior sample, and average the maxima of fitted values --- no inner loop. Heath, Manolopoulou and Baio (2019) match moments of the preposterior distribution of the conditional payoff across sample sizes; the Gaussian-approximation family (Li, Jalal and Heath, 2024, for payoffs nonlinear in the parameters) replaces conditioning by a linear-Gaussian shrinkage of the decision-relevant summary. All were built for discrete treatment choices, none for a continuum of budget allocations.
+
+\subsection{Test \& Roll (Feit and Berman, 2019)}
+
+Feit and Berman recast A/B test sizing as profit maximization. Two arms with mean responses $m_1, m_2 \sim \mathcal N(\mu, \sigma^2)$ a priori and response noise $s$ are tested on $n$ customers each out of $N$; the better-looking arm is rolled out to the remaining $N - 2n$. Maximizing expected total profit gives, for symmetric priors,
+\begin{equation}
+n^\star = \sqrt{\tfrac{N}{4}\Big(\tfrac{s}{\sigma}\Big)^2 + \Big(\tfrac{3}{4}\Big(\tfrac{s}{\sigma}\Big)^2\Big)^2} - \tfrac34\Big(\tfrac{s}{\sigma}\Big)^2,
+\label{voi:eq:testroll}
+\end{equation}
+typically far below the hypothesis-testing sample size: the test is priced by the profit forgone on the test cells against the expected improvement of the roll-out decision. It is the canonical ``EVSI minus cost'' calculation in marketing, for two arms and a scalar mean; the dives treat it as the two-arm case of M10(b) and the shape the power--cost frontier (\BL{7}) must take.
+
+\subsection{Certainty equivalence and the linear-quadratic preposterior identity (Simon, 1956; Theil, 1957)}
+
+In a linear-quadratic (LQ) control problem --- linear dynamics, quadratic cost, Gaussian uncertainty --- the optimal control depends on the state only through its conditional mean (\emph{certainty equivalence}), and the expected cost of not knowing the state is an additive term $\tfrac12\tr(Q\Sigma)$, with $Q$ the cost curvature and $\Sigma$ the covariance of the estimation error. Two consequences carry to allocation: if the payoff is locally quadratic in the decision and the uncertainty enters the first-order conditions linearly, the Bayes action equals the plug-in action to first order; and EVPI reduces to a trace of the decision curvature against the covariance of the decision-relevant statistic, EVSI to the reduction of that trace produced by the experiment's covariance update. \dive{03} instantiates both on the budget simplex; \dive{04} keeps the quadratic decision layer but makes the conditioning exact --- the ``LQ-conditional'' (LQC) estimator.
+
+\subsection{Design criteria: D-, c- and goal-oriented optimality (Attia, Alexanderian and Saibaba, 2018)}
+
+Classical optimal design scores an experiment by the Fisher information it adds. For a scalar readout $\hat L \sim \mathcal N(\mathcal E_d(\theta), se^2)$ linearized as $g = \nabla_\theta\mathcal E_d(\bar\theta)$, the Gaussian posterior covariance updates by the rank-1 formula
+\begin{equation}
+\Sigma' = \Sigma - \frac{\Sigma g g^\T \Sigma}{se^2 + g^\T \Sigma g},
+\label{voi:eq:rank1}
+\end{equation}
+so the D-criterion (total information gain, $\log\det$) becomes $\tfrac12\log(1 + g^\T\Sigma g/se^2)$ and the c-criterion (variance reduction of one target functional $c^\T\theta$) becomes $(c^\T\Sigma g)^2/(se^2 + g^\T\Sigma g)$. D-optimality is what \cref{ch:identification} uses to design for identification of the full parameter vector. Goal-oriented OED (Attia, Alexanderian and Saibaba, 2018) argues that when the experiment serves a downstream quantity $Q = P\theta$ the design should minimize $\tr(P\Sigma'P^\T)$ instead; GoBOED (Go, Qian and Yoon, 2026) pushes this to a differentiable convex decision layer. The dives' decision-aligned score is of this family with $P = D$, the map from parameters to marginal ROAS, weighted by a matrix $\Omega$ of rank $J - 1$: only two of twelve parameter directions are scored. The chapter's central negative finding is that every criterion built from the linearization $g$ misranks designs once the posterior is MMM-wide.
+
+\subsection{The MMM model and the experiment operator (dives 01--02)}
+
+The dives inherit the response model of \cref{ch:identification} and the experiment forward map of \cref{ch:transport}: weekly revenue $y_t = \sum_j \beta_j h(a_{jt}; K_j, S_j) + \varepsilon_t$ with geometric adstock $a_{jt} = x_{jt} + \alpha_j a_{j,t-1}$ and Hill saturation $h(a;K,S) = a^S/(a^S + K^S)$. A geo experiment on channel $j$ applies a uniform spend pulse $\delta$ for $T_e$ weeks from steady state and reads out the incremental revenue accumulated over $T_e + P$ weeks (the post-period $P$ captures the adstock tail):
+\begin{equation}
+\mathcal E_d(\theta) = \beta_j \sum_{t=1}^{T_e+P} \big[h(a^{1}_{jt};K_j,S_j) - h(a^{0}_{jt};K_j,S_j)\big],
+\label{voi:eq:operator}
+\end{equation}
+with $a^0, a^1$ the adstock paths without and with the pulse. \cref{ch:transport} showed that such a scalar readout constrains one direction of channel $j$'s four parameters while the per-week trajectory carries rank-4 information; this chapter asks how much of either reaches the allocation decision.
+
+\section{Setup and assumptions}
+
+Throughout, $J = 3$ channels, $\theta = (\beta_j, K_j, S_j, \alpha_j)_{j=1}^3 \in \R^{12}$, noise $\sigma = 0.05$. The truth $\theta_0$ is channel 1: $(1.0, 1.5, 2.0, 0.6)$, channel 2: $(0.8, 1.0, 1.8, 0.3)$, channel 3: $(1.3, 2.5, 2.2, 0.8)$, baseline spends $\bar x = (1.0, 0.8, 1.2)$, total budget $B = 3$. (\dive{03}'s writeup numbers channels 1--3; \dive{04}'s uses the code's 0-based labels ch0--ch2; this chapter uses 1--3 throughout.) The decision is the steady-state allocation
+\begin{equation}
+R(b,\theta) = \sum_{j} \beta_j\, h\!\Big(\frac{b_j}{1-\alpha_j}; K_j, S_j\Big), \qquad b^\star = \argmax_{b \ge 0,\ \one^\T b = B} \E_\pi[R(b,\theta)],
+\label{voi:eq:decision}
+\end{equation}
+all values of information being in expected steady-state revenue per period. Marginal ROAS is $m_j(b,\theta) = \beta_j h'(b_j/(1-\alpha_j))/(1-\alpha_j)$.
+
+\begin{assumption}[Laplace posterior from an observational fit]
+\label{voi:ass:posterior}
+$\theta \sim \mathcal N(\theta_0, \Sigma)$ with $\Sigma = (\mathcal J^\T\mathcal J/\sigma^2 + \Lambda_{\mathrm{prior}})^{-1}$, where $\mathcal J$ is the Jacobian of the 104-week mean path under correlated AR(1) spends ($\pm 10\%$ swings around $\bar x$ with a shared demand cycle) and $\Lambda_{\mathrm{prior}}$ a weak prior of 50\% relative scale, truncated to the admissible region ($\beta_j > 0.05$, $K_j > 0.1$, $S_j > 0.3$, $0 < \alpha_j < 0.95$). Widths are MMM-realistic: marginal relative standard deviations 11--49\%, maximum cross-channel correlation 0.71.
+\end{assumption}
+
+\begin{assumption}[Scalar readout with assumed power]
+\label{voi:ass:readout}
+A design $d = (j, \delta, T_e, P)$ returns $\hat L \sim \mathcal N(\mathcal E_d(\theta), se^2)$ with $se = 0.03\sqrt{T_e + P}$ (window-accumulated noise at 0.03 per week), assumed rather than derived from a geo-count power model. The grid is $j \in \{1,2,3\}$, $\delta \in \{0.25, 0.5, 1\}\times\bar x_j$, $T_e \in \{4, 8\}$, $P \in \{0, 8\}$ (36 designs); ``powered'' means $\delta \ge 0.4\bar x_j$ and $T_e = 8$ (12 designs).
+\end{assumption}
+
+\begin{assumption}[Correct specification, centered posterior]
+\label{voi:ass:spec}
+The model is correctly specified and the posterior is centered at the truth; every EVSI here is a value of calibration, not of model checking.
+\end{assumption}
+
+The linear-quadratic objects are the incumbent optimum $\bar b$ at $\theta_0$; curvatures $H_j = -\partial m_j/\partial b_j > 0$ at $(\bar b,\theta_0)$; the sensitivity $D = \partial m/\partial\theta \in \R^{J\times 12}$; the decision-sufficient statistic $u(\theta) = m(\bar b,\theta) \in \R^J$; and the readout gradient $g = \nabla_\theta\mathcal E_d(\theta_0)$. Exact EVSI is nested Monte Carlo with importance-weighted conditioning on a shared posterior sample: for a simulated outcome $\ell$, weights $w_i \propto \exp\{-\tfrac12(\mathcal E_d(\theta_i) - \ell)^2/se^2\}$ approximate the posterior, the allocation is optimized on the even-indexed half of the sample and evaluated on the odd half (split-sample debiasing), and outer draws use common random numbers (CRN) across designs. \dive{03} used 4000 inner draws with 200--600 outer; \dive{04} 6000 inner and 240 outer.
+
+\section{Main results}
+
+\subsection{The quadratic regret identity and the EVPI/EVSI trace formulas (\dive{03})}
+
+\begin{proposition}[LQ regret of the incumbent allocation]
+\label{voi:prop:lq}
+\tagEstablished\ At an interior optimum of \cref{voi:eq:decision} the marginal ROAS are equalized, $m_j(\bar b_j,\theta) = \mu$. Perturbing $\theta$ by $\dd\theta$ shifts the marginal-ROAS vector by $u = D\,\dd\theta$; solving the displaced first-order conditions on the simplex with curvatures $H_j$ gives the regret of holding $\bar b$,
+\begin{equation}
+\mathrm{Regret} \approx \tfrac12\, u^\T \Omega\, u, \qquad \Omega = H^{-1} - \frac{H^{-1}\one\one^\T H^{-1}}{\one^\T H^{-1}\one}, \quad H = \diag(H_j),
+\label{voi:eq:omega}
+\end{equation}
+and hence
+\begin{equation}
+\mathrm{EVPI} \approx \tfrac12 \tr\big(\Omega\, D\,\Sigma\, D^\T\big), \qquad
+\mathrm{EVSI}(d) \approx \tfrac12\, \frac{g^\T \Sigma D^\T \Omega\, D\, \Sigma\, g}{se^2 + g^\T \Sigma g}.
+\label{voi:eq:trace}
+\end{equation}
+\end{proposition}
+
+The derivation is three lines: the displaced optimum satisfies $u_j - H_j\,\dd b_j = \dd\mu$ with $\one^\T\dd b = 0$, so $\dd b = H^{-1}(u - \dd\mu\one)$ and $\dd\mu = \one^\T H^{-1}u/\one^\T H^{-1}\one$; the gain from moving is $\sum_j(u_j\,\dd b_j - \tfrac12 H_j\,\dd b_j^2) = \tfrac12 u^\T\Omega u$. Taking expectations gives the EVPI trace; substituting \cref{voi:eq:rank1} for $\Sigma - \Sigma'$ gives the EVSI form, the exact linear-Gaussian preposterior value of a scalar readout. Two facts follow: $\Omega\one = 0$, so a shift raising every channel's marginal ROAS equally has no decision value, only cross-channel \emph{contrasts} count, and $\rank\Omega = J - 1 = 2$; and the EVSI score is a decision-aligned c-type criterion computable in microseconds per design, to be set against the D-score $\tfrac12\log(1 + g^\T\Sigma g/se^2)$.
+
+\subsection{An exact decision-null direction (\dive{03})}
+
+\begin{proposition}[Common effectiveness error is decision-null]
+\label{voi:prop:null}
+\tagEstablished\ Under a fixed total budget, a common multiplicative error $\beta_j \to \beta_j(1+s)$, any $s > -1$, leaves $\argmax_b R(b,\theta)$ unchanged: revenue is linear in $\beta$, so the shock factors out of the objective. The statement is exact, not second order.
+\end{proposition}
+
+\begin{corollary}
+\label{voi:cor:null}
+The industry-default calibration target --- the average ROI \emph{level}, which \cref{ch:transport} argues is what Meridian-style iROAS-to-ROI priors chiefly move --- is nearly worthless for fixed-budget allocation; decision value lives in contrasts and curvature. The null breaks when total budget is also chosen, because the level then sets the spend margin.
+\end{corollary}
+
+\subsection{Information, not optimization (\dive{03})}
+
+\tagNumerical\ The two halves of M10 have very different prices (\cref{voi:tab:evpi}). The Bayes and plug-in allocations differ by a few percent per channel, but the expected-revenue gap is $6.4\times10^{-4}$, 0.027\% of the baseline revenue 2.381; exact EVPI from per-draw oracle re-optimization is $0.0420 \pm 0.0036$, 1.76\% of revenue --- sixty-fold larger. The Bayes refinement is a rounding error; the experiment scheduler is the asset, inverting M10's own emphasis. The quadratic formula gives 0.0151, and shrinking $\Sigma$ by $s \in \{1,\tfrac12,\tfrac14\}$ takes MC/quadratic from 3.37 to 1.69 to 1.27 while the quadratic scales exactly as $s^2$: the LQ theory is correct locally, and at MMM width about two thirds of the value is higher-order curvature it cannot see. \Cref{voi:prop:null} is confirmed with CRN: a 30\%-sd common $\beta$ shock leaves exact EVPI within noise, an equal-magnitude contrast shock (channel 1 up, channel 3 down) raises it 55\%, and with a free budget the common shock adds real value, as predicted.
+
+\subsection{The power plateau and the refuted D-optimality forfeit (\dive{03})}
+
+The closed form \cref{voi:eq:trace} was tested against nested MC on eight designs at two widths (\cref{voi:tab:duel}). At quarter width (the LQ regime) it is right: Pearson 0.945, Spearman 0.93, level ratio 1.16. At full width it fails as a ranker: levels understated about $2.2\times$, Spearman 0.33. \tagRefuted\ On the 36-design grid the closed form predicts that decision-aligned selection beats D-optimality decisively --- Kendall $\tau(\mathrm{EVSI},\text{D-score}) = 0.23$, the D-best design forfeiting 42\% of the EVSI-best design's value (17\% at quarter width). Exact nested MC refutes the forfeit at both widths: the two designs tie, paired difference $-0.00037 \pm 0.00067$ at full width and $(-2 \pm 13)\times10^{-6}$ at quarter width, where the D-best design beats its own rank-1 prediction (0.000157 against 0.000121).
+
+\begin{law}[EVSI power plateau, scalar single-channel pulses]
+\label{voi:law:plateau}
+\tagNumerical\ Among adequately powered single-channel pulse designs, the choices practitioners agonize over --- channel, pulse size, post-period --- move exact EVSI by less than the MC resolution ($\approx 10\%$) at both realistic and tight posterior widths, while signal-to-noise determines decision value almost entirely: a tenth-size pulse, a $6\times$-noise readout and a tiny two-week test score 0.00108, 0.00134 and 0.00079 against 0.00721 for the strong design (paired difference $0.00612 \pm 0.00038$, about $16\sigma$). One well-powered experiment recovers 15--18\% of exact EVPI.
+\end{law}
+
+\dive{03} reconciled this with \cref{ch:identification}: design determines identification of the full parameter vector (there, $\lambda_{\min}$ swings by $700\times$), but the decision consumes only $J-1$ contrast directions, which almost any powered readout informs through the posterior's correlations. Its diagnosis of \emph{why} the gradient criteria fail --- a large pulse is ``nonlinearly informative'' beyond the direction $g$, so no gradient-based score can see it --- was refuted by the extension (\cref{voi:sec:lqc}). A greedy scheduler with rank-1 updates and the LQ score runs channel 3, then 2, then 1, cutting residual quadratic EVPI to 69\%, 51\% and 36\% before saturating (34\%, 31\%): diminishing returns after one experiment per channel.
+
+\subsection{The LQC estimator and the re-diagnosis (\dive{04})}
+\label{voi:sec:lqc}
+
+\begin{construction}[LQC: exact conditioning, quadratic decision layer]
+\label{voi:con:lqc}
+\tagTransported\ The obstruction to fast EVSI was the inner \emph{optimization} per outer draw, not the inner integration. By \cref{voi:prop:lq} the decision consumes $\theta$ only through $u(\theta) = m(\bar b,\theta)$, with value $\tfrac12\Delta u^\T\Omega\Delta u$. With a shared posterior sample $\{\theta_i\}$, precompute $u_i$ and readout means $L_i = \mathcal E_d(\theta_i)$; for each simulated outcome $\ell$ form self-normalized weights $w_i \propto \exp\{-\tfrac12\norm{(L_i - \ell)/se}^2\}$ and set
+\begin{equation}
+\widehat{\mathrm{EVSI}}_{\mathrm{LQC}}(d) = \E_\ell\Big[\tfrac12\,(\hat u^{e}_\ell - \bar u)^\T\,\Omega\,(\hat u^{o}_\ell - \bar u)\Big], \qquad \hat u^{e/o}_\ell = \sum_{i \in \text{even/odd}} w_i u_i,
+\label{voi:eq:lqc}
+\end{equation}
+the even/odd cross-product removing the self-normalized-IS noise bias. The cost is $O(n)$ vector operations per outer draw, and multivariate readouts (trajectories, simultaneous experiments) enter through the weight kernel for free. $\mathrm{EVPI}_{\mathrm{LQ}} = \tfrac12\E[(u-\bar u)^\T\Omega(u-\bar u)]$ is the same functional at perfect information; $\kappa(d) = \mathrm{EVSI}(d)/\mathrm{EVPI}_{\mathrm{LQ}}$ is the \emph{capture fraction}.
+\end{construction}
+
+This is Strong--Oakley regression EVSI transported to a continuum of actions: they regress per-action net benefit for finitely many actions; LQC regresses the decision-sufficient statistic and closes the continuum analytically through $\Omega$. Against nested MC on seven CRN-matched grid designs (\cref{voi:tab:lqc}) LQC has Pearson 0.974 and Spearman 1.000 with median MC/LQC $= 1.33$ (the LQ conservatism factor at this width); the rank-1 closed form on the same designs has Pearson 0.31, Spearman 0.32 and level ratio 2.4.
+
+\begin{proposition}[$u$-space Gaussian score]
+\label{voi:prop:gaussu}
+\tagEstablished\ Linear-Gaussian conditioning in $u$-space with exact nonlinear sample moments gives
+\begin{equation}
+\mathrm{EVSI}_{\mathrm{gauss}\text{-}u}(d) = \tfrac12\, c^\T \Omega\, c, \qquad c = \frac{\Cov(u, L)}{\sqrt{\Var(L) + se^2}},
+\label{voi:eq:gaussu}
+\end{equation}
+with $\Cov(u,L)$ and $\Var(L)$ sample moments of the shared draw; on five powered designs it matches LQC to within $-2\%$ to $+6\%$.
+\end{proposition}
+
+\tagRefuted\ The consequence is a re-diagnosis. The rank-1 $\theta$-space formula fails not because conditioning is non-Gaussian but because its ingredients $g^\T\Sigma D^\T$ are \emph{linearizations of the two forward maps}: over an MMM-realistic posterior, $\Cov(L,u) \ne g^\T\Sigma D^\T$. With exact sample moments, Gaussian conditioning is already enough. This resolves \BL{6} negatively and better than asked --- no Hessian or sigma-point machinery, the correction is a covariance estimate --- and explains why every $g$-based criterion misranks MMM experiments.
+
+\subsection{Anatomy of the plateau: alignment bound and share ceiling (\dive{04})}
+
+Let $A = \Omega^{1/2}\Cov(u)\Omega^{1/2}$ with eigenvalues $\lambda_1 \ge \lambda_2$, $\lambda_3 = 0$ (since $\Omega\one = 0$): the \emph{decision-relevant spectrum}, with $\tr A = 2\,\mathrm{EVPI}_{\mathrm{LQ}}$ and principal contrasts $c_k$ in $u$-space.
+
+\begin{law}[Alignment bound and share ceiling]
+\label{voi:law:align}
+\tagEstablished\ For any scalar readout $\Var(\E[u\mid\ell])$ has rank one, and under \cref{voi:eq:gaussu} Cauchy--Schwarz gives
+\begin{equation}
+\kappa_{\mathrm{scalar}}(d) \le \rho^2(d)\,\frac{\lambda_1}{\lambda_1 + \lambda_2},
+\label{voi:eq:align}
+\end{equation}
+where $\rho^2$ is the squared correlation of the standardized readout with its best-aligned contrast, with equality iff the readout is aligned with $c_1$. Under an independent-channels posterior a channel-$j$ readout can move only $u_j$, giving the sharper \emph{share ceiling}
+\begin{equation}
+\kappa_j \le s_j = \frac{\Omega_{jj}\Var(u_j)}{\tr(\Omega\Cov u)}.
+\label{voi:eq:share}
+\end{equation}
+\end{law}
+
+For \cref{voi:eq:align}, write $\Omega^{1/2}c = \Cov(w, z)$ with $w = \Omega^{1/2}u$ and $z$ the standardized readout, and bound $\norm{\Cov(w,z)}^2 = \max_{\norm v=1}\Cov(v^\T w,z)^2 \le \rho^2\lambda_1$; \cref{voi:eq:share} follows because $\Cov(u,L) = e_j\Cov(u_j,L)$ and $\Cov(u_j,L)^2 \le \Var(u_j)\Var(L)$. The plateau is therefore a \emph{ceiling structure}: powered designs sit near their ceilings, and the ceilings of the conventional design family happen to be comparable ($s_j \approx 0.25$--$0.43$). \tagRefuted\ \dive{04}'s own opening conjecture --- plateau $\Leftrightarrow$ effective rank of $A$ near 1 --- is rejected by its numbers: $\lambda = (0.0257, 0.0182)$, effective rank $(\sum\lambda)^2/\sum\lambda^2 = 1.94$, top-contrast share 0.59. Decision uncertainty is genuinely two-dimensional; the plateau comes from \emph{correlation spreading}: every powered readout loads on both contrasts (channel 1: $\Corr(L,c_1^\T u) = +0.78$, $\Corr(L,c_2^\T u) = +0.28$), so all single-channel $\kappa$ land in a compressed band. Two escapes follow: add readouts ($\kappa$ of a $k$-readout design bounded by the top-$k$ share sum --- \tagConjecture\ stated without proof, \BL{9}), or realign one readout with $c_1$. Since $c_1 = (1, -0.33, -0.67)$ is a \emph{reallocation} direction, no single-channel test can align with it, but a budget-neutral switch experiment ($+\delta$ on one channel, $-\delta'$ on another, one readout) can.
+
+\subsection{Where the plateau ends (\dive{04})}
+
+\tagNumerical\ Four findings (\cref{voi:tab:lqc}), on \dive{03}'s posterior unless stated. First, the plateau is a band, not a line: among the 12 powered designs LQC max/min is 1.65 ($\kappa$ 0.22--0.36); \dive{03}'s tie was real but an artifact of dueling two mid-band designs. Second, trajectory readouts are worthless for this decision ($\kappa$ 0.29 $\to$ 0.30; 0.19 $\to$ 0.19 on a rank-2 posterior): the rank-4 within-channel information of \cref{ch:transport} does not project onto cross-channel contrasts. Third, simultaneous two-channel designs break the ceiling as the share law predicts: the baseline dual (channels 3 and 2, $\delta = \tfrac12\bar x$) has $\kappa = 0.52$ against 0.29 scalar; on the variance-equalized independent-channel posterior duals reach $\kappa = 0.48$--$0.65$ against 0.35 for the best single, and nested MC confirms $+47\%$. The ``$>2\times$'' regime \dive{03} asked about exists across experiment \emph{count}, never within single-scalar designs. Fourth, the switch experiment --- $+0.5$ on channel 1 and $-0.6$ on channel 3 (each half its channel's baseline), one scalar readout --- achieves $\Corr(L,c_1^\T u) = 0.83$ and $\kappa = 0.47$ against 0.36 for the best single-channel design and the 0.59 bound; the sign-reversed switch is identical (0.47); nested MC gives $+22\%$ over the best conventional design (LQC predicted $+31\%$).
+
+\begin{proposition}[Nonmonotone switch collapse]
+\label{voi:prop:collapse}
+\tagNumerical\ Doubling the switch to $(+1.0, -1.2)$ collapses $\kappa$ from 0.47 to 0.21 (MC 0.00556, about $-45\%$ against the best conventional design): large opposed pulses drive the two Hill responses into asymmetric saturation and the readout decorrelates from the contrast it was built to measure. Switch designs must be sized, not maxed (\BL{8}).
+\end{proposition}
+
+\tagRefuted\ Finally, \dive{03}'s conjecture that a free total budget rehabilitates D-optimality and ROI-level calibration fails. With $\Omega_{\mathrm{free}} = v_m\diag(1/H)$ (no null direction along $\one$; $v_m$ converts revenue to profit so that $\bar b$ remains optimal), $\mathrm{EVPI}_{\mathrm{LQ}}$ rises $4.0\times$ because the level direction is live, yet rankings barely move (Spearman 0.86 with the fixed-budget ranking), the best design is unchanged, and the powered band is \emph{tighter} (max/min 1.26): every powered readout carries level information, and the level is the easiest direction to inform, so it differentiates designs even less.
+
+\section{Numerical evidence}
+
+The simulation design is that of Assumptions~\ref{voi:ass:posterior} and~\ref{voi:ass:readout}: one Laplace posterior from a 104-week collinear observational fit, a fixed truth, scalar (in \dive{04} also trajectory, dual and switch) readouts through \cref{voi:eq:operator}, and nested MC with split-sample debiasing and CRN outer draws.
+
+\begin{table}[htbp]
+\centering\small
+\caption{\dive{03}: valuing the two halves of M10 (expected steady-state revenue per period; baseline revenue 2.381).}
+\label{voi:tab:evpi}
+\begin{tabular}{llr}
+\toprule
+Exp. & Quantity & Value \\
+\midrule
+E2 & Plug-in allocation $b_{\mathrm{plug}}$ & $(1.027, 0.919, 1.054)$ \\
+E2 & Bayes allocation $b_{\mathrm{Bayes}}$ (4000 draws) & $(0.988, 0.941, 1.071)$ \\
+E2 & Expected-revenue gap, Bayes $-$ plug-in & $6.4\times10^{-4}$ (0.027\%) \\
+E2 & Exact EVPI (400 oracle draws) & $0.0420 \pm 0.0036$ (1.76\%) \\
+E2 & Quadratic EVPI, \cref{voi:eq:trace} & 0.0151 \\
+E2b & MC/quadratic at $\Sigma$ scale $1, \tfrac12, \tfrac14$ & $3.37,\ 1.69,\ 1.27$ \\
+E3 & Exact EVPI: baseline / $+$common $\beta$ shock (30\% sd) & $0.0444$ / $0.0474$ \\
+E3 & Exact EVPI: $+$contrast shock (ch.\ 1 up, ch.\ 3 down) & $0.0689$ ($+55\%$) \\
+E3 & Free budget: baseline / $+$common shock & $0.304$ / $0.414$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\footnotesize
+\caption{\dive{03}: rank-1 closed form versus exact nested MC and the plateau duels (E4, E5, E7). A = EVSI-best design (ch.\ 3, $\delta = \tfrac12\bar x_3$, $T_e = 8$, $P = 8$; in the quarter-width duel the code uses $\delta = \bar x_3$); B = D-best design (ch.\ 2, $\delta = \bar x_2$, $T_e = 8$, $P = 0$). Controls at full width: tenth-size pulse (ch.\ 3, $\delta = 0.06$, $8{+}8$); A with $6\times$ noise; tiny-short (ch.\ 1, $\delta = 0.1$, $T_e = 2$).}
+\label{voi:tab:duel}
+\begin{tabular}{lll}
+\toprule
+Quantity & Full width & Quarter width \\
+\midrule
+Closed form vs MC (8 designs): Spearman & 0.33 & 0.93 \\
+Closed form vs MC (8 designs): Pearson / level ratio MC:closed & --- / $\approx 2.2$ & 0.945 / 1.16 \\
+Kendall $\tau$(EVSI, D-score), 36-design grid, closed form & 0.23 & 0.84 \\
+Predicted forfeit of D-best design, closed form & 42\% & 17\% \\
+MC EVSI, design A & $0.00721 \pm 0.00040$ & $0.000155$ \\
+MC EVSI, design B (rank-1 prediction at $\tfrac14$: 0.000121) & $0.00758 \pm 0.00055$ & $0.000157$ \\
+Paired A $-$ B & $-0.00037 \pm 0.00067$ & $(-2 \pm 13)\times10^{-6}$ \\
+Controls: tenth-size / $6\times$ noise / tiny-short & $0.00108$ / $0.00134$ / $0.00079$ & --- \\
+Paired strong $-$ weak & $0.00612 \pm 0.00038$ & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\footnotesize
+\caption{\dive{04}: LQC validation, plateau anatomy and the edge of the plateau. $\kappa = \mathrm{EVSI}/\mathrm{EVPI}_{\mathrm{LQ}}$; MC entries are nested MC (240 outer $\times$ 6000 inner, CRN). Channel vectors are ordered (1, 2, 3).}
+\label{voi:tab:lqc}
+\begin{tabularx}{\textwidth}{Xll}
+\toprule
+Item & Result & Comparator \\
+\midrule
+F1: LQC vs MC, 7 designs: Pearson / Spearman / MC:LQC & 0.974 / 1.000 / 1.33 & rank-1: 0.31 / 0.32 / 2.4 \\
+F1: controls: weak pulse / $6\times$ noise / tiny-short & 0.00106 / 0.00131 / 0.00066 & powered $\approx 0.006$--$0.009$ \\
+F1b: powered band (12 designs), LQC max/min & 1.65 ($\kappa$ 0.22--0.36) & MC band ends 0.00701, 0.00929 \\
+F2: $\lambda_{1,2}$; effective rank; $\lambda_1/\tr A$ & $(0.0257, 0.0182)$; 1.94; 0.59 & $c_1 = (1, -0.33, -0.67)$ \\
+F2b: gauss-$u$ vs LQC, 5 powered designs & $-2\%$ to $+6\%$ & \\
+F3: block-diagonal posterior, $\kappa_j$ vs ceiling $s_j$ & $(0.26, 0.23, 0.29) \le (0.32, 0.25, 0.43)$ & MC best / worst: 0.00806 / 0.00842 \\
+F3: variance-equalized, $\kappa_j$ vs $s_j$ & $(0.35, 0.31, 0.19) \le (0.41, 0.34, 0.25)$ & channel ratios 1.25, 1.85 \\
+F4: trajectory readout, $\kappa$ (baseline; rank-2) & $0.29 \to 0.30$; $0.19 \to 0.19$ & worthless \\
+F4: dual (ch.\ 3 \& 2, $\tfrac12\bar x$), baseline, $\kappa$ & 0.52 & scalar 0.29 \\
+F4: dual MC, equalized posterior & $0.01497 \pm 0.00106$ & single $0.01015 \pm 0.00084$ ($+47\%$) \\
+F5: free budget: $\mathrm{EVPI}_{\mathrm{LQ}}$; Spearman; band & $\times 4.0$; 0.86; max/min 1.26 & best design unchanged \\
+F6: switch $(+0.5, -0.6)$ on ch.\ 1, 3: corr, $\kappa$ & 0.83, 0.47 (reversed 0.47) & best single 0.36; bound 0.59 \\
+F6: switch MC & $0.01231 \pm 0.00106$ & best conv.\ $0.01011 \pm 0.00086$ ($+22\%$) \\
+F6: oversized switch $(+1.0, -1.2)$ & $\kappa = 0.21$; MC 0.00556 & $-45\%$ vs best conventional \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Two controls anchor the instrument: the power cliff (weak designs near 0.001 against 0.006--0.009 for powered ones) is reproduced by both dives, with a $16\sigma$ paired separation in \dive{03}, and the sign-reversed switch returning the identical $\kappa$ checks that the switch's value comes from alignment with $c_1$, not the sign of the pulse. The only within-band MC comparison in \dive{04} (F3, LQC-best against LQC-worst channel) came back a tie with the order mildly reversed, which the dive reads as orderings of about $1.2\times$ being below both methods' resolution: only cross-band claims are MC-established.
+
+\section{Limitations and the devil's advocate}
+
+Both dives are explicit that every result lives inside one frame: a correctly specified model, a Laplace posterior centered at the truth, steady-state per-period revenue, one three-channel truth, and an assumed readout noise $se(d)$. The last is the strongest objection. Because the cost of power is never modeled, the plateau says only that among experiments \emph{granted} adequate power the design does not matter, nothing about whether one should buy that power --- Test \& Roll's territory and \BL{7}'s. The same omission undercuts the escapes: a dual experiment is plausibly about twice the cost of a single one, which would erase its $+47\%$, and a switch experiment requires the two channels' geo assignments to coincide, which real ad platforms only partially allow.
+
+The instrument has known limits. The truncated Laplace posterior is not the true posterior of the observational fit; nested MC, though split-sample-debiased, retains the importance-sampling approximation of the conditional posterior; per-period units need a horizon and discounting to become dollars. LQC inherits the LQ decision layer: its levels are about 25\% conservative at full width (MC/LQC 1.33) and its within-band orderings ($\lesssim 1.3\times$) cannot be confirmed by MC at feasible outer counts. The attack-and-refine rounds changed two results materially: \dive{03}'s ``nonlinear conditioning bonus'' gave way to \dive{04}'s moment-error diagnosis, and \dive{04}'s opening effective-rank conjecture was withdrawn when the spectrum came back with effective rank 1.94, \cref{voi:law:align} being the replacement. A devil's advocate adds that the effective-rank and share numbers are properties of this truth; the dives' reply is that the \emph{laws} --- alignment bound, share ceiling, count-additivity --- are the portable content, of which only the first two are proved.
+
+\section{Discussion: impacts}
+
+For practice the ordering of the two halves of M10 is the headline. An MMM vendor (Meridian, Robyn, PyMC-Marketing) that invests in a Bayes-optimal allocator under the joint posterior is buying 0.03\% of revenue; the same posterior used to \emph{schedule} the next experiment addresses a 1.8\% opportunity, of which one well-powered test recovers roughly a sixth. \Cref{voi:prop:null} sharpens what that test must measure: under a fixed budget, calibration that moves every channel's ROI level together --- the commonest use of a lift test today --- has no decision value; the value is in cross-channel contrasts and curvature, which is why \cref{voi:law:align} makes a \emph{reallocation} pulse the most valuable single readout and why trajectory readouts, whatever they do for identification (\cref{ch:transport}), buy nothing here. For experimentation platforms the plateau is liberating and cautionary at once: among single-channel pulses, agonizing over channel, delta and post-period is wasted effort provided the test is powered, whereas underpowering costs 85\% of the value, and an oversized switch is worse than a conventional pulse.
+
+For theory the chapter delivers a design criterion that is not a Fisher-information criterion. The rank-1 score \cref{voi:eq:trace} is exactly the goal-oriented c-optimality one would write down, and it is wrong at MMM widths for a reason unrelated to non-Gaussianity: linearized covariances $g^\T\Sigma D^\T$ are poor estimates of $\Cov(L,u)$ when the forward maps are Hill curves under a 50\%-wide posterior. \Cref{voi:prop:gaussu} shows the fix is an estimated covariance, and \cref{voi:con:lqc} makes it cheap enough to sit inside a scheduler --- the production scorer for the always-on loop of \cref{ch:fusion} and \cref{ch:feedback}. Later chapters consume the machinery: the regret loss \cref{voi:eq:omega} prices ranking flips in \cref{ch:refresh} and caps in \cref{ch:heavytail}; \cref{ch:attribution} joins its $\kappa$ law to EVSI to size a lift budget; \cref{ch:feedback} asks whether switch experiments are the cheapest escape from a stalled certainty-equivalent loop.
+
+\section{Further exploration}
+
+The dives' next steps are concrete. \BL{8} asks for the collapse point of \cref{voi:prop:collapse} analytically --- the $\delta$ at which $\Cov(L_{\mathrm{switch}}, c_1^\T u)$ turns over as a function of Hill curvature at the two operating points, with the conjectured rule that $\delta^\star$ is where the two channels' second-order lift terms are equal and opposite. \BL{9} is the $k$-experiment portfolio law: if $\kappa(\text{portfolio})$ is approximately the sum of captured spectral shares, greedy share-hunting is a scheduler, and \dive{03}'s greedy loop should be rebuilt with LQC as scorer. \BL{7} remains the power--cost frontier: replace $se(d)$ with a geo-count power model and charge duals and switches their true cost, with $+47\%$ and $+22\%$ the margins to beat. \BL{10} tests LQC under misspecification, since $u(\theta)$ is computed under the fitted model. The fifth step is to prove count-additivity and the equality conditions of \cref{voi:law:align}.
+
+In the compiler's judgement the most promising extension is \BL{7} carried out in Test \& Roll's currency: express each design's $se(d)$ through the geos and weeks it consumes, charge the forgone profit of the test cells as Feit and Berman do, and maximize LQC EVSI minus that cost. This is the multi-channel Test \& Roll that M10 literally asked for, it uses only machinery the dives already validated, and it settles the question every finding leaves hanging --- whether the $+22\%$ of a budget-neutral switch, which by construction costs no extra spend, survives once power is priced, in which case the switch becomes the recommended first experiment for a fixed-budget advertiser.
+
+\begin{reviewernote}[(compiler)]
+\begin{itemize}[leftmargin=1.2em]
+\item \textbf{Two different ``fractions of EVPI''.} \dive{03} says one powered experiment recovers 15--18\% of \emph{exact} EVPI (0.042); \dive{04}'s $\kappa$ for the same designs (0.22--0.36) is normalized by $\mathrm{EVPI}_{\mathrm{LQ}}$, whose baseline value the writeup never states (implied $\approx 0.021$ from MC/LQC $= 1.33$, $\kappa = 0.36$ and MC 0.01011). The denominators differ by about $2\times$; $\kappa = 0.47$ is not 47\% of the 1.8\% of revenue.
+\item \textbf{The $+22\%$ switch margin is the weakest MC claim.} F6 reports marginal errors only ($0.01231 \pm 0.00106$ vs $0.01011 \pm 0.00086$, about $1.6\sigma$ unpaired); the paired CRN error that \dive{03} gave for its duels is absent, as is any error on the oversized-switch value 0.00556. The dual's $+47\%$ is about $3.6\sigma$ even unpaired. LQC predicted $+31\%$ and MC delivered $+22\%$; the gap is within LQC's stated conservatism but undiscussed.
+\item \textbf{``Budget-neutral'' is approximate.} The switch is $+0.5$ on channel 1 and $-0.6$ on channel 3 (each half of its channel's baseline), net $-0.1$ in spend units.
+\item \textbf{Not reproducible from the final scripts.} \dive{03}'s quarter-width grid statistics ($\tau = 0.84$, forfeit 17\%) are quoted in E5, but the script's main block runs E5 at full width only; the quarter-width duel's designs are not named in the writeup, and in the code design A there is ch.\ 3 at $\delta = \bar x_3$, not $\tfrac12\bar x_3$. The ``$\sim 1000\times$ cheaper'' figure for LQC appears in the INDEX log line only; the writeup gives 4.7 s for 39 designs and no nested-MC timing.
+\item \textbf{Within-band reversal.} F3's MC returned the LQC-worst channel \emph{above} the LQC-best (0.00842 vs 0.00806); the dive rightly calls it a tie, but ``Spearman 1.000 vs nested MC'' (F1, 7 designs) is agreement on cross-band ordering only. The INDEX line for \dive{03} (``channel/pulse/window choice is decision-irrelevant'') overstates what survives \dive{04}'s $1.65\times$ band.
+\item \textbf{Dates and citations.} Both dive headers say 2026-08-31 while the INDEX logs 2026-09-01 (00:21 and 02:30; the assignment gives 01:25 for \dive{04}). \dive{03} attributes the Value in Health nested-MC tutorial to ``Strong \& Oakley et al.''; it is Heath and Baio (2018). \dive{04} calls PMC3980703 an ``earlier open version'' of Strong et al.\ (2015); it is the 2014 EVPPI regression paper. \Cref{voi:cor:null}'s claim about what Meridian-style ROI priors ``chiefly move'' is inherited from \dive{02}, not tested here. No pinv/FIM (\BL{82}) issue arises: $\Sigma$ is a ridge-regularized inverse, not a pseudo-inverse.
+\end{itemize}
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item Feit, E. M. and Berman, R. (2019). \emph{Test \& Roll: Profit-Maximizing A/B Tests}. Marketing Science 38(6). \url{https://pubsonline.informs.org/doi/10.1287/mksc.2019.1194}
+\item Raiffa, H. and Schlaifer, R. (1961). \emph{Applied Statistical Decision Theory}. Harvard Business School, Boston.
+\item Heath, A. and Baio, G. (2018). \emph{Calculating the Expected Value of Sample Information Using Efficient Nested Monte Carlo: A Tutorial}. Value in Health 21(11). \url{https://www.sciencedirect.com/science/article/pii/S1098301518322010}
+\item Strong, M., Oakley, J. E., Brennan, A. and Breeze, P. (2015). \emph{Estimating the Expected Value of Sample Information Using the Probabilistic Sensitivity Analysis Sample: A Fast, Nonparametric Regression-Based Method}. Medical Decision Making 35(5). \url{https://pubmed.ncbi.nlm.nih.gov/25810269/}
+\item Strong, M., Oakley, J. E. and Brennan, A. (2014). \emph{Estimating Multiparameter Partial Expected Value of Perfect Information from a Probabilistic Sensitivity Analysis Sample: A Nonparametric Regression Approach}. Medical Decision Making 34(3). \url{https://pmc.ncbi.nlm.nih.gov/articles/PMC3980703/}
+\item Heath, A., Manolopoulou, I. and Baio, G. (2019). \emph{Estimating the Expected Value of Sample Information across Different Sample Sizes Using Moment Matching and Nonlinear Regression}. Medical Decision Making 39(4). \url{https://journals.sagepub.com/doi/10.1177/0272989X19837983}
+\item Li, L., Jalal, H. and Heath, A. (2024). \emph{Accurate EVSI Estimation for Nonlinear Models Using the Gaussian Approximation Method}. Medical Decision Making. \url{https://pmc.ncbi.nlm.nih.gov/articles/PMC11492544/}
+\item Attia, A., Alexanderian, A. and Saibaba, A. K. (2018). \emph{Goal-Oriented Optimal Design of Experiments for Large-Scale Bayesian Linear Inverse Problems}. Inverse Problems 34(9). \url{https://arxiv.org/abs/1802.06517}
+\item Go, J., Qian, X. and Yoon, B.-J. (2026). \emph{Goal-Driven Bayesian Optimal Experimental Design for Robust Decision-Making Under Model Uncertainty (GoBOED)}. arXiv:2605.26093. \url{https://arxiv.org/abs/2605.26093}
+\item Simon, H. A. (1956). \emph{Dynamic Programming under Uncertainty with a Quadratic Criterion Function}. Econometrica 24(1).
+\item Theil, H. (1957). \emph{A Note on Certainty Equivalence in Dynamic Planning}. Econometrica 25(2).
+\item Internal: \dive{01} (FIM and D-criterion design machinery, \cref{ch:identification}); \dive{02} (operator forward map $\mathcal E_d$, rank-1 versus rank-4 readouts, \cref{ch:transport}); frontier study \texttt{02\_open\_questions.md} M10; \texttt{03\_mmm\_adoption\_barriers.md} B5, H8.
+\end{enumerate}
+\endgroup

@@ -1,0 +1,260 @@
+% ===========================================================================
+% Chapter: The calibrated simulator (dive 15)
+% ===========================================================================
+\chapter[The calibrated simulator]{The calibrated simulator: certifying an agent-based market model against held-out experiments}
+\label{ch:simulator}
+
+\begin{provenance}
+\textbf{Source dives:} \dive{15} \emph{The calibrated simulator: a certification harness, the certification law, and the quantitative counterfactual bar} (run 2026-09-02, file \texttt{15\_calibrated\_simulator.md}, written 2026-09-02 23:32 UTC).
+\textbf{Code:} \texttt{code/15\_calibrated\_simulator.py}.
+\textbf{Frontier-study problem(s) addressed:} E9 --- a calibrated simulator whose counterfactual predictions match held-out geo-experiment results at scale, ``the necessary bar before simulation can substitute for any experiment''; H7 --- a theory of \emph{when} synthetic consumers are valid (contamination, distribution shift, homogeneity). Grand challenge 3.
+\textbf{Backlog items closed:} none; \textbf{opened:} \BL{51}--\BL{54}.
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item The \emph{counterfactual bar} is a residual-variance threshold $\omega_\star^2 = \gamma c + \sqrt{\gamma^2 c^2 + 2\gamma c\,v_x}$, the point at which an experiment's value of information stops covering its cost $c$ given the simulator as prior; for go/no-go decisions it is per decision, $\sigma_{pp}\,\psi(|m - \tau_0|/\sigma_{pp}) \lessgtr c$ (clean-room exact to $0.0004$).
+\item The certificate is the exactly unbiased excess variance $\hat\omega^2 = [r^\T r - \sum_e (1 - h_{ee}) v_e]/(E - 2)$ (chi-square UCB coverage 0.949--0.955 for $E = 8$--120); certification is a variance-ratio test in one gap ratio $\kappa = (\omega_\star^2 + \bar v)/(\omega^2 + \bar v)$, $E_{\mathrm{exact}} = \min\{E : \chi^2_{0.8, E-2}/\chi^2_{0.05, E-2} \le \kappa\}$: 157 experiments certify a simulator half as bad as the bar with tests as noisy as the bar (MC $157 \pm 2$). Library \emph{precision} should match the bar ($\nu_\star \approx 0.85$, cost flat within 1\%, $2.6$--$2.8\times$ dearer at $\nu = 0.1$), refuting the dive's Round-1 rule ``match the simulator''.
+\item The noise-floor contamination test has blind spot $\lambda < \omega^2/(\omega^2 + v)$ and is evaded by a noise-adding memoriser, which a raw-data re-estimation test catches (power 0.71); outcome-selected libraries make a simulator look better than perfect ($\hat\omega^2 = -0.08$).
+\item Variance collapse in \emph{levels} is repaired exactly by one latent-scale slope (additive Platt recalibration errs $-15.7\%/+14.5\%$ out of hull); heterogeneity in \emph{sensitivity} needs a mixture parameter (latent family $-12.7\%$ at rare baselines). Certifying at every new experiment falsely certifies 28\% of simulators at the bar; a prequential e-process holds 3.3\% at power 0.86.
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+The frontier study's third grand challenge is a market simulator---LLM agents or hybrid structural---held to a \emph{counterfactual bar}: predictions validated against a held-out library of real experiments before any measurement claim rests on it. E9 names the bar without defining it; H7 asks when synthetic consumers are valid and lists the failure modes: training contamination, distribution shift for genuinely new products, and homogeneity that understates the human variance which is itself the central measurement obstacle. The literature reports correlations, sign-agreement rates and ``corrected'' mean-squared errors, none of which says whether a simulator is good \emph{enough}, enough for what, or how many experiments it takes to find out. \dive{15} defines the bar, derives what a library of $E$ experiments can certify and at what cost, and specifies the harness. The simulator is a black box emitting a counterfactual lift prediction; nothing depends on its being an LLM, and that is the point: the certificate is earned against experiments, not argued from behavioural realism. Five claims were reproduced clean-room to Monte Carlo precision by an independent subagent given only their statements. The harness is a derived specification, not a fielded system, and the mapping from an agent population to a single residual-variance parameter is the speculative step; the dive labels it so.
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{Generative agents and synthetic consumers (Park et al., 2023, 2024; Horton, 2023; Brand et al., 2023)}
+
+Park et al.\ (2023) introduced \emph{generative agents}: LLM-backed characters with a memory stream of natural-language observations, retrieval scored by recency, importance and relevance, periodic \emph{reflection} that abstracts memories into higher-level inferences, and planning that turns them into behaviour. Park et al.\ (2024) grounded the architecture in people: two-hour interviews with 1,052 U.S.\ respondents became the agents' memories, and the agents reproduced each respondent's General Social Survey answers at 85\% of the respondent's own two-week test--retest accuracy (\texttt{genagents} ships the agent bank). Horton (2023) framed LLMs as \emph{homo silicus}, models of humans endowed with preferences by prompt and run through classic behavioural-economics experiments, recovering the qualitative human patterns; Brand, Israeli and Ngwe (2023) showed GPT answers to conjoint-style choices yield downward-sloping demand curves and willingness-to-pay that track human values. This line supplies the object certified here: a synthetic population that, given a pre-period description and an intervention, emits a predicted lift.
+
+\subsection{Validating simulators against experiments (Hut and Masoero, 2026; Hewitt et al., 2026; Bisbee et al., 2024)}
+
+Hewitt, Ashokkumar, Ghezae and Willer (2026) had GPT-4 predict 476 survey-experiment effects: $r = 0.85$ (0.90 on unpublished studies), with systematic over-estimation of magnitudes and $r = 0.27$ on field experiments. Hut and Masoero (2026, Amazon) is the closest object to this chapter: 67 historical marketing A/B tests each simulated by 1,000 customer-mapped agents, sign agreement 0.70, launch-decision alignment 0.41, and a \emph{corrected MSE} that subtracts each test's sampling variance from its squared residual (the moment idea below), which a Platt-scaling recalibration on 16 tests reduces about $77\times$ ``to near the noise floor''. Against this, Bisbee et al.\ (2024) measure \emph{variance collapse} in silicon samples (dispersion 16.1 against the human 31.4) and instability across prompts and time, and two 2026 preprints find descriptive fit does not predict causal-effect error. Missing from all of it: a bar on the residual tied to cost and decision value, a sample-size law for the library, a contamination test formalised against \emph{noisy} labels, and a structural recalibration validated for transport---the dive's four constructions.
+
+\subsection{Excess variance and prediction intervals (DerSimonian and Laird, 1986; Riley, Higgins and Deeks, 2011)}
+
+Random-effects meta-analysis sees $k$ estimates $y_i = \theta_i + \varepsilon_i$ with known sampling variances $v_i$ and $\theta_i \sim (\mu, \tau^2)$. DerSimonian and Laird estimate the between-study variance by moments: with $Q = \sum_i w_i(y_i - \bar y_w)^2$, $w_i = 1/v_i$, $\E[Q] = (k - 1) + \tau^2 C$ for a known $C$, so $\hat\tau^2 = \max\{0, (Q - (k-1))/C\}$---variance \emph{in excess of} sampling noise (Veroniki et al., 2016, review sixteen variants). Riley, Higgins and Deeks (2011) insist the user's object is the \emph{prediction interval} for a new study, $\hat\mu \pm t_{k-2}\sqrt{\hat\tau^2 + \mathrm{se}(\hat\mu)^2}$. The chapter's certificate is the excess variance of a \emph{regression} of experimental estimates on simulator predictions, with one refinement: residual $r_e$ has variance $(1 - h_{ee})(\omega^2 + v_e)$, $h_{ee}$ the leverage (diagonal of $H = X(X^\T X)^{-1}X^\T$), so the noise to subtract is $\sum_e (1 - h_{ee}) v_e$, not $\sum_e v_e$.
+
+\subsection{Variance-ratio tests and their power}
+
+If $n$ residual degrees of freedom of a Gaussian regression have variance $\sigma^2$, then $ns^2/\sigma^2 \sim \chi^2_n$. Testing $H_0 : \sigma^2 \ge \sigma_0^2$ rejects when $ns^2/\sigma_0^2 \le \chi^2_{a,n}$ (lower $a$-quantile); against $\sigma_1^2 < \sigma_0^2$ the power is $\Prob(\chi^2_n \le (\sigma_0^2/\sigma_1^2)\chi^2_{a,n})$, a function of the ratio and $n$ only, and the sample size for power $1 - b$ is the smallest $n$ with $\chi^2_{1-b,n}/\chi^2_{a,n} \le \sigma_0^2/\sigma_1^2$. With $\chi^2_{p,n} \approx n + z_p\sqrt{2n}$ this is $n \approx 2(z_b + \kappa z_a)^2/(\kappa - 1)^2$ for ratio $\kappa$; the asymmetric $\kappa z_a$ is what the dive's Round-1 law omitted.
+
+\subsection{Platt scaling versus latent-scale recalibration (Platt, 1999)}
+
+Platt scaling fits a monotone map from a raw score $f$ to a calibrated probability, $\Prob(y = 1 \mid f) = 1/(1 + \exp(Af + B))$, on held-out data: two parameters applied \emph{after} the model; Hut and Masoero use the additive lift-scale analogue $\tau \approx \alpha + \beta s$. The dive contrasts this with recalibration \emph{inside the link}: if purchase is a probit event, one slope on the latent index reproduces lifts at every baseline and dose, which no affine map on the lift scale can.
+
+\subsection{Recursive residuals and e-processes (Brown, Durbin and Evans, 1975; Ramdas et al., 2023)}
+
+In a Gaussian linear model fitted sequentially, the standardised one-step-ahead \emph{recursive residuals} $u_t = (y_t - x_t^\T\hat\beta_{t-1})/\sqrt{1 + x_t^\T(X_{t-1}^\T X_{t-1})^{-1}x_t}$ are i.i.d.\ $\mathcal N(0, \sigma^2)$ under the model (the \emph{prequential} property: forecast, then observe). An \emph{e-process} for $H_0$ is a nonnegative process with $\E_{H_0}[M_t] \le 1$ at every stopping time; Ville's inequality gives $\Prob_{H_0}(\sup_t M_t \ge 1/a) \le a$, so ``reject when $M_t \ge 1/a$'' is valid however often one looks; the running likelihood ratio of i.i.d.\ observations is the canonical case.
+
+\subsection{Expected value of sample information as the bar (\cref{ch:voi})}
+
+An experiment's value to a decision is its expected value of sample information: expected Bayes loss under the current posterior minus expected Bayes loss after the experiment, averaged over outcomes not yet seen (Raiffa and Schlaifer, 1961; \cref{ch:voi}). The dive treats the certified simulator as the \emph{prior}: it substitutes for an experiment when the experiment's EVSI against the simulator's recalibrated predictive distribution falls below $c$. The bar is therefore a variance, and it depends on the decision.
+
+\section{Setup and assumptions}
+
+The library is $E$ past randomized experiments (geo lift tests, ghost-ad holdouts) with true lift $\tau_e$ and estimate $\hat\tau_e = \tau_e + \varepsilon_e$; before each reads out the simulator emits a prediction $s_e$. The recalibration regression is $\hat\tau$ on $(1, s)$ with design matrix $X$, hat matrix $H$, leverages $h_{ee}$, residuals $r$, and $\bar v = E^{-1}\sum_e v_e$; $\rho = \omega^2/\omega_\star^2$ and $\nu = \bar v/\omega_\star^2$ are simulator quality and library noise relative to the bar $\omega_\star^2$ (\cref{sim:thm:bar}).
+
+\begin{assumption}[A1--A3]
+\label{sim:ass:model}
+(A1) $\varepsilon_e \sim \mathcal N(0, v_e)$, $v_e$ known from the experiment's own analysis, independent across experiments. (A2) $s_e$ is fixed before $\hat\tau_e$ is observed; its violation is \emph{contamination}, a fraction $\lambda$ of items on which the simulator returns the published $\hat\tau_e$. (A3) $\tau_e = \alpha + \beta s_e + u_e$, $u_e \sim \mathcal N(0, \omega^2)$ independent of $s_e$; $\omega^2$ is the simulator's \emph{counterfactual residual variance} after the best affine recalibration.
+\end{assumption}
+
+\begin{definition}[Target decision]
+\label{sim:def:decision}
+A new decision has prediction $m = \hat\alpha + \hat\beta s_{\mathrm{new}}$ and predictive variance $V = \hat\omega^2 + (\hat\omega^2 + \bar v)[1/E + (s_{\mathrm{new}} - \bar s)^2/S_{ss}]$, $S_{ss} = \sum_e (s_e - \bar s)^2$. Under \emph{quadratic} loss (profit $\tau x - \gamma x^2/2$; acting on $\hat\tau$ loses $(\tau - \hat\tau)^2/2\gamma$) or \emph{threshold} loss (go/no-go at $\tau_0$, losing $|\tau - \tau_0|$ on the wrong side), an experiment costs $c$ and returns $x = \tau + \mathcal N(0, v_x)$.
+\end{definition}
+
+The structural sub-model for homogeneity: consumer $i$ buys iff $U_i + a_i d + \eta_i > 0$, $U_i \sim \mathcal N(\mu, \sigma_H^2)$, $\eta_i \sim \mathcal N(0, 1)$, dose $d$, sensitivity $a_i = a$ for a responsive fraction $q$ and 0 otherwise; with $\varsigma = \sqrt{1 + \sigma_H^2}$ (the dive's $s$) the true lift is $L(\mu, d) = q[\Phi((\mu + ad)/\varsigma) - \Phi(\mu/\varsigma)]$. A \emph{homogeneous} simulator has no idiosyncratic dispersion: it matches the baseline through $\mu' = \Phi^{-1}(p_0)$ and predicts $\Phi(\mu' + a'd) - \Phi(\mu')$.
+
+\section{Main results}
+
+\subsection{The excess-variance certificate and the certification law}
+
+\begin{proposition}[Exactly unbiased excess variance]
+\label{sim:prop:estimator}
+\tagEstablished\ Under A1--A3,
+\begin{equation}
+\hat\omega^2 = \frac{r^\T r - \sum_e (1 - h_{ee})\,v_e}{E - 2}
+\label{sim:eq:estimator}
+\end{equation}
+has $\E[\hat\omega^2] = \omega^2$ exactly. For constant $v$, $r^\T r = (\omega^2 + v)\chi^2_{E-2}$, so $\mathrm{sd}(\hat\omega^2) = (\omega^2 + v)\sqrt{2/(E-2)}$ and
+\begin{equation}
+\mathrm{UCB}_{1-a} = \frac{(E-2)(\hat\omega^2 + \bar v)}{\chi^2_{a, E-2}} - \bar v
+\label{sim:eq:ucb}
+\end{equation}
+is an exact upper confidence bound. The \emph{certificate} ``$\omega^2 \le \omega_\star^2$'' is issued iff $\mathrm{UCB} \le \omega_\star^2$.
+\end{proposition}
+
+Since $r = (I - H)(u + \varepsilon)$, $\E[r^\T r] = \omega^2(E - 2) + \sum_e(1 - h_{ee})v_e$. Hut and Masoero's corrected MSE is the same object without the leverage term and the two recalibration degrees of freedom. E1 (\cref{sim:tab:estimator}) confirms mean, sd and 0.95 coverage from $E = 8$ to 120 and shows the practical fact: the estimator is honest but \emph{noisy}---at $E = 30$ its sd (0.275) exceeds the estimand (0.25), and it is negative 41\% of the time at $E = 8$, 18\% at $E = 30$.
+
+\begin{law}[Certification law]
+\label{sim:law:cert}
+\tagEstablished\ Let $\kappa = (\omega_\star^2 + \bar v)/(\omega^2 + \bar v) = (1 + \nu)/(\rho + \nu)$. With constant $v$ the event $\mathrm{UCB}_{1-a} \le \omega_\star^2$ is $\chi^2_{E-2} \le \kappa\,\chi^2_{a,E-2}$, so
+\begin{equation}
+\text{power} = \Prob\big(\chi^2_{E-2} \le \kappa\,\chi^2_{a, E-2}\big), \qquad
+E_{\mathrm{exact}} = \min\Big\{E : \frac{\chi^2_{1-b, E-2}}{\chi^2_{a, E-2}} \le \kappa\Big\},
+\label{sim:eq:law}
+\end{equation}
+with $E - 2 \approx 2(z_b + \kappa z_a)^2/(\kappa - 1)^2 = 2(z_b + \kappa z_a)^2(\rho + \nu)^2/(1 - \rho)^2$.
+\end{law}
+
+Rearranging \cref{sim:eq:ucb}, certification is $(\hat\omega^2 + \bar v)/(\omega^2 + \bar v) \le \kappa\chi^2_{a,E-2}/(E-2)$, and the left side is $\chi^2_{E-2}/(E-2)$: the variance-ratio test with ratio $\kappa$. \emph{Everything depends on $\kappa$ alone.} A simulator half as bad as the bar ($\rho = 0.5$) with experiments as noisy as the bar ($\nu = 1$) needs 157 experiments; at $\nu = 0.5$, 82 (and, by the law alone, $\approx 55$ with experiments four times more precise, $\nu = 0.25$); a simulator at $\rho = 0.7$ with $\nu = 1$ needs 480 (E2, \cref{sim:tab:law}; twelve cells within Monte Carlo resolution, power at $E_{\mathrm{exact}}$ 0.79--0.83). Hut and Masoero's 67 tests can certify only a bar the simulator beats by a wide margin.
+
+\begin{corollary}[Match library precision to the bar]
+\label{sim:cor:precision}
+\tagNumerical\ If experiment cost is $\propto 1/v$ (geo-weeks), total certification cost is $\propto E(\rho, \nu)/\nu$; its minimiser is $\nu_\star \approx 0.81$--$0.91$ for $\rho = 0.25$--$0.7$, the surface is flat there ($\mathrm{cost}(\nu_\star)/\mathrm{cost}(1) = 0.99$--$1.00$), and over-precise libraries waste money ($\nu = 0.1$ costs $2.6$--$2.8\times$ more). Run library experiments at the precision of the bar, $\bar v \approx \omega_\star^2$.
+\end{corollary}
+
+\subsection{The counterfactual bar}
+
+\begin{theorem}[Quadratic-loss bar]
+\label{sim:thm:bar}
+\tagEstablished\ With prior $\mathcal N(m, V)$ from the recalibrated simulator and an experiment of variance $v_x$, the posterior variance is $(1/V + 1/v_x)^{-1}$ and $\mathrm{EVSI}_{\mathrm{quad}}(V) = V^2/[2\gamma(V + v_x)]$, so the simulator substitutes (EVSI $\le c$) iff
+\begin{equation}
+V \le \omega_\star^2 := \gamma c + \sqrt{\gamma^2 c^2 + 2\gamma c\, v_x}.
+\label{sim:eq:bar}
+\end{equation}
+\end{theorem}
+
+The variance reduction is $V - Vv_x/(V + v_x) = V^2/(V + v_x)$; equating EVSI to $c$ gives the positive root of $V^2 - 2\gamma cV - 2\gamma cv_x = 0$ (Monte Carlo agrees within 0.8\%; E3a). In units of $v_x$ with $\tilde c = c/(v_x/2\gamma)$ (cost relative to the loss a one-experiment-wide prior carries), $\omega_\star^2/v_x = 0.25/0.37/0.64/1.00/1.62$ at $\tilde c = 0.05/0.1/0.25/0.5/1$; the simulator must be worth $4.0/2.7/1.6/1.0/0.6$ \emph{experiment-equivalents} $\mathrm{EE} := v_x/\omega^2$. A simulator exactly as informative as one experiment clears the bar only when the experiment costs half the loss its own width carries.
+
+\begin{proposition}[Per-decision bar for threshold decisions]
+\label{sim:prop:threshold}
+\tagEstablished\ For go/no-go at $\tau_0$ with loss $|\tau - \tau_0|$ on the wrong side, the exact preposterior value of the experiment is
+\begin{equation}
+\mathrm{EVSI}_{\mathrm{thresh}}(m, V) = \sigma_{pp}\,\psi\!\left(\frac{|m - \tau_0|}{\sigma_{pp}}\right), \quad \sigma_{pp} = \frac{V}{\sqrt{V + v_x}}, \quad \psi(z) = \phi(z) - z\,(1 - \Phi(z)),
+\label{sim:eq:evsithresh}
+\end{equation}
+so the harness should emit the per-decision verdict ``experiment iff $\sigma_{pp}\,\psi(|m - \tau_0|/\sigma_{pp}) > c$''.
+\end{proposition}
+
+The updated posterior mean $m' = m + [V/(V + v_x)](x - m)$ is preposteriorly $\mathcal N(m, \sigma_{pp}^2)$, and the value is $\E[(m' - \tau_0)^+] - (m - \tau_0)^+$, the normal loss integral---\cref{ch:deadband}'s probability-of-regret logic with the simulator as prior. The quadratic bar is wrong for thresholds by a factor depending on where the prediction sits ($\mathrm{EVSI}_{\mathrm{thresh}}/\mathrm{EVSI}_{\mathrm{quad}}$ from 3.5 at $m = 0$ to 0.00 at $m = 1$, $V = 0.25$; E3c). The closed form checks at $(m, V) = (0, 1), (0.5, 1), (1, 2)$: 0.2821/0.0998/0.1234 against Monte Carlo 0.2800/0.0989/0.1237 and clean-room $0.2822/0.1000/0.1230 \pm 0.0003$ (E12a).
+
+\subsection{Contamination: the noise-floor test and its blind spot}
+
+\begin{proposition}[Noise-floor test and blind spot]
+\label{sim:prop:floor}
+\tagEstablished\ An honest simulator cannot predict $\varepsilon_e$, so $\E[r^\T r] \ge \sum_e(1 - h_{ee})v_e$; under $H_0 : \omega = 0$ with homoscedastic $v$, $r^\T r/\sum_e(1 - h_{ee})v \sim \chi^2_{E-2}/(E-2)$. Reject ``honest'' when $r^\T r < [\chi^2_{a,E-2}/(E-2)]\sum_e(1 - h_{ee})v$: residual variance \emph{below the label noise} proves memorisation. A memoriser of fraction $\lambda$ has expected residual variance $(1 - \lambda)(\omega^2 + v)$, so the test has power only when $(1 - \lambda)(1 + \omega^2/v) < 1 - z_a\sqrt{2/(E-2)}$; the \emph{blind spot} is $\lambda < \omega^2/(\omega^2 + v)$.
+\end{proposition}
+
+A simulator with real error $\omega^2$ can hide a memorised fraction up to $\omega^2/(\omega^2 + v)$: at $E = 30$, $v = 1$, $\omega = 0.5$ (boundary 0.2), rejection at $\lambda = 0/0.2/0.4/0.6/0.8/1$ is 0.01/0.09/0.32/0.70/0.95/1.00 (clean-room 0.011/0.073/0.303/0.714/0.976/1.000), and at $\omega = 1$ (boundary 0.5) 0.00/0.01/0.06/0.32/0.79/1.00 (E6a). The boundary is a soft transition with power about equal to size (the clean-room subagent's caveat). Worse, the test is \emph{strategically evadable}: a memoriser adding $\mathcal N(0, v + \omega^2)$ noise to the published estimate passes it (rejection 0.18) and presents as an honest $\omega = 0.5$ simulator (E6b). The floor test is necessary, never sufficient.
+
+\begin{construction}[Re-estimation test]
+\label{sim:con:reest}
+\tagEstablished\ With raw data, re-estimate every library lift by a second valid estimator $\hat\tau'_e = \tau_e + \varepsilon'_e$ (different control geos, different covariate adjustment, CUPED against raw), $\Corr(\varepsilon, \varepsilon') = r < 1$, and form $D_e = (s_e - \hat\tau'_e)^2 - (s_e - \hat\tau_e)^2 - (v'_e - v_e)$. An honest simulator has $\E[D_e] = 0$ whatever its $\omega$; a memoriser has $\E[D_e] = 2\lambda v(1 - r) > 0$, and adding noise does not help because its output still tracks $\varepsilon$, not $\varepsilon'$. Test by a one-sided $t$-test on $D_e$.
+\end{construction}
+
+At $E = 30$ the noise-adding memoriser is caught with power 0.71 at $r = 0.5$ (0.40 at $r = 0.8$; E6d); against partial contamination power is weak (0.35 at $\lambda = 0.4$, $r = 0.5$; E6c) and scales with $E(1 - r)^2$, so the re-estimator should minimise $r$ (disjoint control geos).
+
+\subsection{Which recalibration family transports}
+
+\begin{proposition}[Latent-scale exactness under level collapse]
+\label{sim:prop:latent}
+\tagEstablished\ With $q = 1$, $\Phi(\mu/\varsigma + (a/\varsigma)d) - \Phi(\mu/\varsigma) \equiv \Phi((\mu + ad)/\varsigma) - \Phi(\mu/\varsigma)$: a homogeneous simulator recalibrated on the latent scale with one slope $a'' = a/\varsigma$ is exact at every baseline and dose (clean-room maximum error $1.1\times10^{-16}$). With $q < 1$ (heterogeneity in \emph{sensitivity}) the one-slope family fails and only the mixture family $q'[\Phi(\mu' + a''d) - \Phi(\mu')]$ transports.
+\end{proposition}
+
+Level collapse is harmless once recalibration happens inside the link, but the additive family $\alpha + \beta s$ is not: on a 24-experiment library (doses 0.3--1.0, baselines $\mu \in [-1.5, -0.5]$, 200k users per arm, 300 replications; E5) its in-range relative rmse is 0.022 against 0.002 for the latent family, but at dose 2.5 it errs $-15.7\%$ and at the rare baseline $\mu = -3$ by $+14.5\%$, while the latent family stays within 0.3\%. With $q = 0.4$ the latent family errs $+3.8\%$ at dose 2.5 and $-12.7\%$ at $\mu = -3$ (clean-room $-13.0\%/+3.5\%$); the mixture transports (rmse 0.033/0.043; clean-room recovers $q' = 0.400$, $a'' = 0.500$ exactly), and the additive family with the same two parameters fails at $-15.9\%/+15.2\%$. For H7: \emph{what} the simulator gets wrong determines the family, and a certificate is valid only inside the library's (dose, baseline) hull unless the family is structural. E4 makes the factual/counterfactual point directly: $\Corr(\text{level error}, \text{lift error}) = +0.02$, and $6\times$ worse level fit with the right sensitivity gives $4.6\times$ smaller lift error (0.019 against 0.087).
+
+\subsection{Shift, selection and sequential certification}
+
+\emph{Shift} (E7, $E = 60$). With $\omega^2(x) = 0.4^2 + 0.6x^2$ in a novelty covariate $x$ and a library concentrated near $x = 0$, the global prediction interval covers 0.999/0.94/0.71/0.54 at $x = 0/1/2/3$; a kernel-local excess variance restores 0.93/0.92/0.86/0.80 with effective sample sizes 36/47/18/4. Certification is local; H7's ``genuinely new products'' is $x = 3$, where the harness has no certificate to give.
+
+\emph{Selection} (E8). Selection on the simulator's prediction leaves $(\alpha, \beta, \omega^2)$ unbiased (0.002/1.001/0.249 against 0/1/0.25) because OLS conditions on the regressor. Selection on the \emph{outcome} is fatal: keeping only positive results gives $\alpha = 0.71$, $\beta = 0.56$, $\hat\omega^2 = -0.08$ (better than perfect); keeping only $|t| > 1.64$ gives $\beta = 1.33$, $\hat\omega^2 = 0.50$, twice too pessimistic. The library must ingest every pre-registered experiment, nulls included.
+
+\begin{construction}[Prequential e-process certificate]
+\label{sim:con:eprocess}
+\tagEstablished\ Form recursive residuals $u_E = (\hat\tau_E - x_E^\T\hat\beta_{E-1})/\sqrt{1 + h_E}$, i.i.d.\ $\mathcal N(0, \omega^2 + \bar v)$ under the Gaussian model, and the running likelihood ratio of the design alternative $\rho = 0.5$ against the bar $\sigma_0^2 = \omega_\star^2 + \bar v$; certify when it reaches 20.
+\end{construction}
+
+Certifying at every new experiment with the fixed-$E$ bound falsely certifies a simulator sitting exactly at the bar with probability $0.284 \pm 0.010$ over looks at every $E$ from 8 to 150 (0.16 when $\omega^2$ is 20\% above the bar; E10, $\bar v = 0.5$). The e-process holds the false rate at $0.033 \pm 0.004$ and 0.009 with power 0.86 (median $E$ 67) at $\rho = 0.5$; five geometric looks at $a = 0.01$ each do about as well (0.037/0.013; 0.86 at median $E$ 80). This is the simplest instance of \cref{ch:feedback}'s confidence-sequence problem.
+
+\section{Numerical evidence}
+\label{sim:sec:numerics}
+
+All libraries are synthetic draws from A1--A3 with $s_e \sim \mathcal N(0, 1)$, $\alpha = 0$, $\beta = 1$; E1 uses $\omega = 0.5$, $v = 0.8$, 4,000 replications; E2 sets $\omega_\star^2 = 1$ and finds the Monte Carlo $E$ for power 0.8 by bisection at 3,000 replications. Clean-room figures come from an independent re-implementation given only the claims.
+
+\begin{table}[htbp]
+\centering\small
+\caption{E1: the excess-variance estimator \cref{sim:eq:estimator} at $\omega^2 = 0.25$, $v = 0.8$ (4,000 replications; MC se of the mean $\le 0.009$). Clean-room values in parentheses.}
+\label{sim:tab:estimator}
+\begin{tabular}{lccccc}
+\toprule
+$E$ & 8 & 15 & 30 & 60 & 120 \\
+\midrule
+mean $\hat\omega^2$ & 0.2395 (0.2558) & 0.2530 & 0.2496 (0.2543) & 0.2478 & 0.2494 (0.2483) \\
+sd, Monte Carlo & 0.594 (0.603) & 0.418 & 0.275 (0.281) & 0.196 & 0.137 (0.136) \\
+sd, formula & 0.606 & 0.412 & 0.281 & 0.195 & 0.137 \\
+$\Prob(\hat\omega^2 < 0)$ & 0.41 & -- & 0.18 & -- & -- \\
+UCB$_{0.95}$ coverage & 0.950 & 0.949 & 0.955 & 0.949 & 0.950 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{E2: library size for power 0.8 at level 0.05, exact law \cref{sim:eq:law} / Monte Carlo bisection, by $\rho = \omega^2/\omega_\star^2$ and $\nu = \bar v/\omega_\star^2$. Clean-room: $(0.5, 0.5) \to 82$, MC power 0.798; $(0.25, 1) \to 62$, MC power 0.807.}
+\label{sim:tab:law}
+\begin{tabular}{lcccc}
+\toprule
+$\rho \backslash \nu$ & 0.1 & 0.5 & 1 & 2 \\
+\midrule
+0.25 & 14 / 13 & 31 / 31 & 62 / 62 & 157 / 155 \\
+0.5 & 39 / 40 & 82 / 81 & 157 / 157 & 383 / 397 \\
+0.7 & 129 / 131 & 258 / 261 & 480 / 465 & 1130 / 1109 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The decision duel (E12b) closes the loop on 20,000 go/no-go decisions with $c = 0.05$, $v_x = 1$, $E = 60$, global bar 0.37. At $\omega^2 = 0.5$ (above the bar, so the global rule runs every experiment at loss 0.1122) the per-decision rule runs 14\% of experiments at loss $0.0831 \pm 0.001$, against an oracle knowing $\omega^2$ at 0.0805 and simulator-only at 0.0964; at $\omega^2 = 0.2$ both rules certify and match the oracle (0.0393 against 0.0390); at $\omega^2 = 1$--2 both fall back to always-experiment (0.139/0.140), 12--15\% above an oracle that still skips 17\% of experiments. The \emph{certification drag} (E13b) prices not yet knowing: at $\omega^2 = 0.2$ against a bar of 0.558 ($\rho = 0.36$, $\nu = 1.79$, $E_{\mathrm{exact}} = 190$) the certification probability rises 0.10/0.17/0.27/0.46/0.74 at $E = 10/20/40/80/160$, and the bar rule loses 0.020--0.060 per decision more than the oracle.
+
+\section{Limitations and the devil's advocate}
+\label{sim:sec:limits}
+
+Three headline results changed under attack. \emph{Round 1} derived the law $E \approx 2 + 2(z_a + z_b)^2(\rho + \nu)^2/(1 - \rho)^2$ and from it the rule ``match the library precision to the simulator'', $\nu_\star = \rho$. \tagRefuted\ Round 2 found it under-predicted $E$ by $1.5$--$3\times$ (power 0.23--0.76 at the predicted $E$): approximating the chi-square \emph{quantile in the denominator} of \cref{sim:eq:ucb} by mean-minus-$z$-sd is wrong; the exact event is the variance-ratio test and the correct approximation carries $\kappa z_a$. The rule moved to $\nu_\star \approx 0.85$ and flat---match the \emph{bar}. \emph{Second}, Round 1 took the quadratic bar as \emph{the} bar; for go/no-go its error runs from $+250\%$ to $-100\%$ (E3c), and Round 3 replaced it with \cref{sim:prop:threshold}. \emph{Third}, heavy tails and heteroscedastic $v$ break the chi-square bound: $t_3$ recalibration errors inflate $\mathrm{sd}(\hat\omega^2)$ $2.7\times$ (0.77 against 0.28 at $E = 30$) and cut coverage to 0.92; log-sd 0.8 dispersion in $v$ with $v$ estimated on 20 df cuts it to 0.89 (E9). A symmetric $t$-interval under-covered even under normality (0.875; the statistic is right-skewed); a Satterthwaite-matched chi-square with effective df from the empirical fourth moment, capped at $E - 2$, recovers about half the shortfall (0.93/0.93 at $E = 30$, 0.92/0.91 at $E = 60$) at a 15--50\% wider bound (E13a). Attacks that did not land: selection on the prediction, $v_e$ estimated on 20 df (coverage 0.948), seed sensitivity ($\pm 0.006$).
+
+The dive's own counterarguments: under-reported $v_e$ makes $\hat\omega^2$ conservative, but \emph{over}-reported $v_e$---a real risk with optimistic geo-test analyses---biases it by exactly $-(v_{\mathrm{reported}} - v_{\mathrm{true}})$, so a 20\% over-statement of the se at $\nu = 1$ shifts $\hat\omega^2$ by $-0.44\,\omega_\star^2$ and can certify a bad simulator. Shared shocks across experiments are absorbed into $\hat\omega^2$ (conservative) unless the simulator was conditioned on the same period. The bar is scalar: multichannel decisions need \cref{ch:deadband}'s ellipsoid, and EVSI omits an experiment's value as trap insurance (\cref{ch:fusion}), so the bar is \emph{lenient} toward the simulator. A memoriser trained on the full library including the internal re-estimates is invisible to both tests; only post-cutoff experiments catch it. Latent-scale exactness is specific to the probit-normal structure, and the mixture family assumes the persona set spans the responsive segment at all. Round 4 flagged two untested optimisms: e-process residuals are independent only under Gaussianity and homoscedasticity, and the per-decision bar plugs in $\hat\omega^2$ clipped at zero, optimistic at small $E$.
+
+\section{Discussion: impacts}
+\label{sim:sec:discussion}
+
+For practice the chapter turns E9's slogan into a specification. The harness (\dive{15} \S6) ingests every pre-registered experiment, nulls included, at precision $v_e \approx \omega_\star^2$, keeping raw data so a low-$r$ second estimator exists; hashes and time-stamps predictions before readout and logs the training-cutoff split; chooses the recalibration family by the failure mode the library reveals (additive in-hull only, latent-scale for level collapse, mixture for sensitivity heterogeneity) and stamps the certificate with its hull; reports $\hat\omega^2$, its chi-square or Satterthwaite bound and $\mathrm{EE} = v_x/\mathrm{UCB}$, certifying against \cref{sim:eq:bar} for continuous decisions and emitting \cref{sim:eq:evsithresh} per threshold decision; gates on the floor, re-estimation and temporal-split tests; and updates by the e-process, re-certifying locally as new categories or doses enter. For vendors of synthetic-consumer products, a sign-agreement rate is not a credential, and the number of validation experiments a claim needs is set by \cref{sim:law:cert}---in the hundreds for a simulator anywhere near the bar. For a CMO the per-decision rule is the actionable object: it recovers most of the oracle's savings (0.0831 against 0.0805) where the global bar recovers none (0.1122).
+
+For MMM vendors the link runs through \cref{ch:voi} and \cref{ch:transport}: a certified simulator is a prior of known variance on the lift a design would measure and can enter a Meridian, Robyn or PyMC-Marketing calibration through the operator likelihood exactly as an experiment would, with $\omega^2$ in place of the experiment's variance---inside the certificate's hull, and only after the library is checked for outcome selection. For theory, the bar, the certificate and the sample-size law are one object seen three ways: EVSI sets the variance threshold, the leverage-corrected excess variance measures the distance from it, and the variance-ratio test in $\kappa$ prices the library. The honest reading of the field numbers (sign agreement 0.70; $r = 0.27$ on field experiments) is $\rho \gg 1$ for in-market lift today, in which case the law says a library will correctly \emph{refuse} to certify---a useful output, but not the one E9 hopes for.
+
+\section{Further exploration}
+
+Four backlog items opened. \BL{51}: a trimmed or sub-Gaussian excess-variance certificate with a valid bound under heavy tails and the $E$ penalty of a $t$-family law; the same tails degrade the experiments themselves in \cref{ch:heavytail}. \BL{52}: the temporal-split contamination test---the pre/post-cutoff difference in $\hat\omega^2$ as an $F$-type test with a power law in $(E_{\mathrm{pre}}, E_{\mathrm{post}}, \nu)$---the only test that catches a whole-library memoriser. \BL{53}: the multichannel bar, \cref{ch:deadband}'s ellipsoid loss plus \cref{ch:fusion}'s trap-insurance value, making the certificate a matrix inequality on the residual covariance. \BL{54}: apply the law to Hut and Masoero's 67 tests---the largest $\omega_\star^2$ certifiable at power 0.8 and the marginal value of the next 20 experiments. The dive also proposes structural family discovery (link-scale families chosen by a $Q_{\min}$-style rule from \cref{ch:surrogacy}) and the join to \cref{ch:feedback}, where the adaptive-budget e-process is a confidence sequence for a scale parameter. In the compiler's judgement \BL{54} should run first because it is cheap and decisive: with $\nu$ computed from a real library's reported standard errors, \cref{sim:law:cert} says in one line whether 67 experiments can certify any bar a business would accept, and the answer calibrates how much of the harness is worth building now. Second is \BL{52}, since the whole-library memoriser is the one adversary the harness cannot currently see.
+
+\begin{reviewernote}[(compiler)]
+\textbf{Checked.} Every number was traced to the writeup (\S3--\S8) and, where ambiguous, to \texttt{15\_calibrated\_simulator.py}; the closed forms \cref{sim:eq:estimator,sim:eq:ucb,sim:eq:law,sim:eq:bar,sim:eq:evsithresh} match the code, and the bars 0.37 (E12, $c = 0.05$) and 0.558 (E13b, $c = 0.1$) reproduce from \cref{sim:eq:bar}. The three E12a check-points were identified as $(m, V) = (0, 1), (0.5, 1), (1, 2)$ by recomputation; the writeup does not say which cells they are.
+
+\textbf{INDEX versus writeup.} The log line's ``$2.7\times$'' for over-precise libraries is the writeup's range $2.6$--$2.8\times$. \BL{51} in the INDEX says heavy tails cut coverage to ``0.87--0.92''; the writeup reports 0.92 ($t_3$) and 0.89 (heteroscedastic, estimated $v$), and 0.87 appears nowhere in it (the code has a combined $t_3$ + dispersion + 20-df cell the writeup omits). The claim that $\nu = 0.25$ takes ``$\approx 55$'' experiments is computed from the law, not a Monte Carlo cell (evaluating \cref{sim:eq:law} at $\rho = 0.5$, $\nu = 0.25$ gives 53).
+
+\textbf{Under-specified or under-supported.} The mixture family's ``rmse 0.033/0.043'' does not say which two of the three targets it refers to. The E1 mean at $E = 8$ (0.2395) is 1.1 MC standard errors below 0.25---unremarkable. The claim that Hut and Masoero's corrected MSE ``is the same object without the leverage term'' is the dive's reading and was not verified here. The e-process is validated only at $\omega^2 = 1.0$ and $1.2$ under exact Gaussianity; its per-step factor is decreasing in the true variance, so it is a supermartingale over the whole composite null $\omega^2 \ge \omega_\star^2$, but the heavy-tailed case is untested. \textbf{Scope.} No LLM appears in the dive: every ``simulator'' is a Gaussian or probit generator with a chosen $\omega^2$, and the harness has not been run against real experiments. The log timestamp ($\sim$23:30) and file time (23:32 UTC) agree.
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item Park, J. S., O'Brien, J. C., Cai, C. J., Morris, M. R., Liang, P. and Bernstein, M. S. (2023). \emph{Generative Agents: Interactive Simulacra of Human Behavior}. Proc.\ UIST 2023. \url{https://arxiv.org/abs/2304.03442}
+\item Park, J. S. et al.\ (2024). \emph{Generative Agent Simulations of 1,000 People}. arXiv:2411.10109. \url{https://arxiv.org/abs/2411.10109}; code \url{https://github.com/joonspk-research/genagents}
+\item Horton, J. J. (2023). \emph{Large Language Models as Simulated Economic Agents: What Can We Learn from Homo Silicus?} NBER WP 31122. \url{https://arxiv.org/abs/2301.07543}
+\item Brand, J., Israeli, A. and Ngwe, D. (2023). \emph{Using LLMs for Market Research}. HBS Working Paper 23-062. \url{https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4395751}
+\item Hut, S. and Masoero, L. (2026). \emph{Can AI Agents Simulate A/B Test Outcomes? A Validation Framework for Agentic Experimentation}. arXiv:2608.02345. \url{https://arxiv.org/abs/2608.02345}
+\item Hewitt, L., Ashokkumar, A., Ghezae, I. and Willer, R. (2026). \emph{LLMs can predict the results of social science experiments}. Nature. \url{https://www.nature.com/articles/s41586-026-10742-x}
+\item Bisbee, J. et al.\ (2024). \emph{Synthetic Replacements for Human Survey Data? The Perils of Large Language Models}. Political Analysis. \url{https://doi.org/10.1017/pan.2024.5}
+\item DerSimonian, R. and Laird, N. (1986). \emph{Meta-analysis in clinical trials}. Controlled Clinical Trials 7(3), 177--188.
+\item Veroniki, A. A. et al.\ (2016). \emph{Methods to estimate the between-study variance and its uncertainty in meta-analysis}. Research Synthesis Methods 7(1), 55--79. \url{https://onlinelibrary.wiley.com/doi/10.1002/jrsm.1164}
+\item Riley, R. D., Higgins, J. P. T. and Deeks, J. J. (2011). \emph{Interpretation of random effects meta-analyses}. BMJ 342:d549. \url{https://pubmed.ncbi.nlm.nih.gov/21310794/}
+\item Platt, J. C. (1999). \emph{Probabilistic outputs for support vector machines and comparisons to regularized likelihood methods}. In Advances in Large Margin Classifiers, MIT Press.
+\item Brown, R. L., Durbin, J. and Evans, J. M. (1975). \emph{Techniques for testing the constancy of regression relationships over time}. JRSS B 37(2), 149--192.
+\item Ramdas, A., Gr\"unwald, P., Vovk, V. and Shafer, G. (2023). \emph{Game-theoretic statistics and safe anytime-valid inference}. Statistical Science 38(4), 576--601. \url{https://arxiv.org/abs/2210.01948}
+\item Raiffa, H. and Schlaifer, R. (1961). \emph{Applied Statistical Decision Theory}. Harvard Business School.
+\item Frontier study (internal): \texttt{02\_open\_questions.md}, entries E9, H7 and grand challenge 3.
+\item Program (internal): \dive{03}/\dive{04} (EVSI), \dive{05} (trap insurance), \dive{08}/\dive{09} (probability of regret, ellipsoid), \dive{12} ($Q_{\min}$ selection), \dive{16} (confidence sequences).
+\end{enumerate}
+\endgroup

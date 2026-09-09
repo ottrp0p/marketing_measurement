@@ -1,0 +1,332 @@
+% ===========================================================================
+% Chapter: Semiparametric efficiency for lift under heavy tails (dive 18)
+% ===========================================================================
+\chapter{Lift under heavy tails: the price of a margin restriction}
+\label{ch:heavytail}
+
+\begin{provenance}
+\textbf{Source dives:} \dive{18} \emph{Semiparametric efficiency for lift under zero-inflated heavy tails: the margin decomposition, the tail-free bound, and the winsorization--regret calculus} (run 2026-09-03, file \texttt{18\_heavy\_tail\_efficiency.md}, written 2026-09-03 16:01 UTC).
+\textbf{Code:} \texttt{code/18\_heavy\_tail\_efficiency.py}; results \texttt{code/18\_results\_quick.json} (the short \texttt{quick} run; the writeup's tables come from the longer \texttt{all} run, not on disk).
+\textbf{Frontier-study problem(s) addressed:} M6 --- the semiparametric efficiency bound for the ATE of ad exposure with zero-inflated, heavy-tailed outcomes; how close CUPED, latent stratification and trimmed estimators come to it; a principled trade of identified trimming bias against variance minimising \emph{decision regret} rather than MSE.
+\textbf{Backlog items closed:} none; \textbf{opened:} \BL{63}--\BL{67}.
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item The unrestricted bound for heavy-tailed lift is Hahn's, the difference in means (DIM) attains it, and it \emph{is} Lewis--Rao's floor: when the tail is idiosyncratic basket size, covariates buy at most 4\% in standard error even at CUPED $R^2 = 0.12$.
+\item Every gain beyond it is a \emph{margin restriction}, priced by the variance-ratio law $V_E/V_U \to e^{-s^2}$, $V_S/V_U \to (1+s^2)e^{-s^2}$ (Hodges--Lehmann: $(1 + \pi s^2/3)e^{-s^2}$) for lognormal baskets of log-sd $s$; clean-room 0.187/0.531 against 0.189/0.536.
+\item Under a restriction the \emph{relative} lift is tail-free ($\sqrt n$ at Pareto index 1.5 where DIM decays as $n^{-1/3}$; se ratio $12.6\times$ at 800k) but paid for by the exact composition-bias law $(1-\kappa)/\kappa$ ($+100\%$ at $\kappa = 0.5$), undetectable by the rank test at 200k (power 0.40).
+\item Flat-prior regret is exactly MSE$/2$ (additive bias) or $\sigma^2/(2R^2)$ (attenuation), so the winsorisation cap is chosen by the retention index $R(c) = e(c)\sqrt{v(\infty)/v(c)}$ under an effect-location profile: incidence effects want $c \to 0$ ($2.6\times$), scale effects the 95th percentile ($+21\%$), tail-located effects no cap; per-arm caps inflate the false-positive rate to 0.10--0.12.
+\item The rank-identified basket ratio $\log\hat\kappa = $ (mean-log shift)$/\hat w_1$ is composition-robust ($1.6$--$3.6\times$ se gains) and cuts go/no-go regret $3\times$ against DIM at 1M ($0.75$ versus $2.25 \times 10^{-3}$; at 200k DIM is worse than not experimenting, 3.83 versus 2.62), but breaks under a truncated-selection stratum ($+122\%$, coverage 0.64) and is blind, like every restricted estimator, to tail-located effects.
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+Lewis and Rao (2015) showed that per-user retail sales are so variable relative to any plausible advertising effect that experiments with millions of users cannot separate profitable campaigns from ruinous ones: the standard deviation of sales is about ten times its mean, so a 5\% lift is 0.005 of a standard deviation. Problem M6 asked whether this is a \emph{floor}: what is the semiparametric efficiency bound for the average treatment effect (ATE) of exposure when per-user revenue is zero-inflated and heavy-tailed, how close do CUPED, latent stratification and trimmed estimators come to it, and can an \emph{identified} trimming bias be traded against variance so as to minimise the loss of the go/no-go decision rather than the mean squared error?
+
+\dive{18}'s first finding is that M6 is posed as if one bound existed. The unrestricted bound is Hahn's, DIM attains it, and if the outcome variance is infinite so is the bound. Everything the toolkit does better than DIM---dropping the basket from the incidence effect, fitting lognormal strata, capping the top percentile---works by restricting how treatment acts on the two \emph{margins} of the outcome, incidence and basket, whether or not the restriction is stated. The dive makes it explicit, prices it in closed form, prices what it costs when false, shows the false case is undetectable at Lewis--Rao's sample sizes, and builds an estimator that keeps most of the gain while dropping the worst of the assumption. The regret question has a short exact answer.
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{The efficiency bound for the ATE (Hahn, 1998; Hirano, Imbens and Ridder, 2003)}
+
+For $(Y, D, X)$ with binary treatment $D$, potential outcomes $Y(0), Y(1)$ and unconfoundedness given $X$ (automatic in an experiment), let $e(X) = \Prob(D = 1 \mid X)$, $\sigma_d^2(X) = \Var(Y(d) \mid X)$ and $\tau(X) = \E[Y(1) - Y(0) \mid X]$. Hahn showed that no regular estimator of $\tau = \E[\tau(X)]$ from $N$ observations has asymptotic variance below
+\begin{equation}
+V_{\mathrm{eff}} = \E\!\left[\frac{\sigma_1^2(X)}{e(X)} + \frac{\sigma_0^2(X)}{1 - e(X)} + (\tau(X) - \tau)^2\right],
+\label{eq:ht:hahn}
+\end{equation}
+that knowing the propensity score does not lower it, and Hirano, Imbens and Ridder gave an estimator attaining it. ``Unrestricted'' means the model constrains the law of $(Y(0), Y(1), X)$ only by unconfoundedness and finite second moments: the bound is over every outcome shape. Without covariates and with $n$ users per arm at $e = \tfrac12$, \cref{eq:ht:hahn} is $[\Var Y(1) + \Var Y(0)]/n$, exactly DIM's variance; when $\Var Y = \infty$ no regular $\sqrt N$-consistent estimator exists.
+
+\subsection{The unfavourable economics of lift (Lewis and Rao, 2015)}
+
+Across 25 large display-advertising experiments for retailers the median ratio of the standard deviation of per-user sales to its mean was 9.9; a campaign lifting sales by a few percent explains $R^2 \approx 5.4\times10^{-6}$ of outcome variance, and the median confidence interval on return on investment exceeded 100 percentage points. Lagged sales as a covariate cut residual variance by at most 40\% (standard error $-23\%$). A one-sentence remark that decomposing sales into incidence, frequency and basket ``could reduce variance'' was not developed.
+
+\subsection{Regression adjustment and its heavy-tailed descendants (Deng et al., 2013; Wang and Burke, 2019; Wicker, 2026)}
+
+CUPED replaces $Y$ by $\tilde Y = Y - \theta(P - \E P)$ with $P$ a pre-experiment metric and $\theta = \Cov(Y, P)/\Var(P)$ fitted on the pooled sample; a common $\theta$ keeps DIM on $\tilde Y$ unbiased and cuts its variance by $1 - \Corr(Y, P)^2$. Its heavy-tailed descendants document a pathology reproduced below: winsorising each arm at its own quantile makes the caps arm-dependent random variables and inflates the false-positive rate (Wang and Burke); estimates move 53\% between the pooled and arm-stratified conventions (Wicker).
+
+\subsection{Trimming, two-part models and robust means}
+
+Winsorising at a cap $c$ estimates $\tau_c = \E[\min(Y(1), c)] - \E[\min(Y(0), c)]$, identified but not $\tau$; the classical calculus trades this bias against the variance the tail no longer contributes. Lee (2009) bounds an intensive-margin effect under monotone selection by trimming the arm with surplus positives; Chen and Roth (2024) argue that $\log(1 + y)$ outcomes should give way to an explicit split into an extensive margin (did the user buy) and an intensive one (how much, given buying). Devroye, Lerasle, Lugosi and Oliveira (2016) prove that with only a $(1 + \alpha)$-th moment, $\alpha \le 1$, the minimax deviation rate of any mean estimator is $n^{-\alpha/(1+\alpha)}$, the sample mean's rate: median-of-means and Catoni estimators buy sub-Gaussian concentration, never a rate.
+
+\subsection{Trimmed Match (Chen and Au, 2022)}
+
+In a randomised paired geo experiment with per-pair response and spend differences $(\Delta Y_i, \Delta X_i)$ the iROAS $\theta$ solves $\sum_i(\Delta Y_i - \theta\Delta X_i) = 0$. Under a homogeneous iROAS the residuals $\varepsilon_i(\theta) = \Delta Y_i - \theta\Delta X_i$ are \emph{randomisation-symmetric}---swapping which geo of a pair was treated flips the sign of $\varepsilon_i$---so trimming the largest and smallest residuals, not the outcomes, leaves an exactly unbiased estimating equation; the trim rate minimises the confidence-interval width. This is what M6 meant by ``identified trimming bias''; its transport to unpaired user-level tests was not attempted (\BL{65}).
+
+\subsection{Latent stratification (Berman and Feit, 2024; Johnson, Lewis and Reiley, 2017)}
+
+Write $Y = B\,V$, a purchase indicator times a basket. Berman and Feit assume monotonicity---the ad never stops a purchase---so users fall into three principal strata: always-buyers, influenced buyers who purchase only if treated, and never-buyers. With a lognormal basket per stratum the two arms form a finite mixture fitted by maximum likelihood; on five catalog experiments the stratified ATE had 30--60\% lower variance than DIM. The model is parametric and states no bound. Johnson, Lewis and Reiley gained 31\% precision by discarding sales demonstrably unaffected by the ad.
+
+\subsection{Adaptive estimation of a shift (Stein, 1956; Bickel, 1982; Hodges and Lehmann, 1963)}
+
+If two samples share an unknown density $f$ up to a location shift $\Delta$, Bickel proved Stein's conjecture that $\Delta$ can be estimated as well as if $f$ were known: the efficient variance is $(1/n_0 + 1/n_1)/I_f$, $I_f = \int (f'/f)^2 f$ the Fisher location information. The Hodges--Lehmann (HL) estimator, the shift at which the Mann--Whitney statistic takes its null value, has variance $(1/n_0 + 1/n_1)/(12(\int f^2)^2)$, asymptotic relative efficiency (ARE) at least $0.864$ against the $t$-test for any $f$ and $3/\pi \approx 0.955$ at the normal, and needs no moments. A \emph{scale} effect on a positive basket is a location shift of $\log V$; for lognormal baskets $I_f = 1/s^2$.
+
+\subsection{MSE against rollout regret (Parikh et al., 2026)}
+
+Across families of Amazon experiments, Parikh et al.\ report that the MSE of the effect estimate is convex in the winsorisation level and minimised by covariate adjustment with an outcome-specific cap, yet plain DIM minimises \emph{rollout regret}---``a dramatic divergence between MSE and regret rankings''---with no theory. The dive derives a candidate explanation, a prediction about their data rather than a test of it.
+
+\section{Setup and assumptions}
+
+Two arms of $n$ users each ($\pi = \tfrac12$), user-level randomisation, no interference; each user's revenue is $Y = B\,V$ with $B \in \{0, 1\}$ and $V > 0$, observed once.
+
+\begin{assumption}[Monotone strata]
+\label{ht:ass:strata}
+Users are always-buyers (mass $p_0$; $B = 1$ in both arms), influenced buyers (mass $p_1 - p_0$; $B = 1$ only if treated) or never-buyers; no defiers. Write $\ell = p_1/p_0 - 1$ for the relative incidence lift (base $0.05$), $w_0 = p_0/p_1$ and $w_1 = 1 - w_0$ for the influenced share of treated positives ($w_1 = 0.048$ at $\ell = 0.05$).
+\end{assumption}
+
+\begin{assumption}[Basket laws]
+\label{ht:ass:baskets}
+Always-buyers' control basket has law $F_A$ with mean $m_A$ and log-sd $s$; under treatment it is scaled by $(1 + \gamma)$ (base $\gamma = 0$). Influenced buyers' basket has law $F_I$ with mean $\kappa\,m_A$ (base $\kappa = 1$, $F_I = F_A$). Optionally only the top decile of always-buyers is scaled by $(1 + g_{\mathrm{tail}})$. Base $F_A$ is lognormal with $s \approx 1.4$ after user heterogeneity, $m_A \approx \$389$, $\mathrm{CV}_V \approx 2.7$, hence $\mathrm{CV}_Y \approx 12.7$; the alternative is a Pareto tail of index $\alpha \in (1, 2)$, so $\Var V = \infty$.
+\end{assumption}
+
+The targets are the ATE $\tau = m_A[(p_1 - p_0)\kappa + p_0\gamma]$ (plus a tail term), the relative lift $L = \tau/(p_0 m_A) = \ell\kappa + \gamma$, and the decision ``scale iff $L > L_0$'' with loss $\abs{L - L_0}$ when wrong. A 26-period pre-period revenue $P$ sharing the user's latent propensity is the covariate ($R^2 \approx 0.12$). Three nested models: $\mathcal M_U$ (unrestricted), $\mathcal M_S$ (\emph{scale}: $\kappa = 1$, baskets scaled by $1 + \gamma$) and $\mathcal M_E$ (\emph{extensive-only}: $\kappa = 1$, $\gamma = 0$).
+
+\begin{definition}[Estimators]
+\label{ht:def:est}
+DIM; CUPED on $P$; winsorised DIM at a pooled cap $c$ fixed by a quantile of the pooled positives; EXT $= (\hat p_1 - \hat p_0)\,\hat m$, $\hat m$ the pooled positive mean (assumes $\mathcal M_E$); SCALE $= \hat m_0(\hat p_1(1 + \hat\gamma) - \hat p_0)$, $\hat\gamma$ from a median or HL shift of $\log V$ between the arms' positives (assumes $\mathcal M_S$); $\kappa$-ISO, EXT with a prior on $\kappa$; RANK-$\kappa$ (\cref{ht:con:rank}) and its grid-posterior version.
+\end{definition}
+
+\section{Main results}
+
+\subsection{The margin decomposition of the bound}
+
+\begin{theorem}[The unrestricted bound is Lewis--Rao's floor]
+\label{ht:thm:floor}
+\tagTransported\ Under $\mathcal M_U$ without covariates the bound is $V_U = [\Var Y(1) + \Var Y(0)]/n \approx 2p_0 m_A^2(1 + \mathrm{CV}_V^2)/n$, attained by DIM; for lognormal baskets $1 + \mathrm{CV}_V^2 = e^{s^2}$. Covariates lower it by the share of $\sigma^2$ they explain, but the heavy part of $\sigma^2$ is the idiosyncratic basket $\Var(V \mid \text{user})$, which no pre-period covariate predicts.
+\end{theorem}
+
+In the base design the covariate bound is 4\% below the no-covariate bound in standard error (0.664 against 0.693 on $\tau = 0.973$) although $R^2 = 0.12$. The general claim is structural: the bound retains within-user basket variance, and if $\Var V = \infty$ it is infinite.
+
+Under $\mathcal M_S$, $\log V$ is a two-sample shift problem, so by Bickel's theorem $\gamma$ is adaptively estimable with information $I_f$ through a moment-free score, and to first order in $\ell$
+\begin{equation}
+V_S \approx \frac{2p_0 m_A^2}{n}\Big[(1 - p_0) + \frac1{I_f}\Big], \qquad
+V_E \approx \frac{2p_0(1 - p_0)\,m_A^2}{n},
+\label{eq:ht:VSVE}
+\end{equation}
+the second because under $\mathcal M_E$ only two binomials carry sampling error.
+
+\begin{law}[Variance-ratio law]
+\label{ht:law:ratio}
+\tagEstablished\ For lognormal baskets with log-sd $s$, to first order in $\ell$ and $p_0$,
+\begin{equation}
+\frac{V_E}{V_U} \to (1 - p_0)\,e^{-s^2}, \qquad
+\frac{V_S^{\mathrm{HL}}}{V_U} \to \Big(1 + \frac{\pi}{3}s^2\Big)e^{-s^2}, \qquad
+\frac{V_S^{\mathrm{eff}}}{V_U} \to (1 + s^2)\,e^{-s^2}.
+\label{eq:ht:law}
+\end{equation}
+\end{law}
+
+The law is $p_0$-independent to first order and sees the tail only through $s$: at $s = 0.5$ there is nothing to gain (0.78, 0.98); at $s = 1.27$ ($\mathrm{CV}_V = 2$) EXT has one fifth of DIM's variance and SCALE one half; at $s = 2$ ($\mathrm{CV}_V \approx 7$) 1.8\% and 9\%. The clean-room re-derivation gave $0.187 \pm 0.008$ (predicted 0.189) and $0.531 \pm 0.018$ (0.536) at $s = 1.27$ with 2000 replications; ``efficient'' rests on Bickel, the HL and efficient constants being 3\% apart there.
+
+\begin{proposition}[Tail-free relative lift]
+\label{ht:prop:tailfree}
+\tagEstablished\ Under $\mathcal M_S$ or $\mathcal M_E$ the relative lift $L = \ell\kappa + \gamma$ involves no moment of $F_A$: $\ell$ comes from binomials, $\gamma$ from ranks; the absolute ATE keeps $m_A$ only as a common scale of weight $\tau/m_A$. Under a Pareto tail of index $\alpha \in (1, 2)$ DIM's error decays as $n^{-(1 - 1/\alpha)}$ while EXT and SCALE decay as $n^{-1/2}$.
+\end{proposition}
+
+At $\alpha = 1.5$ (E3; 50k--800k per arm, 100 replications) DIM's error scale ($1.4826\times$MAD) shrinks with exponent $-0.328$ (theory $-1/3$), its ordinary sd is erratic (0.66 at 200k, 0.67 at 800k; kurtosis 5--28) and its normal intervals over-cover (0.98--0.99) because the plug-in se is inflated by whichever outlier is in sample; EXT and SCALE shrink at $-0.46$ and $-0.50$ with coverage 0.93--0.98, and at 800k the se ratio is $12.6\times$ (0.67 against 0.053). Clean-room: $-0.311$ and $-0.465$. By Devroye et al.\ the \emph{unrestricted} rate is $n^{-(1 - 1/\alpha)}$ for every estimator: the $\sqrt n$ rate is bought by the restriction, not by robustness.
+
+\subsection{What the restriction costs when it is false}
+
+\begin{proposition}[Composition-bias law]
+\label{ht:prop:comp}
+\tagEstablished\ If influenced buyers spend $\kappa$ times what always-buyers spend, EXT's relative bias is $(1 - f_I(1 - \kappa))/\kappa - 1$, $f_I$ the influenced share of pooled positives; in the small-$\ell$ limit, $(1 - \kappa)/\kappa$.
+\end{proposition}
+
+At $\kappa = 0.5$ this is $+100\%$ ($+103\%$ observed; clean-room $+99.6 \pm 1.7\%$); $\kappa$-ISO with prior $1 \pm 0.25$ is $+95\%$; SCALE-HL is $-32\%$, its rank shift half-absorbing the composition, and $-133\%$ (a sign flip) at $\kappa = 0.3$; DIM is unbiased. The tail-free gain is an \emph{assumption purchase}, and the assumption is about people, not tails. It is untestable where it matters: the Mann--Whitney test of $F_1^+ = F_0^+$ (treated against control positives) is tail-free but has power 0.40 at $\kappa = 0.5$ and 0.77 at $\kappa = 0.3$ with 200k per arm (null 0.02--0.05), reaching 0.925 at $\kappa = 0.5$ only with 1M.
+
+\subsection{The winsorisation calculus}
+
+\begin{definition}[Effect-location profile and retention index]
+\label{ht:def:retention}
+For a pooled, pre-fixed cap $c$ let $v(c)$ be the per-user variance of $\min(Y, c)$ under control, $e(c) = \tau_c/\tau$ the \emph{effect-location profile}, and $R(c) = e(c)\sqrt{v(\infty)/v(c)}$ the \emph{retention index}. The path $c \downarrow 0$ is EXT ($\min(Y, c) \to c\,\ind\{Y > 0\}$); $c = \infty$ is DIM.
+\end{definition}
+
+\begin{lemma}[Additive bias, flat prior]
+\label{ht:lem:A}
+\tagEstablished\ For ``go iff $\hat\tau > 0$'' with loss $\abs\tau$ when wrong, $\hat\tau \sim \mathcal N(\tau + b, \sigma^2)$ and a flat prior on $\tau$, the Bayes regret is $(b^2 + \sigma^2)/2$: exactly half the MSE.
+\end{lemma}
+
+\begin{lemma}[Proportional bias, flat prior]
+\label{ht:lem:B}
+\tagEstablished\ If $\hat\tau \sim \mathcal N(e\tau, \sigma^2)$ the regret is $\sigma^2/(2e^2) \propto v(\infty)/R^2$; the MSE is improper ($b^2 \propto \tau^2$ does not integrate) and attenuation is free whenever it buys more than proportional variance.
+\end{lemma}
+
+Both were verified by quadrature to six decimals. For a fixed additive bias ``minimise regret rather than MSE'' is therefore empty; the substantive question is which prior and which \emph{kind} of bias. For a threshold decision $\hat L > L_0 > 0$ the attenuated estimator must first be de-biased by $e(c)$, under $\mathcal M_S$ a tail-free functional of $\hat F_A$; un-debiased attenuation biases toward ``no-go'', helping when the prior sits below the threshold (regret 0.058 against 0.103) and hurting above it (0.301 against 0.103).
+
+The profile decides the cap (\cref{ht:tab:profile}): for an incidence-driven effect $R$ rises as $c$ falls and the best cap is $c \to 0$, a gain of $e^{s^2/2} \approx 2.6\times$ in se; for a 5\% scale effect it is the 95th percentile, worth $+21\%$; for an effect in the top decile every cap below the 99.9th percentile \emph{loses}. The industry's ``99th--99.9th percentile'' is right for scale-type effects only. Hence a derived reading of Parikh et al.: MSE-optimal winsorisation is aggressive when effects are small relative to noise (MSE $\approx v(c)$) while regret follows $R(c)$, and the rankings diverge when $e(c)$ falls faster than $\sqrt{v(c)}$---a tail-located profile. The cap must also be a fixed functional of the pooled data: under the null with a 99th-percentile cap (E11, 200 replications) a pooled cap keeps the two-sided false-positive rate at 0.055 for lognormal and Pareto baskets, per-arm caps give 0.095 and 0.12.
+
+\subsection{The rank-identified basket ratio (Round 3)}
+
+\begin{construction}[RANK-$\kappa$]
+\label{ht:con:rank}
+\tagConjecture\ Under \cref{ht:ass:strata} with $\gamma = 0$ the treated positives are the mixture $F_1^+ = w_0F_A + w_1F_I$, so $F_I = (F_1^+ - w_0F_0^+)/w_1$ is nonparametrically identified, but its mean is a heavy-tailed functional (DIM in disguise). Impose the \emph{scale-mixture shape} $F_I(y) = F_A(y/\kappa)$. Then, exactly,
+\begin{equation}
+\E[\log V \mid \text{treated positive}] - \E[\log V \mid \text{control positive}] = w_1\log\kappa,
+\label{eq:ht:rank}
+\end{equation}
+so $\log\hat\kappa = (\text{mean-log difference})/\hat w_1$ needs only $\Var(\log V) < \infty$, true for lognormal and Pareto alike, and $\hat L = \hat\ell\,\hat\kappa$ is a tail-free relative lift built from two binomials and two log-means.
+\end{construction}
+
+With an intensive effect the shift is $w_0\log(1 + \gamma) + w_1\log\kappa$; computing $\hat\kappa$ as if $\gamma = 0$ gives $\hat\kappa \to \kappa(1 + \gamma)^{w_0/w_1}$, exponent 20 at $\ell = 0.05$, but $\hat L = \ell\hat\kappa \to \ell\kappa + \kappa\gamma + O((\gamma/\ell)^2)$, the true $\ell\kappa + \gamma$ to first order when $\kappa \approx 1$: the rank shift measures the \emph{total} intensive-margin lift and the $\kappa/\gamma$ split is irrelevant at first order (clean-room: $\hat\kappa \to 1.2202$ and $\hat L = 0.0610$ against $0.0600$ at $\gamma = 0.01$; the expansion breaks at $\gamma = \ell$, where $\hat L = 0.133$ against $0.100$). Precision: $\mathrm{se}(\log\hat\kappa) \approx s\sqrt{1/n_0^+ + 1/n_1^+}/w_1 \approx 0.46$ at 200k per arm, 0.19 at 1M; the estimator is median-unbiased but mean-biased by about $\exp(\mathrm{se}^2/2) - 1$ ($+11\%$ at 200k), and a grid posterior over $\log\kappa$ with prior $\mathcal N(0, 0.5^2)$ stabilises it when $\Delta\hat p = \hat p_1 - \hat p_0$ is noisy. Dividing by $\hat w_1 \propto \Delta\hat p$, it is undefined without an incidence effect---exactly where the intensive margin carries everything---so the scale and rank constructions are complementary, not nested.
+
+\subsection{The blind spot and its guard}
+
+\begin{proposition}[Tail-located effects]
+\label{ht:prop:blind}
+\tagNumerical\ When only the top decile of always-buyers spends $+50\%$ ($\tau = 5.04$, no incidence effect; E9) DIM recovers 105\% of it at $t = 6.3$, winsor-99 72\%, EXT 0.8\%, SCALE 5\%, and RANK-$\kappa$ is undefined: every restricted estimator is blind to a tail-located effect by construction. The tail-free detector is the exceedance count $\Prob(Y > c)$ by arm on a grid of $c$: $z = 5.5$ (power 1.0) at the 99th percentile, $z = 0.4$ at the 90th, since a scale effect on the top decile does not move $\Prob(Y > c_{90})$.
+\end{proposition}
+
+A grid of exceedance tests is thus the pre-registrable guard that switches from restricted to unrestricted analysis (\BL{66}).
+
+\section{Numerical evidence}
+\label{ht:sec:numerics}
+
+All experiments simulate \cref{ht:ass:strata,ht:ass:baskets} with $p_0 = 0.05$ and a 5\% incidence lift unless stated. \cref{ht:tab:bench} is the Round-1 benchmark (E1: 200k per arm, 200 replications, $\tau = 0.973$, Monte Carlo error on each sd about 5\%): DIM sits on Hahn's bound with $t = 1.36$ (Lewis--Rao's $t \approx 1.0$--$1.3$), CUPED buys the 4\% available, the 99th-percentile cap buys 27\% in se at $-9\%$ attenuation, EXT has $t = 3.63$.
+
+\begin{table}[htbp]
+\centering\small
+\caption{E1 benchmark, 200k per arm, 200 replications, $\tau = 0.973$, base DGP. Hahn's no-covariate bound is se 0.693, the covariate bound 0.664; the law predicts se ratios 0.27 (EXT) and 0.73 (SCALE-HL).}
+\label{ht:tab:bench}
+\begin{tabular}{lccc}
+\toprule
+Estimator & Bias & sd & $t = \tau/\mathrm{sd}$ \\
+\midrule
+DIM & $-0.01$ & 0.716 & 1.36 \\
+CUPED ($R^2 = 0.12$) & $-0.01$ & 0.679 & 1.43 \\
+Winsor 99th / 99.9th / 99.99th & $-0.089$ / $-0.032$ / $-0.019$ & 0.526 / 0.643 / 0.695 & 1.85 / 1.51 / 1.40 \\
+SCALE (median / HL) & $-0.02$ / $-0.02$ & 0.594 / 0.517 & 1.64 / 1.88 \\
+EXT & $+0.01$ & 0.268 & 3.63 \\
+$\kappa$-ISO (prior $1 \pm 0.25$; posterior sd 0.357) & $+0.01$ & 0.278 & 3.50 \\
+RANK-$\kappa$ / posterior & $+0.08$ / $+0.01$ & 0.541 / 0.386 & 1.80 / 2.52 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\cref{ht:tab:law} verifies \cref{ht:law:ratio} (E2: 200k per arm, 60 replications, $\pm18\%$ Monte Carlo error per ratio). At $s = 2$ the clean-room's numerators were within 5\% of theory but $\Var(\mathrm{DIM})$ was under-measured by 13\% even with 2000 replications (its fourth moment is $e^{6s^2}$): the law is asymptotic and at $s = 2$ hard to \emph{see}. E14 ($p_0 \in \{0.01, 0.05, 0.2\}$) gave EXT ratios 0.21/0.24/0.15 against 0.20/0.19/0.16 predicted; E12 found HL attaining the bound on a log-logistic basket (ARE $1.15 \pm 0.14$) and $0.83 \pm 0.07$ on the lognormal (theory 0.955).
+
+\begin{table}[htbp]
+\centering\small
+\caption{E2: observed / predicted variance ratios against DIM over the basket log-sd $s$ (200k per arm, 60 replications, $\pm18\%$ per ratio). The code's EXT prediction omits the $(1 - p_0)$ factor of \cref{eq:ht:law}.}
+\label{ht:tab:law}
+\begin{tabular}{lccccc}
+\toprule
+$s$ & 0.5 & 0.9 & 1.27 & 1.6 & 2.0 \\
+\midrule
+$V_E/V_U$ & 0.777 / 0.779 & 0.485 / 0.445 & 0.221 / 0.199 & 0.082 / 0.077 & 0.018 / 0.018 \\
+$V_S^{\mathrm{HL}}/V_U$ & 1.04 / 0.98 & 0.96 / 0.82 & 0.63 / 0.54 & 0.31 / 0.28 & 0.093 / 0.095 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\footnotesize
+\caption{E4: effect-location profile $e(c)$ and retention index $R(c)$ by cap (pooled positive quantile; $R(\infty) = 1$), population values from a 3M-user always-buyer sample. The best cap maximises $R$.}
+\label{ht:tab:profile}
+\begin{tabular}{llcccccc}
+\toprule
+Effect model & & 0.5 & 0.9 & 0.95 & 0.99 & 0.999 & 0.9999 \\
+\midrule
+extensive, $\kappa = 1$ & $e(c)$ & 0.28 & 0.69 & 0.80 & 0.93 & 0.99 & 1.00 \\
+ & $R(c)$ & 2.31 & 1.77 & 1.60 & 1.32 & 1.13 & 1.06 \\
+extensive, $\kappa = 0.5$ & $e(c)$ & 0.44 & 0.83 & 0.90 & 0.97 & 1.00 & 1.00 \\
+ & $R(c)$ & 3.56 & 2.12 & 1.81 & 1.39 & 1.14 & 1.06 \\
+scale, $\gamma = 5\%$ & $e(c)$ & 0.08 & 0.46 & 0.60 & 0.83 & 0.96 & 0.99 \\
+ & $R(c)$ & 0.68 & 1.17 & 1.21 & 1.18 & 1.10 & 1.05 \\
+tail, top decile $+50\%$ & $e(c)$ & 0 & 0 & 0.15 & 0.61 & 0.89 & 0.97 \\
+ & $R(c)$ & 0 & 0 & 0.30 & 0.87 & 1.02 & 1.03 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\cref{ht:tab:comp} is the composition attack and its repair (E5/E6; 200k per arm, 100 replications). RANK-$\kappa$'s bias is the Jensen term at every $\kappa$ and its se gain shrinks as $\kappa$ grows because $\mathrm{se}(\hat\tau) \propto \kappa\,\mathrm{se}(\log\hat\kappa)$; the clean-room reproduced its median $0.498 \pm 0.008$ at $\kappa = 0.5$. At 1M, $\kappa = 0.5$ gives bias $-0.012 \pm 0.019$ and sd 0.121 against DIM 0.354 ($2.9\times$), $\kappa = 1$ gives 0.206 against 0.355 ($1.7\times$). At 200k the Wald interval on $L$ covers 0.87--0.93, a log-scale interval 0.94 (E7).
+
+\begin{table}[htbp]
+\centering\small
+\caption{E5/E6 composition attack, 200k per arm, 100 replications: relative bias of the restricted estimators; RANK-$\kappa$'s bias ($\pm$ Monte Carlo se), sd (DIM's is 0.76 throughout) and median $\hat\kappa$; power of the Mann--Whitney test of $F_1^+ = F_0^+$ at 5\%. The law $(1 - \kappa)/\kappa$ gives $+233\%$, $+100\%$, 0, $-33\%$.}
+\label{ht:tab:comp}
+\begin{tabular}{lcccccc}
+\toprule
+$\kappa$ & EXT & SCALE-HL & RANK-$\kappa$ bias & RANK-$\kappa$ sd (gain) & median $\hat\kappa$ & MW power \\
+\midrule
+0.3 & $+237\%$ & $-133\%$ & $+0.05 \pm 0.02$ ($+17\%$) & 0.21 ($3.6\times$) & 0.317 & 0.77 \\
+0.5 & $+103\%$ & $-32\%$ & $+0.06 \pm 0.03$ ($+12\%$) & 0.29 ($2.6\times$) & 0.514 & 0.40 \\
+1.0 & $\approx 0$ & $\approx 0$ & $+0.10 \pm 0.05$ ($+10\%$) & 0.47 ($1.6\times$) & 1.01 & 0.02--0.05 (null) \\
+1.5 & -- & -- & $+0.16 \pm 0.07$ ($+11\%$) & 0.69 ($1.1\times$) & 1.46 & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \emph{power control} (E8; 200k per arm, $\kappa = 0.7$, one-sided 5\%, 200 replications, Monte Carlo se 0.035) gives null rejection rates 0.05 (DIM), 0.025 (EXT), 0.025 (incidence $z$), 0.05 (winsor-99), and power against a 5\% incidence lift (a 3.5\% revenue lift) of 0.255, 0.355 and 0.955 (EXT and incidence $z$). Seed sensitivity (E13; three 60-replication seeds) spans DIM 0.56--0.69, EXT 0.22--0.26, RANK 0.39--0.55.
+
+\cref{ht:tab:regret} is the decision duel M6 asked for (E10): breakeven $L_0 = 0.03$, $\kappa \sim U[0.3, 1.2]$ per replication so that $L = 0.05\kappa$ with 67\% of prior mass above $L_0$, loss $\abs{L - L_0}$ when wrong, in units of baseline revenue per user. At Lewis--Rao's 200k a DIM-based decision has \emph{higher} regret than not experimenting (3.83 against always-go's 2.62): its noise switches off more good campaigns than bad ones. MSE and regret rank differently exactly as \cref{ht:lem:A,ht:lem:B} predict when bias is neither additive nor flat-prior: EXT's MSE on $L$ is $2.5\times$ better than DIM's ($5.2$ against $12.9 \times 10^{-4}$) yet its regret is no better, since assuming $\kappa = 1$ it says ``go'' almost always; the posterior has the best MSE at 200k (2.7) but RANK-$\kappa$ the best regret. At 1M RANK-$\kappa$ cuts regret $3\times$ relative to DIM (0.75 against 2.25, five Monte Carlo se apart) while DIM is only 14\% below always-go: the decision value comes almost entirely from the margin decomposition, not from sample size.
+
+\begin{table}[htbp]
+\centering\small
+\caption{E10 go/no-go regret ($\times 10^3$, baseline revenue per user) at $L_0 = 0.03$, $\kappa \sim U[0.3, 1.2]$; $\pm$ Monte Carlo se. Always-go and never-go need no experiment.}
+\label{ht:tab:regret}
+\begin{tabular}{lccccccc}
+\toprule
+$n$ per arm & DIM & EXT & RANK-$\kappa$ & posterior & $\kappa$-ISO & always-go & never-go \\
+\midrule
+200k (600 reps) & $3.83 \pm 0.28$ & $3.24 \pm 0.22$ & $\mathbf{2.21 \pm 0.22}$ & $2.54 \pm 0.22$ & $3.26 \pm 0.23$ & 2.62 & 9.81 \\
+1M (300 reps) & $2.25 \pm 0.29$ & $2.60 \pm 0.25$ & $\mathbf{0.75 \pm 0.15}$ & $0.79 \pm 0.15$ & $2.46 \pm 0.25$ & 2.61 & 9.98 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Limitations and the devil's advocate}
+
+Round 1 built the decomposition, the calculus and EXT/SCALE. Of Round 2's four attacks, composition and tail-located effects landed (\cref{ht:prop:comp,ht:prop:blind}), infinite variance was survived (\cref{ht:prop:tailfree}), and testability failed where it matters (power 0.40). Round 3 built RANK-$\kappa$ and attacked it. (i) \emph{Shape.} If marginal buyers are the \emph{small} buyers by selection---$F_I$ is $F_A$ truncated below its median, effective $\kappa = 0.17$---the mean-log shift identifies the geometric-mean ratio, not the arithmetic one: median $\hat\kappa = 0.345$ (twice too high), $\tau$ bias $+122\%$ at bias/sd 0.9, log-interval coverage 0.64 (truncation at the 80th percentile: $\hat\kappa$ 0.64 against 0.38, coverage 0.72). A second-log-moment correction assuming $F_I$ lognormal, $\kappa_{\mathrm{arith}} = \kappa_{\mathrm{geo}}\exp((\sigma_I^2 - \sigma_A^2)/2)$ with both variances identified from the mixture, moves the median to 0.22 (truth 0.169) with interquartile range 0.16--0.37: a partial, noisy repair. (ii) \emph{Unmodelled $\gamma$.} A 1\% basket effect on always-buyers moves $\hat\kappa$ to 1.22 (predicted exactly), $\hat L$ to 0.069 against 0.060 and $\tau$ by $+14\%$ at bias/sd 0.3; at $\gamma = 3\%$, $\hat\kappa \to 1.74$ and the sd explodes to 5.9, so the posterior version is required. (iii) \emph{Heavier tail} (Pareto $\alpha = 1.5$, $\kappa = 0.7$): RANK-$\kappa$ sd 0.32 against DIM 1.57 ($4.8\times$), bias $-0.03 \pm 0.03$, coverage 0.94; EXT $+29\%$ against the law's $+42\%$, reconciled through the finite-$\ell$ form and the downward finite-sample bias of Pareto sample means. Round 4 changed no construction; Round 5 (clean-room) confirmed the five headline claims and supplied the finite-$\ell$ bias form, the $\gamma/\ell$ expansion and the exponential-of-log mean bias.
+
+The dive's own devil's advocate: the 4\% is a property of a DGP in which the heavy tail is idiosyncratic basket size; with persistent baskets $\E[\sigma^2(X)]$ shrinks more and nonparametric adjustment could beat CUPED's linear projection. \cref{ht:law:ratio} is first order in $\ell$ and $p_0$ at $\pi = \tfrac12$ for lognormal baskets. ``Tail-free'' does not mean the tail has gone: it has been moved into $\kappa$. Both lemmas assume a flat prior and normal errors, and under infinite variance DIM's errors are not normal at any feasible $n$. The $3\times$ regret gain is at 1M under a prior uniform on $[0.3, 1.2]$, where EXT's $\kappa = 1$ is wrong most of the time; under a prior concentrated at $\kappa \approx 1$, EXT or $\kappa$-ISO would win. At 200k RANK-$\kappa$'s gain over always-go is 16\%: it makes a 200k-user experiment \emph{barely} worth running, where DIM makes it worth \emph{not} running. The exceedance guard had power 1.0 because the effect was $+50\%$ on a decile; $+5\%$ on the top percentile would be invisible to it and to DIM alike. Structural limits: single-period outcomes (no frequency margin), no interference (\cref{ch:algorithmic}), monotone strata (defiers break the mixture algebra), a stylised covariate, no real experiment library.
+
+\section{Discussion: impacts}
+
+For experimentation platforms the choice of \emph{estimator family} is a choice of which margin to restrict and should be reported as such: a lift report showing the incidence lift, the rank-based basket shift and DIM side by side exposes the restriction the headline rests on, with the Mann--Whitney statistic on positives and the exceedance grid as its tail-free diagnostics (the first weak at Lewis--Rao's sample sizes). The winsorisation level should be a pre-registered function of an effect-location hypothesis through $R(c)$, and the cap must be pooled: per-arm caps double the false-positive rate. For MMM calibration (\cref{ch:transport}) the lift test's standard error is what enters the likelihood; under an incidence-driven effect the tail-free estimator shrinks it by $e^{s^2/2}$, the difference between a prior that moves the model and one that does not, but the calibration then inherits an assumption about marginal buyers the MMM cannot check.
+
+For CMO decision-making the sharpest result is \cref{ht:tab:regret}: at 200k users per arm, deciding on DIM is worse than not measuring, and the experiment becomes worth running only through a restriction whose failure the experiment cannot detect. \cref{ht:lem:B} with an informative prior belongs in the decision loss of \cref{ch:deadband} and the value-of-information machinery of \cref{ch:voi} (\BL{67}); the exceedance grid is the trigger \cref{ch:deadband}'s protocol lacks for switching from restricted to unrestricted analysis (\BL{66}). \cref{ch:simulator}'s certification law loses coverage under $t_3$ recalibration noise (\BL{51}); this chapter says where the heaviness comes from and which functional of it is Gaussian.
+
+For theory the chapter settles M6's first part negatively (the unrestricted bound is Hahn's and can be infinite) and reframes the rest: the interesting bounds are the restricted, tail-free ones, and the regret question is not ``regret versus MSE'' but ``which prior and which kind of bias''. The composition law and the untestability result are why latent stratification's 30--60\% gains should carry a $\kappa$ sensitivity band.
+
+\section{Further exploration}
+
+The dive's next steps became five backlog items. \BL{63} fits the scale mixture to Berman--Feit-style catalog data for the cross-category distribution of $\kappa$---the prior \cref{ht:tab:regret} needs and the empirical answer to ``do marginal buyers spend less''---and tests truncation against scale with the second-log-moment statistic. \BL{64} extends the decomposition to Lewis--Rao's three margins, incidence $\times$ frequency $\times$ basket: counts are tail-free, only the basket is heavy. \BL{65} transports Trimmed Match's symmetric residual to user-level tests by pairing within pre-period strata. \BL{66} derives the joint null of the exceedance $z$'s over a quantile grid (a Brownian-bridge functional) and its power. \BL{67} replaces \cref{ht:lem:B}'s flat prior by the decision loss of \cref{ch:voi} and \cref{ch:deadband}, giving $c^\star(\text{prior}, e(\cdot), v(\cdot))$ with a composition band, and tests the effect-location reading of Parikh et al.\ on their data if obtainable. Not adopted: recomputing \cref{ch:attribution}'s precision--lift frontier and \cref{ch:simulator}'s certification law under $\mathcal M_E$ (the user count changes by $e^{s^2}$ for incidence-driven effects; the $\kappa$ of \cref{ch:attribution} is a different quantity), and a semiparametric strata model replacing Berman--Feit's lognormal components by the mixture-subtraction identification of $F_I$.
+
+In the compiler's judgement \BL{63} dominates: every headline here is conditional on $\kappa$ and on the shape of $F_I$, both of which five catalog experiments would measure directly, and a measured $\kappa$ prior would turn \cref{ht:tab:regret} from a stylised duel into a sizing rule. Second is \BL{64}, because the frequency margin is where Lewis--Rao placed the recoverable variance and it is tail-free by the same argument as incidence.
+
+\begin{reviewernote}[(compiler)]
+\textbf{The results file on disk is the \texttt{quick} run.} \texttt{18\_results\_quick.json} has 60 replications for E1 and fewer for E5/E8/E9/E11/E14; its numbers differ from the writeup's 200-replication run, which is not on disk: E1 DIM sd 0.676 against 0.716, RANK-$\kappa$ 0.485 against 0.541, posterior 0.326 against 0.386; E4 retention values differ by up to 6\% (2.18 against 2.31 at the median cap, 3.37 against 3.56, scale-model best 1.15 against 1.21). The differences sit within E13's seed spread and change no ordering, but \cref{ht:tab:bench,ht:tab:profile,ht:tab:comp} cannot be reproduced from the file shipped.
+
+\textbf{Numbers the writeup does not report.} The quick-run E8 gives the posterior RANK-$\kappa$ a null rejection rate of 0.48 under the criterion ``posterior lower bound on $L$ above zero'' (100 replications); the writeup's E8 lists the other four estimators only. Since the posterior version is ``required'' at $\gamma = 3\%$ and has the best MSE at 200k, a reader should check whether this is the criterion (the posterior is formed only when $\hat p_1 > \hat p_0$) or a calibration failure. The quick-run E14's SCALE-HL ratios (0.47/0.95/0.58 against 0.536 predicted, $\pm23\%$) are unreported in the writeup; the $p_0 = 0.05$ value is 78\% above prediction. E11's quick run gives pooled-cap false-positive rates of 0.08 for both laws against the writeup's 0.055 (per-arm 0.12/0.15 against 0.095/0.12); at 100 replications the Monte Carlo se is 0.027, so ``0.055'' is not a demonstrated nominal rate.
+
+\textbf{Small inconsistencies.} E2's coded EXT prediction is $e^{-s^2}$ without the $(1 - p_0)$ factor that \cref{eq:ht:law}, E14 and the clean-room (0.189) include; 5\% at $p_0 = 0.05$, inside the $\pm18\%$ error; the INDEX log line also drops it. ``Covariates buy $\le 4\%$'' is in standard error (0.664/0.693), 8\% in variance, and CUPED's observed gain (0.716 to 0.679) is 5\% in se, so ``the 3\% seen here'' in the writeup's devil's advocate is not reconstructible from its table. The writeup calls RANK-$\kappa$'s 16\% gain over always-go at 200k ``1.4 MC se''; from \cref{ht:tab:regret} it is $0.41/0.22 = 1.9$ se. E9's $t$ is 6.3 in the writeup, 7.7 in the 50-replication quick run.
+
+\textbf{Novelty and support.} \cref{ht:lem:A} is elementary (at $b = 0$ it is $2\sigma^2\int_0^\infty u\Phi(-u)\,\dd u = \sigma^2/2$); its value is as a corrective to M6's phrasing. The ``efficient'' constant of \cref{eq:ht:law} is not separated from the HL constant by any simulation, and E12's lognormal ARE of $0.83 \pm 0.07$ is 1.8 se below theory. The ``$12.6\times$'' divides EXT's se by DIM's \emph{ordinary} sd, which the dive itself calls erratic. The 2026 preprints (Parikh et al., Wicker) are absent from the program's bibliographies and could not be checked.
+
+\textbf{Consistency checks passed.} The INDEX log line agrees with the writeup on every number checked ($0.187/0.531$, $12.6\times$, $0.40$, $2.6\times$, $+21\%$, $0.10$--$0.12$, $0.75/2.25$, $3.83/2.62$, $+122\%$, $0.64$, $z = 5.5$); the log timestamp ($\sim$16:10) follows the file write (16:01). \cref{ht:tab:law} matches the JSON to three decimals; $1.01^{20} = 1.2202$, $0.05 \times 1.2202 = 0.0610$ and $0.05 \times 1.05^{20} = 0.133$ reproduce; \BL{63}--\BL{67} match the INDEX.
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item Hahn, J. (1998). \emph{On the Role of the Propensity Score in Efficient Semiparametric Estimation of Average Treatment Effects}. Econometrica 66(2), 315--331. \url{https://statweb.rutgers.edu/ztan/material/hahn98.pdf}
+\item Hirano, K., Imbens, G. W. and Ridder, G. (2003). \emph{Efficient Estimation of Average Treatment Effects Using the Estimated Propensity Score}. Econometrica 71(4), 1161--1189. \url{https://onlinelibrary.wiley.com/doi/abs/10.1111/1468-0262.00442}
+\item Lewis, R. A. and Rao, J. M. (2015). \emph{The Unfavorable Economics of Measuring the Returns to Advertising}. Quarterly Journal of Economics 130(4), 1941--1973. \url{https://gwern.net/doc/economics/advertising/2015-lewis.pdf}
+\item Deng, A., Xu, Y., Kohavi, R. and Walker, T. (2013). \emph{Improving the Sensitivity of Online Controlled Experiments by Utilizing Pre-Experiment Data (CUPED)}. Proc.\ WSDM 2013. \url{https://exp-platform.com/Documents/2013-02-CUPED-ImprovingSensitivityOfControlledExperiments.pdf}
+\item Wang, Y. and Burke, M. (2019). \emph{Winsorization and Robust Variance Reduction in Online Experiments}. arXiv:1905.09252. \url{https://arxiv.org/abs/1905.09252}
+\item Wicker, T. (2026). \emph{Winsorizing and Trimming in RCTs}. Working paper. \url{https://twicker97.github.io/JM_documents/Winsorizing.pdf}
+\item Chen, A. and Au, T. C. (2022). \emph{Robust Causal Inference for Incremental Return on Ad Spend with Randomized Paired Geo Experiments (Trimmed Match)}. Annals of Applied Statistics 16(1). \url{https://arxiv.org/abs/1908.02922}
+\item Berman, R. and Feit, E. M. (2024). \emph{Latent Stratification for Incrementality Experiments}. Marketing Science. \url{https://arxiv.org/abs/1911.08438}
+\item Johnson, G. A., Lewis, R. A. and Reiley, D. H. (2017). \emph{When Less Is More: Data and Power in Advertising Experiments}. Marketing Science 36(1). \url{https://pubsonline.informs.org/doi/10.1287/mksc.2016.0998}
+\item Lee, D. S. (2009). \emph{Training, Wages, and Sample Selection: Estimating Sharp Bounds on Treatment Effects}. Review of Economic Studies 76(3). \url{https://www.princeton.edu/~davidlee/wp/Selection5all.pdf}
+\item Chen, J. and Roth, J. (2024). \emph{Logs with Zeros? Some Problems and Solutions}. Quarterly Journal of Economics. \url{https://arxiv.org/pdf/2212.06080}
+\item Devroye, L., Lerasle, M., Lugosi, G. and Oliveira, R. I. (2016). \emph{Sub-Gaussian Mean Estimators}. Annals of Statistics 44(6). \url{https://arxiv.org/abs/1509.05845}
+\item Bickel, P. J. (1982). \emph{On Adaptive Estimation}. Annals of Statistics 10(3), 647--671. \url{https://projecteuclid.org/journals/annals-of-statistics/volume-10/issue-3/On-Adaptive-Estimation/10.1214/aos/1176345863.full}
+\item Stein, C. (1956). \emph{Efficient Nonparametric Testing and Estimation}. Proc.\ Third Berkeley Symposium, vol.\ 1, 187--195.
+\item Hodges, J. L. and Lehmann, E. L. (1963). \emph{Estimates of Location Based on Rank Tests}. Annals of Mathematical Statistics 34(2), 598--611.
+\item Parikh, H., et al. (2026). \emph{Towards Optimal Estimators for RCTs}. arXiv:2607.23254. \url{https://arxiv.org/abs/2607.23254}
+\item Frontier study (internal): \texttt{02\_open\_questions.md}, entry M6; \texttt{01\_state\_of\_the\_field.md} on Lewis--Rao and Trimmed Match.
+\item Program (internal): \dive{18}, file \texttt{18\_heavy\_tail\_efficiency.md}; \texttt{00\_INDEX.md} log row 18 and backlog \BL{63}--\BL{67}; \dive{15} for \BL{51}.
+\end{enumerate}
+\endgroup

@@ -1,0 +1,30 @@
+{
+ "e7": {
+  "Itil (profile info on alpha) / sd_data(alpha)": "0.7985 / 1.1191",
+  "d (residual sensitivity of mROAS to alpha)": "+3.0016",
+  "Psi(0)": "1.5202",
+  "u=0.1       tau=3.5388: delta* numeric / formula / z*": "5.128155 / 5.128155 / 1.3817",
+  "u=0.3       tau=2.0431: delta* numeric / formula / z*": "3.098523 / 3.098523 / 1.3301",
+  "u=1.0       tau=1.1191: delta* numeric / formula / z*": "1.938260 / 1.938260 / 1.2247",
+  "u=3.0       tau=0.6461: delta* numeric / formula / z*": "1.444694 / 1.444694 / 1.1180",
+  "u=10.0      tau=0.3539: delta* numeric / formula / z*": "1.225863 / 1.225863 / 1.0445",
+  "u=100.0     tau=0.1119: delta* numeric / formula / z*": "1.130190 / 1.130190 / 1.0049",
+  "u=10000.0   tau=0.0112: delta* numeric / formula / z*": "1.119167 / 1.119167 / 1.0000",
+  "--- round-2 note: posterior-variance version gives the wrong constant ---": "",
+  "u=0.3: delta* from V_post / from V_samp": "2.329499 (formula sqrt(1/p+1/Itil)=2.329499) / 3.098523",
+  "u=3.0: delta* from V_post / from V_samp": "1.292174 (formula sqrt(1/p+1/Itil)=1.292174) / 1.444694"
+ },
+ "e8": {
+  "N1 d (should be 0)": "+0.000e+00 +0.000e+00",
+  "N1 Psi / MSE / bias at u=0,1,1e6": "1.0000000000,0.2000000000,-0.00e+00 | 1.0000000000,0.2000000000,-0.00e+00 | 1.0000000000,0.2000000000,-0.00e+00",
+  "N2 Psi with prior along an Itil-orthogonal direction": "1.0848314607 1.0845129065 1.0844600826 1.0844594682",
+  "N2 (contrast) Psi with prior along d": "1.084831 1.083416 1.031458 1.000000",
+  "N3 Psi at P=0 (must equal Psi0)": "1.084831460674 / 1.084831460674",
+  "N4 break-even delta*_alpha at u=1": "1.938260",
+  "N4 delta=1.1630 (0.60x): MSE_prior - MSE_flat": "-5.4133e+00 +- 9.59e-02   (z=-56.42)",
+  "N4 delta=1.7444 (0.90x): MSE_prior - MSE_flat": "-1.6214e+00 +- 1.00e-01   (z=-16.15)",
+  "N4 delta=1.9383 (1.00x): MSE_prior - MSE_flat": "-2.0232e-01 +- 1.03e-01   (z=-1.97)",
+  "N4 delta=2.1321 (1.10x): MSE_prior - MSE_flat": "+1.9332e+00 +- 1.05e-01   (z=+18.43)",
+  "N4 delta=2.9074 (1.50x): MSE_prior - MSE_flat": "+1.0492e+01 +- 1.15e-01   (z=+91.53)"
+ }
+}

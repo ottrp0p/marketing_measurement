@@ -1,0 +1,271 @@
+% ===========================================================================
+% Chapter: Creative estimands under algorithmic delivery (dive 10)
+% ===========================================================================
+\chapter{Creative estimands under algorithmic delivery}
+\label{ch:algorithmic}
+
+\begin{provenance}
+\textbf{Source dives:} \dive{10} \emph{Estimands under algorithmic delivery: cross-score logging identifies the fixed-policy creative effect (B4 / M3)} (run 2026-09-01, file \texttt{10\_algorithmic\_delivery\_estimands.md}, last written 2026-09-01 23:43 UTC).
+\textbf{Code:} \texttt{code/10\_algorithmic\_delivery\_estimands.py}.
+\textbf{Frontier-study problem(s) addressed:} M3 (queue item B4) --- define and identify ``the effect of creative A versus B under a \emph{fixed} delivery policy $\pi$'' from data generated under adaptive per-arm policies $\pi_A, \pi_B$, when the logging policy is a black-box auction/pacing system with unlogged propensities; and say what partial logging suffices.
+\textbf{Backlog items closed:} none; \textbf{opened:} \BL{29} (sharp segment-level $\Lambda$-bounds), \BL{30} (ratio-balancing specification test), \BL{31} (fixed-policy estimands under budget-coupled arms and frequency).
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item The fixed-policy creative effect $\tau(\pi) = \E[\pi(X)(\delta_A(X) - \delta_B(X))]$ and the A/B intention-to-treat contrast obey the exact identity $\tau(\pi_B) - \mathrm{ITTdiff} = \E[(\pi_B - \pi_A)\delta_A]$: the A/B test's bias is delivery divergence times effect heterogeneity, and the optimizer manufactures both at once.
+\item Creative rankings flip sign with the policy: in a CTR regime the A/B test reports $+7.99$, the effect of A in B's audience is $-1.69$, in A's own audience $+16.68$ (all $\times 10^{-4}$; clean-room $\pm 0.1$).
+\item Bucketed per-creative scores $(m_A, m_B)$ logged for every user in every arm---no propensities---are a sufficient logging statistic under \emph{ratio balancing}, a theorem with an exact error decomposition; cross-score cells recover $\tau(\pi_B)$ to 1\% of the divergence bias where single-score cells land at $-3.4$ and $+16.4$.
+\item Two identical creatives, one scored more noisily, produce a spurious A/B winner of $5.48 \pm 0.03$ that the estimator nulls to $0.075 \pm 0.002$; the overlap policy $\pi_{\mathrm{ov}} = 2\pi_A\pi_B/(\pi_A + \pi_B)$ costs no precision (sd 0.95 versus 0.92 for ITTdiff) and is nearly immune to cell coarseness.
+\item Negative results: advertiser-segment $\Lambda$-bounds are vacuous ($\Lambda_{95} = 5.70$, width 66 on an effect of scale 8); noisy logs attenuate (reliability 0.91 loses 18\%, SIMEX recovers 82\%); arm-asymmetric $\delta$-correlated shocks are the theorem's boundary; conversion-outcome tests are noise-dominated until $N \approx 10^8$, CTR tests bias-dominated from $N \approx 10^5$.
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+A platform A/B test of two ad creatives randomizes users to arms, then lets each arm's delivery system---auction, pacing and a per-creative predicted-response model---decide whom to actually show the ad. The arms therefore reach different audiences, systematically: the optimizer for creative A finds the users it predicts will respond to A, the optimizer for B finds B's. The platform's ``A beats B'' compares A on A's audience with B on B's, conflating creative quality with the algorithm's audience choice. Braun and Schwartz named this \emph{divergent delivery}; Meta's audit of 181{,}890 tests confirmed its ubiquity; and problem M3 recorded that ``the effect of creative A versus B'' is ill-defined when exposure is mediated differently per arm, that operational mitigation exists but identification theory does not, and that the formal problem is off-policy evaluation with a black-box, non-stationary logging policy whose propensities are never written down.
+
+The relevant counterfactual for a creative decision is not ``what happened under two optimizers'' but ``if I ship A instead of B the algorithm will re-target, and creative quality is the part that transports''. \dive{10} formalises that as the effect under a \emph{fixed} delivery policy $\pi$, derives an exact identity for the A/B test's bias, shows that the fixed policy can reverse a creative ranking, and answers the logging question constructively: not the propensities but the two per-creative \emph{scores} that drive them, bucketed and logged for every user in every arm, identify $\tau(\pi)$---a log field rather than the extra experimental arm of the only prior formal fix. The chapter also records what does not work and prices the regime in which any of it is detectable.
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{Divergent delivery (Eckles, Gordon and Johnson, 2018; Ali et al., 2019; Braun and Schwartz, 2025; Burtch et al., 2025)}
+
+Eckles, Gordon and Johnson (2018) pointed out, against a psychological-targeting field study, that a platform's delivery optimization makes exposure within an ad arm non-random, so arm-level outcome differences are not creative effects. Ali et al.\ (2019) supplied the mechanism: under maximally inclusive targeting, Facebook's relevance layer skews who sees an ad by the ad's content alone, because the delivery model predicts per-user response to each creative. Braun and Schwartz (2025) drew the consequence for experiments: two \emph{identical} public-service ads in separate arms drifted apart in realised audience (57.0\% versus 50.8\% female) from delivery noise alone, so an A/B contrast is a total effect entangling audience selection with creative response. Burtch, Moakler, Gordon, Zhang and Hill (2025) quantified it across 181{,}890 Meta A/B tests and 3{,}204 lift tests: lift tests (one live arm versus a holdout) show no audience imbalance, A/B tests (two separately optimized live arms) do, and harmonizing campaign configuration reduces but never eliminates it. None defines the estimand a creative decision needs or says what to log to identify it.
+
+\subsection{Off-policy evaluation with estimated propensities (Hirano, Imbens and Ridder, 2003; Hanna, Niekum and Stone, 2019)}
+
+Off-policy evaluation (OPE) values a target policy $\pi$ from data logged under a behaviour policy $\pi_0$ by reweighting each logged outcome with $\pi(a \mid x)/\pi_0(a \mid x)$; the estimator is unbiased when $\pi_0$ is known and positive wherever $\pi$ is. Hirano, Imbens and Ridder (2003) showed that inverse-propensity weighting with a nonparametrically \emph{estimated} propensity attains the semiparametric efficiency bound and beats weighting by the true propensity, because the estimate corrects chance imbalance; Hanna, Niekum and Stone (2019) transported this to reinforcement learning (``regression importance sampling''). Both require the estimated propensity to condition on everything the behaviour policy used: estimated from a coarser set it is a marginal, and reweighting by it is biased unless the omitted variables are irrelevant to the outcome. The dive's cell estimator is an estimated-behaviour-policy estimator whose conditioning set is chosen by a theorem.
+
+\subsection{Sensitivity bounds: Rosenbaum's $\Gamma$, the marginal $\Lambda$ model and sharp bounds (Rosenbaum, 2002; Tan, 2006; Kallus and Zhou, 2018, 2020; Namkoong et al., 2020; Dorn and Guo, 2022)}
+
+When propensities are unknown one bounds how far they stray. Rosenbaum's model says two units with the same observed covariates have treatment odds within a factor $\Gamma$, $\Gamma^{-1} \le \pi_i(1-\pi_j)/(\pi_j(1-\pi_i)) \le \Gamma$; a finding is reported as the $\Gamma$ at which it stops being significant. Tan's (2006) \emph{marginal sensitivity model} bounds instead the odds ratio between the true propensity $e(x,u)$ and the nominal $e(x)$ by $\Lambda$, so the true importance weight lies in a known interval around the nominal one. Kallus and Zhou (2018, 2020) made this operational for policy evaluation and learning---the worst-case policy value is a fractional linear program over weights in the $\Lambda$-box, solved by sorting outcomes---and Namkoong et al.\ (2020) extended it to sequential decisions. Dorn and Guo (2022) showed those bounds are not sharp: the sharp bound puts the extreme weights on units above or below the $\Lambda/(1+\Lambda)$ quantile of the outcome given covariates (``quantile balancing''). The dive's segment bound is the elementary member of this family, with the within-segment delivery \emph{ratio} as the unknown odds ratio; its vacuity motivates \BL{29}.
+
+\subsection{Balancing scores and overlap weights (Rosenbaum and Rubin, 1983; Li, Morgan and Zaslavsky, 2018)}
+
+A \emph{balancing score} $b(X)$ is any function with $X \perp D \mid b(X)$; the propensity score is the coarsest, and conditioning on any balancing score removes confounding when treatment is unconfounded given $X$. The dive's ratio-balancing condition is weaker: only the \emph{ratio} of the two arms' exposure probabilities must be constant given the logged variable. Li, Morgan and Zaslavsky (2018) introduced \emph{overlap weights}: weight treated units by $1 - e(x)$ and controls by $e(x)$, targeting the population tilted by $e(x)(1-e(x))$---the units both arms could plausibly reach---with bounded weights and minimum asymptotic variance among balancing weights. The dive's overlap policy is the delivery analogue: the harmonic mean of the two arms' exposure probabilities, whose weights against either arm are at most 2.
+
+\subsection{Simulation--extrapolation (Cook and Stefanski, 1994)}
+
+When a covariate is observed as $W = X + U$ with known error variance $\sigma_u^2$, SIMEX adds \emph{further} error $W_b(\lambda) = W + \sqrt{\lambda}\,\sigma_u\varepsilon_b$ for $\lambda \in \{0, 0.5, 1, 1.5, 2\}$, recomputes the estimator, averages over $b$, fits a curve in $\lambda$ and extrapolates to $\lambda = -1$, the error-free point; its bias is whatever the extrapolant (usually quadratic) misses. The dive applies it to the cells: noise is added to the logged scores, cells re-formed, the cell estimator extrapolated.
+
+\subsection{Counterfactual logging and the three-arm design (Johnson, Lewis and Nubbemeyer, 2017; Pal and Susarla, 2026)}
+
+Ghost ads made lift measurement cheap by logging, for control users, the moment the platform \emph{would have} shown the ad---the algorithm's decision recorded without the exposure. Pal and Susarla (2026) address divergent delivery with a third arm in which the delivery algorithm sees creative A's metadata while users see the control creative: the total A/B effect decomposes into a natural direct effect (the creative) and a natural indirect effect (the re-targeting), point-identified without sequential ignorability; they also show that adjusting on the realised audience is biased, the audience being a post-treatment mediator. The design needs the platform to build an arm; the dive's proposal is in the ghost-ads spirit---log the algorithm's inputs for everyone instead.
+
+\section{Setup and assumptions}
+
+Users have covariates $X$, rich on the platform side, coarsely visible to the advertiser. Potential outcomes are $Y(0)$ (unexposed) and $Y(1, a)$ for creative $a \in \{A, B\}$, with creative effects $\delta_a(X) = \E[Y(1,a) - Y(0) \mid X]$. Arms $Z \in \{\text{control}, A, B\}$ are randomized across users. Within arm $a$ the platform exposes a user with an unlogged probability $\pi_a(X)$, a function of its per-creative score $m_a(X)$ (predicted response), of pacing and competition, and of anything else it uses; $D$ is the realised exposure indicator.
+
+\begin{definition}[Estimands]
+\label{algo:def:estimands}
+$\mathrm{ITT}_a = \E[\pi_a(X)\delta_a(X)]$ is the effect of creative $a$ under its own delivery (what the test measures) and $\mathrm{ITTdiff} = \mathrm{ITT}_A - \mathrm{ITT}_B$. The \emph{fixed-policy creative effect} is
+\begin{equation}
+\tau(\pi) = \E\big[\pi(X)\,(\delta_A(X) - \delta_B(X))\big],
+\label{eq:algo:tau}
+\end{equation}
+with the natural choices $\pi = \pi_B$ (``A in B's audience''), $\pi = \pi_A$, and the \emph{overlap policy} $\pi_{\mathrm{ov}} = 2\pi_A\pi_B/(\pi_A + \pi_B)$.
+\end{definition}
+
+$\pi_B$ is a legitimate fixed policy---the platform would deliver the winner with its own optimizer, so $\tau(\pi_B)$ answers ``would swapping the creative for the same audience help?''---and $\pi_{\mathrm{ov}}$ is the audience both optimizers would reach.
+
+\begin{assumption}[Design and exclusion]
+\label{algo:ass:design}
+Arms are randomized; creative identity affects $Y$ only through exposure, so $Y(0)$ does not depend on the arm; effects are additive in $\delta_a$ with single exposure; per-arm delivery is independent (no shared budget or pacing).
+\end{assumption}
+
+\begin{assumption}[Ratio balancing]
+\label{algo:ass:ratio}
+For a logged discrete cell variable $C = C(X)$, within every cell $c$ either (a) the delivery ratio $\pi_B(X)/\pi_A(X)$ is constant, or (b) $\delta_A(X)$ is constant, or more generally $\Cov(\pi_B/\pi_A, \delta_A \mid c) = 0$ under the $\pi_A$-weighted measure.
+\end{assumption}
+
+Condition (a) holds whenever $\pi_a(X) = g_a(m_A(X), m_B(X))$---delivery depends on $X$ only through the two logged scores---and is weaker than Rosenbaum--Rubin balancing: unlogged shocks that hit both arms' logits identically (pacing, time of day, competition common to both creatives) cancel in the ratio.
+
+\section{Main results}
+
+\subsection{The divergence-bias identity}
+
+\begin{theorem}[Divergence-bias identity]
+\label{algo:thm:identity}
+\tagEstablished\ For any fixed policy $\pi$, $\mathrm{ITTdiff}$ is identified by the randomized design and
+\begin{equation}
+\tau(\pi_B) - \mathrm{ITTdiff} = \E\big[(\pi_B - \pi_A)\,\delta_A\big], \qquad
+\tau(\pi) - \mathrm{ITTdiff} = \E[(\pi - \pi_A)\delta_A] - \E[(\pi - \pi_B)\delta_B].
+\label{eq:algo:identity}
+\end{equation}
+\end{theorem}
+
+The proof is one line: $\tau(\pi_B) = \E[\pi_B\delta_A] - \mathrm{ITT}_B$ and $\mathrm{ITTdiff} = \E[\pi_A\delta_A] - \mathrm{ITT}_B$. The content is the reading: the A/B test's bias for the fixed-policy estimand is a covariance between the delivery difference and the heterogeneity of the \emph{new} creative's effect. If $\delta_A$ is constant the bias is exactly $\E[\pi_B - \pi_A]\,\delta_A$, a pure reach difference of known sign; if $\pi_A = \pi_B$ there is no bias whatever the heterogeneity. Both are required, and this is precisely what the algorithm manufactures: it diverges \emph{because} it detects heterogeneity in predicted response. Verified to float precision (residual $10^{-19}$; clean-room $10^{-19}$ to $3\times10^{-19}$).
+
+\subsection{The cell estimator and the sufficiency theorem}
+
+Let $C$ be a logged discrete function of $X$ with cell masses $p_c$. Within cell $c$ define the reach $r_a(c) = \E[\pi_a \mid c]$ (identified from exposure logs), the cell ITT $\mathrm{ITT}_a(c) = \E[\pi_a\delta_a \mid c]$ (identified from the arm-versus-holdout contrast within $c$), and the reach-normalized effect $\tilde\delta_a(c) = \mathrm{ITT}_a(c)/r_a(c) = \E_{\pi_a}[\delta_a \mid c]$, the $\pi_a$-weighted mean of $\delta_a$ in the cell.
+
+\begin{construction}[Cross-score cell estimator]
+\label{algo:con:cell}
+\tagEstablished\ With $\pi(c) = \E[\pi \mid c]$ ($r_B(c)$ for target $\pi_B$; $2r_A r_B/(r_A + r_B)$ for $\pi_{\mathrm{ov}}$),
+\begin{equation}
+\hat\tau(\pi) = \sum_c p_c\,\pi(c)\,\big[\tilde\delta_A(c) - \tilde\delta_B(c)\big].
+\label{eq:algo:cell}
+\end{equation}
+\end{construction}
+
+\begin{proposition}[Exact error decomposition]
+\label{algo:prop:error}
+\tagEstablished\ For target $\pi_B$,
+\begin{equation}
+\hat\tau - \tau(\pi_B) = -\sum_c p_c\Big\{\E[\pi_B\delta_A \mid c] - r_B(c)\,\E_{\pi_A}[\delta_A \mid c]\Big\}
+ = -\sum_c p_c\, r_A(c)\,\Cov_{\pi_A}\!\big(\pi_B/\pi_A,\ \delta_A \mid c\big).
+\label{eq:algo:error}
+\end{equation}
+\end{proposition}
+
+The B-term of \cref{eq:algo:cell} is exact because $\E[\pi_B\delta_B \mid c]$ is directly identified; all error sits in the cross term $\E[\pi_B\delta_A \mid c] = r_A(c)\E_{\pi_A}[(\pi_B/\pi_A)\delta_A \mid c]$, and $\E_{\pi_A}[\pi_B/\pi_A \mid c] = r_B(c)/r_A(c)$ gives the covariance form. The decomposition reproduced the estimator's error to three decimals in experiment E5: the term is the whole story.
+
+\begin{theorem}[Ratio-balancing sufficiency]
+\label{algo:thm:sufficiency}
+\tagEstablished\ Under \cref{algo:ass:ratio}, $\hat\tau(\pi_B) = \tau(\pi_B)$. In particular, if $\pi_a(X) = g_a(m_A(X), m_B(X))$, the pair of per-creative scores $(m_A, m_B)$, logged for every user in every arm, is a sufficient logging statistic for $\tau(\pi)$ for every $\pi$ expressible in the scores. Neither score alone is sufficient.
+\end{theorem}
+
+A single score fails because within an $m_A$ cell $\pi_B$ still varies with $m_B$, and $m_B$ is correlated with $\delta_A$ (creative effects share heterogeneity, scores share the baseline), so the cross term does not factor: in the CTR regime, $m_A$-only cells land at $-3.4$ against a truth of $-1.7$ (clean-room $-3.44 \pm 0.10$) and $m_B$-only cells land on $\tau(\pi_A)$, $+16.4$---the wrong estimand with the wrong sign. Propensities are not needed because the estimator uses reach \emph{rates} and ITT \emph{rates} by cell, both identified by randomization; $\pi_a$'s individual values never appear. This is the M3 answer: what must be logged is the \emph{sorting variable}, not the propensity, and any coarsening of $(m_A, m_B)$ preserving ratio balancing to the needed tolerance suffices. What must not exist is an unlogged shock that is arm-asymmetric and correlated with $\delta_A$ (E14).
+
+\subsection{Variants, the overlap policy and the logging hierarchy}
+
+The \emph{holdout} version above needs a no-ad control cell (Meta's multi-cell lift design) and only ratio balancing; $Y(0)$ enters only through the randomized arm-versus-holdout contrast, so unlogged confounders of exposure versus $Y(0)$ are harmless. The \emph{no-holdout} version replaces $\tilde\delta_a(c)$ by the within-cell exposed-minus-unexposed contrast and needs \emph{full} balancing, $D \perp (Y(0), \delta) \mid c$ in each arm; it fails when unlogged competition selects high-baseline users into exposure. In the CTR regime the two coincide.
+
+\begin{proposition}[Overlap policy]
+\label{algo:prop:overlap}
+\tagNumerical\ For $\pi_{\mathrm{ov}}$ the per-cell weights $\pi_{\mathrm{ov}}(c)/r_a(c) \le 2$ are bounded. In the dive's DGP its sampling sd equals ITTdiff's (0.95 versus 0.92 $\times10^{-4}$ at $N = 3$M) while $\tau(\pi_B)$ costs $+27\%$ (1.17); its coarseness bias is negligible at every $K$ ($0.12 \to 0.005$ from the coarsest to the finest grid, versus $1.69 \to 0.07$ for $\pi_B$); and it degrades most gracefully under asymmetric shocks.
+\end{proposition}
+
+The dive recommends $\tau(\pi_{\mathrm{ov}})$ as the headline creative effect (``which creative is better as a creative''), with $\tau(\pi_B)$ and $\tau(\pi_A)$ answering the sharper ``swap for the same audience'' question at a precision cost. \cref{algo:tab:hierarchy} states what each logging level identifies.
+
+\begin{table}[htbp]
+\centering\small
+\caption{What each logging level identifies (\dive{10} \S3.5; design grounded in \cref{algo:thm:sufficiency}, not a field result). Scores are bucketed quantiles---privacy-compatible, revealing neither the model nor propensities---and the platform already computes both scores in every auction.}
+\label{algo:tab:hierarchy}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+Logged & Identifies & Assumption \\
+\midrule
+L0: arm toplines & ITTdiff only & none; $\tau(\pi)$ unidentified, bias sign unknown \\
+L1: advertiser segments + holdout & $\Lambda$-bounds on $\tau(\pi_B)$ & within-segment ratio divergence $\le \Lambda$; vacuous in practice (E11) \\
+L2: per-user bucketed $(m_A, m_B)$ at decision time + holdout & $\tau(\pi)$ for any $\pi$ expressible in scores & ratio balancing (arm-symmetric unlogged shocks allowed) \\
+L2$'$: L2 without holdout & same & full balancing (no $Y(0)$ confounding of exposure) \\
+L2 + eligibility bit & identified part of $\tau(\pi)$ plus reported unidentified mass & positivity failure made explicit (E7) \\
+L2 + period id & $\tau(\pi)$ under learning or non-stationary delivery & scores comparable within period (E8) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Numerical evidence}
+\label{algo:sec:numerics}
+
+The DGP: $X \in \R^5$ standard normal; baseline $p_0 = \mathrm{base}\cdot\exp(0.5X_1 - 0.125)$; effects $\delta_A = \mathrm{lift}\cdot p_0\exp(0.8\,\mathrm{het}\,X_2 - 0.32\,\mathrm{het}^2)$ and $\delta_B$ likewise on $\mathrm{corr}\,X_2 + \sqrt{1-\mathrm{corr}^2}\,X_3$ times 0.9 (B is 10\% weaker); defaults $\mathrm{het} = 1$, $\mathrm{corr} = 0.5$. Scores $m_a = \log(p_0 + \delta_a) + 0.3\,\varepsilon_a$; delivery $\pi_a = 0.6\,\mathrm{expit}(-0.4 + 1.5z_a - \kappa\,\mathrm{comp})$ on the standardized score $z_a$, with unlogged competition $\mathrm{comp} = 0.7X_1 + 0.7X_4$ (reach about 0.26 per arm). Conversion regime: base 2\%, lift 15\%; CTR regime: base $5\times10^{-4}$, $\delta \approx$ CTR. All numbers are $\times10^{-4}$ absolute lift; the seed sweep is 6 seeds at $N = 600$k, $K = 40$ quantile bins per score, population limits (true conditional means within cells).
+
+\begin{table}[htbp]
+\centering\small
+\caption{Sign flip, recovery and negative control in the CTR regime (E3, E4, E9; 6 seeds, $N = 600$k, $K = 40$). Clean-room values are from an independent numpy re-implementation given only the DGP specification.}
+\label{algo:tab:flip}
+\begin{tabular}{lccl}
+\toprule
+Quantity & Dive ($\pm$ seed sd) & Clean-room & Note \\
+\midrule
+ITTdiff & $+7.99 \pm 0.06$--$0.08$ & $8.03 \pm 0.12$ & what the platform reports \\
+$\tau(\pi_B)$ & $-1.69$ & $-1.65 \pm 0.09$ & A in B's audience \\
+$\tau(\pi_A)$ & $+16.68$ & $16.74 \pm 0.11$ & A in A's audience \\
+$\tau(\pi_{\mathrm{ov}})$ & $+7.10$ & --- & overlap audience \\
+cross-score cells, residual bias & 0.010 (E4 table) / 5\% (\S4) & 1.0\% & see reviewer's note \\
+$m_A$-only cells & $-3.4$ & $-3.44 \pm 0.10$ & wrong value \\
+$m_B$-only cells & $+16.4$ & $+16.38$ & wrong estimand \\
+negative control: ITTdiff & $5.48 \pm 0.03$ & $5.50 \pm 0.01$ & identical creatives \\
+negative control: cell estimator & $0.075 \pm 0.002$ & $0.077 \pm 0.001$ & truth 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \emph{negative control} (E9) sets $\delta_B \equiv \delta_A$ but scores B with noisier predictions (log-sd 0.8 versus 0.3, a cold-start creative): the A/B test reports a creative effect of 5.48, about 70\% of the real effect scale, from delivery alone, while the cell estimator gives 0.075; with equal noise the pure-delivery ITTdiff is 0.01 by symmetry. In the \emph{conversion regime} (E1) ITTdiff overstates $\tau(\pi_B)$ by a factor $1.70 \pm 0.03$ (1.13 versus 0.67), post-stratifying exposed users on advertiser segments does nothing (1.12), and cross-score cells converge from 0.85 at $K = 3$ to 0.68 at $K = 40$. The finite-sample check (E2; $N = 1$M, 60 replications) gives an influence-function se of 4.85 against a Monte Carlo sd of 4.53 and 95\% coverage $0.93 \pm 0.03$. \cref{algo:tab:attacks} collects the attack experiments.
+
+\begin{table}[htbp]
+\centering\footnotesize
+\caption{Attack experiments (\dive{10} \S4--5). All $\times10^{-4}$, CTR regime unless noted. Reliability is the squared correlation between logged and delivery score.}
+\label{algo:tab:attacks}
+\begin{tabularx}{\textwidth}{llXl}
+\toprule
+Exp. & Attack & Result & Uncertainty \\
+\midrule
+E4 & coarseness $K$ & residual bias 36\% ($K=10$), 14\% (20), 5\% (40); falls $\sim K^{-1.4}$ & single seed \\
+E5 & unlogged competition (conv.) & holdout error 0.02, no-holdout $-0.12$ on truth 0.48 & single seed \\
+E6 & noisy logs & reliability 0.91/0.79/0.48 loses 18\%/38\%/70\% of the correction & single seed \\
+E7 & positivity & $\delta$-correlated exclusion: $-0.6$ vs truth $-1.8$, identified part $+3.1$; with eligibility bit 3.18 vs 3.09, missed mass 0.066 exact & single seed \\
+E8 & learning delivery & period cells within 0.3 of truth ($K = 15$); pooled cells with shared refit shocks $+0.59$ vs truth $-1.16$ & 3 seeds \\
+E10 & bias/sd crossover & CTR 2.4 ($N = 0.3$M) $\to$ 8.3 (3M); conversion 0.05 $\to$ 0.16 & 20 reps per $N$ \\
+E11 & segment $\Lambda$-bounds & $\Lambda_{95} = 5.70 \pm 0.01$ (max 219); at $\Lambda = 1.5$: $[-18.6, 47.5]$, width $66.2 \pm 0.1$ & 6 seeds \\
+E12 & heterogeneity map & flips for het $\ge 0.5$ and corr $\le 0.5$; $|\hat\tau - \tau| \le 0.2$ everywhere; $\tau(\pi_{\mathrm{ov}})$ 6.2--8.6 & grid \\
+E13 & SIMEX repair & quadratic recovers 85/82/62/36\% at reliability 0.96/0.91/0.79/0.60 & extrapolant $\pm 1.7$ \\
+E14 & arm-asymmetric shocks & $\pi_B$ error to $-7.9$, $\pi_{\mathrm{ov}}$ to $-1.5$; $\delta$-uncorrelated shocks $\le 0.25$ & grid \\
+E15 & $K$ selection ($N = 1$M) & RMSE-optimal $K \approx 30$ for $\pi_B$ (bias 0.14, sd 1.84); $\pi_{\mathrm{ov}}$ insensitive & 12 reps \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Two rows need unpacking. The \emph{$\Lambda$-bound} (E11, level L1) uses nine advertiser segments (terciles of $X_1$ and $X_4$) and bounds the within-segment ratio by $\pi_B/\pi_A \in [\bar\rho_s/\Lambda, \bar\rho_s\Lambda]$, $\bar\rho_s = r_B(s)/r_A(s)$, with $\delta_A \ge 0$, giving $\tau(\pi_B) \in [\sum_s p_s\bar\rho_s\Lambda^{-1}\mathrm{ITT}_A(s) - \mathrm{ITT}_B,\ \sum_s p_s\bar\rho_s\Lambda\,\mathrm{ITT}_A(s) - \mathrm{ITT}_B]$. The realised $\Lambda$ (exponentiated 95th percentile of $|\log((\pi_B/\pi_A)/\bar\rho_s)|$) is 5.7, and even at $\Lambda = 1.5$ the interval is 66 wide on an effect of scale 8; adding the effect driver's tercile leaves $\Lambda_{95} = 5.1$. Score noise alone disperses within-segment delivery ratios. The \emph{crossover} (E10): bias/sd grows as $\sqrt N$, so the CTR test is bias-dominated from $N \approx 10^5$ while the conversion test needs $N \approx 10^8$; at typical sizes the conversion creative test is underpowered for ITTdiff and $\tau$ alike, and the estimator is a bias fix, not a precision gain. The clean-room agent's finite-sample verdict, adopted verbatim by the dive: at $N = 600$k the sd is about 2.4, so the estimator rejects ITTdiff-sized values (about 3 sd) but cannot sign $\tau(\pi_B)$ (10-replicate mean $-0.41 \pm 0.79$).
+
+\section{Limitations and the devil's advocate}
+
+Round 4 attacked the refinements and drew the boundary. \emph{SIMEX is a mitigation, not identification}: its answer depends on the extrapolant by up to 1.7---a reliability-ratio extrapolant from a Gaussian heuristic did \emph{worse} than the quadratic (67/61/53/49\% against 85/82/62/36\%)---and the real fix is logging the score used at decision time, which makes reliability 1 by construction. \emph{Arm-asymmetric shocks correlated with $\delta$} (E14: competition hits A's auctions only and correlates with the effect driver) break ratio balancing with errors up to $-7.9$, larger than the effect; $\delta$-uncorrelated shocks stay $\le 0.25$. Real auctions have arm-asymmetric unlogged components (creative format changes inventory eligibility, bid landscapes, frequency caps); the theorem says what to log but cannot certify that the unlogged residual is arm-symmetric, and \emph{ratio balancing is untestable from the logs alone}---a specification test (does adding logged features move $\hat\tau$?) is the practical guard. Round 5 changed nothing.
+
+The dive's own counterarguments: the \emph{sign flip} is manufactured by $\mathrm{het} = 1$, $\mathrm{corr} = 0.5$ in a lognormal-heterogeneity DGP---at $\mathrm{het} = 0.25$ there is no flip, only a 30\% bias---and whether real heterogeneity is that large is an empirical question the dive cannot answer (Pal and Susarla's live campaign found the algorithm moved composition by $+2.27$ pp female share while the visible creative did not). The \emph{negative control} needs B's scores substantially noisier; for two mature creatives the pure-delivery ITTdiff is about 0. The \emph{$\Lambda$-vacuity} is for worst-case bounds ignoring the within-segment distribution of $\delta_A$, under independent score noise across creatives: ``segments plus worst-case $\Lambda$ cannot work'', not ``no segment-based bound can''. The \emph{overlap policy's} precision parity was measured with similar reaches (0.26 each); with very different reaches $\pi_{\mathrm{ov}}$ shrinks toward the smaller and answers a narrower question. The \emph{$10^8$ crossover} depends on a 2\% base rate and 15\% lift (about $25\times$ lower at 10\% base rates); the portable object is bias/sd, computable ex ante from \cref{eq:algo:identity}. Untested: multiplicative effects, frequency, budget coupling across arms, interference across advertisers (M4).
+
+\section{Discussion: impacts}
+
+For experimentation platforms the message is that divergent delivery is a missing log field, not a nuisance to be harmonized away. The propensities M3 assumed had to be recovered never need to exist in the logs; what identifies the fixed-policy effect is the pair of bucketed per-creative scores the platform computes in every auction anyway, releasable as quantile buckets without exposing its model. A clean room that exports ``estimated action rate'' deciles for both creatives is already an L2 log; the eligibility bit and the period id are two further one-field additions with precise payoffs (\cref{algo:tab:hierarchy}). Against Pal and Susarla's third arm, the dive buys the same estimand for a log field rather than an arm; their natural direct effect is $\tau(\pi_{\text{ctrl-creative}})$ in this notation.
+
+For advertisers the results are cautionary: post-stratifying the exposed audience on visible segments does nothing (1.12 against 1.13), worst-case segment bounds are vacuous, and a cold-start creative can lose an A/B test by 5.5 units on delivery noise alone, so today's honest reading of an A/B winner is ``winner under its own optimizer''. For CMO decisions the crossover matters more than the identity: conversion-outcome creative tests at ordinary sizes detect neither the A/B effect nor its correction, so the bias question is moot there and live for CTR and engagement outcomes.
+
+For theory the chapter reframes M3 as transport across delivery policies (\cref{ch:transport}) whose bias has the Jensen/aggregation shape of \cref{ch:aggregation}: a covariance between a weight and a heterogeneous effect, killed by conditioning on the variable that sorts both. Ratio balancing is a weaker relative of the balancing score suited to two-policy problems, and the overlap recommendation imports Li--Morgan--Zaslavsky's logic that bounded weights buy both precision and a meaningful target population. \cref{ch:attribution} picks up the frequency and pacing thread: \BL{44} extends the cross-journey table to repeated exposure and pacing-coupled delivery, merging with \BL{31}.
+
+\section{Further exploration}
+
+\BL{29} replaces the worst-case bound with a Dorn--Guo quantile-balancing sharp bound using the within-segment distribution of exposed outcomes, to test whether any advertiser-side bound is informative at $\Lambda_{95} \approx 5$---the last hope for identification without cross-score logs. \BL{30} designs a Hausman-style specification test of ratio balancing across nested cell keys (scores; scores $\times$ placement; scores $\times$ period) with a derived null, the falsifiability hook M3 lacks (linked to \BL{4} of \cref{ch:transport}). \BL{31} drops the independent-arm and single-exposure assumptions: when arms share a budget or pacing controller $\pi_A$ depends on B's performance, and with frequency-dependent response the ``fixed policy'' must fix a distribution over exposure counts; the task is to define $\tau(\pi)$ there and find the extra log key (a pacing multiplier is the candidate). The dive's other next steps are the Pal--Susarla bridge (the third arm as L2 logging with scores from an arm that never shows A; ``extra arm'' against ``extra log field'' at matched budget) and a field pilot with an advertiser whose clean room exports both scores at bucket granularity---the first real $\tau(\pi_{\mathrm{ov}})$.
+
+In the compiler's judgement the most promising extension is \BL{30}, the only item that can make the theorem's premise checkable: the estimator is exact under ratio balancing and silently wrong outside it, and a nested-key Hausman test is cheap once L2 logs exist. Its natural companion is the Pal--Susarla bridge, since a platform that has built a third arm holds a validation set for the cheaper route. \BL{31} matters more for the book's other chapters but depends on a frequency-indexed estimand that \cref{ch:attribution} is better placed to define.
+
+\begin{reviewernote}[(compiler)]
+\textbf{The headline ``1\% of the divergence bias'' is the clean-room's seed, not the dive's.} Round 2 attack 1 reports ``$K = 40$: 5\% (1\% in the clean-room's seed)'' and derives $K^{-1.4}$ from 36\%/14\%/5\%; the E4 table row says ``0.010 $\pm$ 0.000'' and the INDEX line ``recover $\tau$ to 1\%''. A quantity that differs $5\times$ between seeds cannot have seed sd 0.000. E15 (seed 52) gives 0.14 at $K = 30$ and 0.07 at $K = 50$, i.e.\ 0.7--1.4\% of the divergence bias $7.99 + 1.69 = 9.68$; the honest statement is ``1--5\% at $K = 40$''.
+
+\textbf{Numbers moved between rounds without comment.} Round 1 quotes the flip as $+7.8$ / $-1.8$ / $+16.5$; E3 gives $+7.99$ / $-1.69$ / $+16.68$; E7 uses a truth of $-1.8$, E1/E4 ``$-1.7$''. These are different seeds and sizes (drivers use seeds 1, 11, 41, 52 at $N = 600$k or 1M), consistent with the quoted seed sd of 0.06--0.08 only at $2$--$3\sigma$ for ITTdiff. The negative control is 0.08 in \S4 and the INDEX, $0.075 \pm 0.002$ in E9.
+
+\textbf{Single-seed attacks and an unstated regime.} E5, E6, E7 and the SIMEX percentages are single-seed population limits with no uncertainty. E2 does not state its regime; its sd (4.85) matches the conversion regime, not the CTR regime whose sd at $N = 1$M is 1.84 (E15). E1, E2 and E8 have no driver in the shipped code, so the learning-delivery numbers cannot be re-run from it.
+
+\textbf{Two labels are approximate.} E14's ``$\delta$-uncorrelated'' competition variable is $0.7X_1 + 0.7X_4$, and $X_1$ enters $\delta_A$ through the baseline $p_0$: the shock is uncorrelated with the effect \emph{driver} $X_2$, not with $\delta_A$. And the overlap cell estimator targets $\sum_c p_c\,2r_Ar_B/(r_A+r_B)(\cdots)$ while the truth uses user-level $2\pi_A\pi_B/(\pi_A+\pi_B)$; they agree only as cells become fine, so ``coarseness-immune'' means ``small at every $K$'' ($0.12 \to 0.005$), not exact.
+
+\textbf{Attribution.} The dive credits an ``SSRN 2019 w/\ Eckles'' version of Braun and Schwartz; SSRN 3896024 lists Braun and Schwartz only, and the Eckles critique is Eckles, Gordon and Johnson (2018), cited separately here. Pal and Susarla (2026) was verified by the dive at abstract level only; its $+2.27$ pp figure comes from that abstract.
+
+\textbf{Consistency checks passed.} The INDEX line agrees with the writeup on every other number; $1.17/0.92 = 1.27$ gives ``$+27\%$''; the $\sqrt N$ extrapolation of bias/sd from 0.16 at 3M reaches 1 at $1.2\times10^8$ and from 2.4 at 0.3M at $5\times10^4$, matching ``$10^8$'' and ``$10^5$''; the reliabilities 0.96/0.91/0.79/0.60/0.48 reproduce from log-noise 0.2/0.3/0.5/0.8/1.0 against a true-score variance near 0.98. The file's last write (23:43 UTC) postdates the log line's 23:30 by 13 minutes.
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item Braun, M. and Schwartz, E. M. (2025). \emph{Where A-B Testing Goes Wrong: How Divergent Delivery Affects What Online Experiments Cannot (and Can) Tell You About How Customers Respond to Advertising}. Journal of Marketing. \url{https://journals.sagepub.com/doi/10.1177/00222429241275886}; working paper \url{https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3896024}
+\item Eckles, D., Gordon, B. R. and Johnson, G. A. (2018). \emph{Field Studies of Psychologically Targeted Ads Face Threats to Internal Validity}. PNAS 115(23), E5254--E5255.
+\item Ali, M., Sapiezynski, P., Bogen, M., Korolova, A., Mislove, A. and Rieke, A. (2019). \emph{Discrimination through Optimization: How Facebook's Ad Delivery Can Lead to Biased Outcomes}. Proc.\ ACM Human-Computer Interaction 3 (CSCW). \url{https://arxiv.org/abs/1904.02095}
+\item Burtch, G., Moakler, R., Gordon, B. R., Zhang, K. and Hill, S. (2025). \emph{Characterizing and Minimizing Divergent Delivery in Meta Advertising Experiments}. arXiv:2508.21251. \url{https://arxiv.org/abs/2508.21251}
+\item Pal, S. and Susarla, A. (2026). \emph{Algorithm or Creative? A Three-Arm Experimental Design for Decomposing Algorithmic Bias in Platform A/B Tests}. arXiv:2605.23706. \url{https://arxiv.org/abs/2605.23706}
+\item Johnson, G. A., Lewis, R. A. and Nubbemeyer, E. I. (2017). \emph{Ghost Ads: Improving the Economics of Measuring Online Ad Effectiveness}. Journal of Marketing Research 54(6). \url{https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2620078}
+\item Hirano, K., Imbens, G. W. and Ridder, G. (2003). \emph{Efficient Estimation of Average Treatment Effects Using the Estimated Propensity Score}. Econometrica 71(4), 1161--1189. \url{https://onlinelibrary.wiley.com/doi/abs/10.1111/1468-0262.00442}
+\item Hanna, J. P., Niekum, S. and Stone, P. (2019). \emph{Importance Sampling Policy Evaluation with an Estimated Behavior Policy}. Proc.\ ICML. \url{https://arxiv.org/abs/1806.01347}
+\item Rosenbaum, P. R. and Rubin, D. B. (1983). \emph{The Central Role of the Propensity Score in Observational Studies for Causal Effects}. Biometrika 70(1), 41--55.
+\item Rosenbaum, P. R. (2002). \emph{Observational Studies}, 2nd ed. Springer; Tan, Z. (2006). \emph{A Distributional Approach for Causal Inference Using Propensity Scores}. JASA 101(476), 1619--1637.
+\item Kallus, N. and Zhou, A. (2018). \emph{Confounding-Robust Policy Improvement}. Proc.\ NeurIPS. \url{https://arxiv.org/abs/1805.08593}
+\item Kallus, N. and Zhou, A. (2020). \emph{Confounding-Robust Policy Evaluation in Infinite-Horizon Reinforcement Learning}. Proc.\ NeurIPS. \url{https://arxiv.org/abs/2002.04518}
+\item Namkoong, H., Keramati, R., Yadlowsky, S. and Brunskill, E. (2020). \emph{Off-policy Policy Evaluation for Sequential Decisions under Unobserved Confounding}. Proc.\ NeurIPS. \url{https://arxiv.org/abs/2003.05623}
+\item Dorn, J. and Guo, K. (2022). \emph{Sharp Sensitivity Analysis for Inverse Propensity Weighting via Quantile Balancing}. JASA 118(544), 2645--2657 (2023). \url{https://arxiv.org/abs/2102.04543}
+\item Li, F., Morgan, K. L. and Zaslavsky, A. M. (2018). \emph{Balancing Covariates via Propensity Score Weighting}. JASA 113(521), 390--400.
+\item Cook, J. R. and Stefanski, L. A. (1994). \emph{Simulation-Extrapolation Estimation in Parametric Measurement Error Models}. JASA 89(428), 1314--1328.
+\item Swaminathan, A., Krishnamurthy, A., Agarwal, A., Dud\'ik, M., Langford, J., Jose, D. and Zitouni, I. (2017). \emph{Off-policy Evaluation for Slate Recommendation}. Proc.\ NeurIPS. \url{https://www.cs.cornell.edu/~adith/docs/Slates.pdf} (cited by the dive as OPE prior art; not used above.)
+\item Frontier study (internal): the open-questions catalogue \texttt{02\_open\_questions.md}, entry M3; program index \texttt{00\_INDEX.md}, queue item B4 and backlog entries \BL{29}--\BL{31}, \BL{44}.
+\item Program (internal): \dive{02}, file \texttt{02\_experiment\_transport\_map.md} (transport across policies); \dive{06}, file \texttt{06\_aggregation\_privacy.md} (Jensen/aggregation algebra); \dive{13}, file \texttt{13\_attribution\_impossibility.md} (\BL{44}).
+\end{enumerate}
+\endgroup

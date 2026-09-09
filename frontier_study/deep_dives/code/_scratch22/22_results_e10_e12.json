@@ -1,0 +1,40 @@
+{
+ "e10": {
+  "alpha / half-life / dhl_dalpha": "0.600 / 1.3569 wk / 4.4272",
+  "Psi0": "19.8044",
+  "(a) prior sd 0.25 wk on half-life -> sd_alpha=0.0565": "Psi=13.47597  (L* multiplier 0.8249)",
+  "(a) prior sd 0.50 wk on half-life -> sd_alpha=0.1129": "Psi=17.07950  (L* multiplier 0.9287)",
+  "(a) prior sd 1.00 wk on half-life -> sd_alpha=0.2259": "Psi=18.97306  (L* multiplier 0.9788)",
+  "(a) prior sd 2.00 wk on half-life -> sd_alpha=0.4518": "Psi=19.58445  (L* multiplier 0.9944)",
+  "--- (b) uniform vs Gaussian prior on alpha ---": "",
+  "free sd(alpha) from FIM": "0.0636",
+  "UNCONSTRAINED MC baseline sd(mROAS) / FIM prediction": "0.91656 +- 0.05310 / 0.52828",
+  "w=0.02 (w/sd_free=0.31): sd(mROAS) MC / Gaussian-matched": "0.36342 +- 0.02105 / 0.35311",
+  "w=0.05 (w/sd_free=0.79): sd(mROAS) MC / Gaussian-matched": "0.55686 +- 0.03226 / 0.38320",
+  "w=0.10 (w/sd_free=1.57): sd(mROAS) MC / Gaussian-matched": "0.72561 +- 0.04203 / 0.43777",
+  "--- (c) which shape parameter is worth pricing ---": "",
+  "pin alpha exactly -> Psi": "8.4872   (value captured 44.5%)",
+  "pin K exactly -> Psi": "17.5197   (value captured 7.7%)",
+  "pin S exactly -> Psi": "18.4736   (value captured 4.4%)"
+ },
+ "e12": {
+  "mROAS / sd(mROAS) flat": "1.29030 / 0.52828",
+  "rel sd r=0.50: sd(mROAS) for priors on beta/alpha/K/mROAS": "0.50249 / 0.52174 / 0.49717 / 0.40873",
+  "rel sd r=0.30: sd(mROAS) for priors on beta/alpha/K/mROAS": "0.50243 / 0.51125 / 0.49698 / 0.31224",
+  "rel sd r=0.20: sd(mROAS) for priors on beta/alpha/K/mROAS": "0.50241 / 0.49407 / 0.49692 / 0.23187",
+  "rel sd r=0.10: sd(mROAS) for priors on beta/alpha/K/mROAS": "0.50240 / 0.44124 / 0.49688 / 0.12535",
+  "rel sd r=0.05: sd(mROAS) for priors on beta/alpha/K/mROAS": "0.50240 / 0.38552 / 0.49687 / 0.06404",
+  "rank-one identity max rel err": "2.906e-12",
+  "--- L* multiplier (dollar value) at r=0.20 ---": "",
+  "   prior on beta": "L* x 0.9510   (saves 4.9% of the budget)",
+  "   prior on alpha": "L* x 0.9352   (saves 6.5% of the budget)",
+  "   prior on K": "L* x 0.9406   (saves 5.9% of the budget)",
+  "   prior on mROAS": "L* x 0.4389   (saves 56.1% of the budget)",
+  "--- the governing law: value/V_flat = corr^2 * u/(1+u), u = p * n'I^-1 n ---": "",
+  "   beta: corr=+0.30914  frac of Var removed (actual/law)": "u=0.3:0.0221/0.0221  u=1.0:0.0478/0.0478  u=3.0:0.0717/0.0717  u=10.0:0.0869/0.0869",
+  "   alpha: corr=+0.75594  frac of Var removed (actual/law)": "u=0.3:0.1319/0.1319  u=1.0:0.2857/0.2857  u=3.0:0.4286/0.4286  u=10.0:0.5195/0.5195",
+  "   K: corr=-0.33965  frac of Var removed (actual/law)": "u=0.3:0.0266/0.0266  u=1.0:0.0577/0.0577  u=3.0:0.0865/0.0865  u=10.0:0.1049/0.1049",
+  "   mROAS: corr=+1.00000  frac of Var removed (actual/law)": "u=0.3:0.2308/0.2308  u=1.0:0.5000/0.5000  u=3.0:0.7500/0.7500  u=10.0:0.9091/0.9091",
+  "   max abs error of the corr^2 u/(1+u) law": "3.331e-16"
+ }
+}

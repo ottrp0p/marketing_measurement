@@ -1,0 +1,87 @@
+# Deep dive 05 — Always-on experiment-to-model fusion: the closed loop (A5 / E6)
+
+**Queue item:** A5 (E6, `02_open_questions.md`; consumes dive 03's E6 scheduler and dive 04's LQC/gauss-u scorer per BL9) · **Date:** 2026-08-31/09-01 · **Code:** `code/05_fusion_loop.py` (staged: `setup s1 s2 s3 s3b s4 s5:0-2 s6 s7 s8 s9`; state via `D05_STATE` env var, default `/tmp/d05_state.pkl`)
+
+*Run note: a prior scheduled run built the system and completed stages setup–s4, then was interrupted before s5–s9, the adversarial rounds, and this writeup. This run recovered those results from saved state, ran everything else, and reconciled. One dive, two sessions.*
+
+## 1. Problem statement
+
+E6 asks for the system nobody has shipped: a loop that continuously (i) tracks MMM beliefs as the world drifts, (ii) decides **when** to launch a calibration experiment, **which** one, and (iii) folds results back automatically. Formalize the loop, derive its operating law, and stress it in simulation with the full nonlinear machinery of dives 01–04.
+
+**The plant.** Dives 01–04's model, now with a moving truth: J=3 channels, $y_t=\sum_j\beta_{jt}h(a_{jt};K_j,S_j)+\varepsilon_t$ (geometric adstock, Hill, $\sigma=0.05$); effectiveness drifts as a random walk, $\beta_{jt+1}=\beta_{jt}+q\,\xi_{jt}$ (baseline $q=0.015$/wk ≈ 20%/yr sd). Budget $B=3$ reallocated weekly to the belief-optimal simplex point; spends carry AR(1) jitter (sd 3%). Regret = oracle revenue − realized allocation's revenue.
+
+**The loop (the construction under test).** An EKF over the 12-dim parameter vector: closed-form observation gradients including the adstock-sensitivity recursion $\partial a/\partial\alpha$; weekly revenue updates; experiments (menu of dive 04's designs: 6 single-channel pulses, 2 switch designs, 1 dual; 16-wk launch-to-delivery latency, cost $c$ each) ingested by **moment-matching**: the Kalman-style update with $\mathrm{Cov}(\theta,L)$, $\mathrm{Var}(L)$ estimated by sampling the current belief through the dive-02 operator — the sampled u-space analog of Meridian-style calibration, no refit. A **decision-risk ledger** $\rho_t=\tfrac12\mathrm{tr}(\Omega D\Sigma_t D^\top)$ (dive 03's quadratic regret functional at the current belief) drives scheduling.
+
+## 2. Prior state
+
+No shipped closed-loop scheduler exists (literature subagent, this run). Closest: [Recast](https://getrecast.com/how-to-prioritize-experiments-when-you-cant-run-them-all/) (time-bounded experiment priors that re-widen — a hand-rolled drift model — plus *blog-post* prioritization by widest CI), [Haus Copilot](https://www.haus.io/experiments) (LLM-assisted test suggestions), [LiftLab](https://liftlab.com/solutions/incrementality-testing/) (analyst-driven). Machinery that exists separately: sequential/amortized BOED ([DAD, Foster et al. 2021](https://arxiv.org/abs/2103.02438); [Rainforth et al. 2024 survey](https://arxiv.org/abs/2302.14545)); intermittent-observation Kalman theory ([Sinopoli et al. 2004](https://people.eecs.berkeley.edu/~sastry/pubs/PDFs%20of%20Pubs2000-2005/Publications%20of%20Grad%20Students%2020042005/Sinopoli/SinopoliKalmanFiltering2004.pdf) — the modified Riccati recursion is exactly the "posterior width vs experiment frequency" tool); profit-based test sizing ([Test & Roll](https://www.ron-berman.com/papers/testandroll.pdf)); ingestion mechanics ([Google's ROAS-reparametrized calibration](https://storage.googleapis.com/gweb-research2023-media/pubtools/pdf/a09f404fdc3107fafb7a52cc5af6a80e4d0fda2b.pdf), [Meridian docs](https://developers.google.com/meridian/docs/advanced-modeling/roi-priors-and-calibration), and the brand-new [Heusch 2026](https://arxiv.org/abs/2608.21128) full-parameter estimation from geo experiments); drift-aware MMM ([Uber TVC, arXiv:2106.03322](https://arxiv.org/abs/2106.03322)). Motivation for experiment anchoring: algorithmic spend endogeneity inflates observational MMM ROAS ~2.5× ([arXiv:2608.21130](https://arxiv.org/html/2608.21130)). Published cadence guidance is folklore (≈1 test/channel/quarter); no one derives it.
+
+## 3. Theory developed in this dive
+
+**T1 — the renewal cadence law** (derived here; all three formulas independently re-derived and numerically confirmed to ~10⁻⁵ by the clean-room verification agent). If decision risk grows linearly at rate $r=\tfrac12\mathrm{tr}(\Omega DQD^\top)=r_u q^2$ ($r_u=0.208$ for this plant) and each experiment removes fraction $\kappa$ of current risk at cost $c$, the steady cycle gives average loss $L(\tau)=r\tau(1/\kappa-\tfrac12)+c/\tau$, hence
+$$\tau^*=\sqrt{\frac{c}{r(1/\kappa-1/2)}},\qquad \ell^*=2\sqrt{cr(1/\kappa-1/2)},\qquad p^*=\sqrt{\frac{cr}{\kappa(1-\kappa/2)}},$$
+$p^*$ the optimal ledger threshold for trigger policies (threshold and periodic policies achieve identical $\ell^*$ under deterministic growth). At baseline ($q=0.015$, $c=0.15$, $\kappa=0.4$): $\tau^*=40$ wk, one experiment per channel-quarter-ish — the folk cadence, now derived.
+
+**T2 — portfolio ceiling and greedy scheduling** (formalizes dive 04's count-additivity). For any set $A$ of readouts, $\kappa(A)\le$ (sum of top-$|A|$ eigenshares of the decision spectrum). Verified exactly: **0/129** subsets of the 9-design menu violate the ceiling. The set function is *nearly* submodular — 21/324 diminishing-returns violations, worst late/early gain ratio 1.068, all involving switch-pair complementarities — so greedy selection is near-optimal despite lacking the formal guarantee: greedy/optimal = 1.000, 0.926, 1.000 at k=1,2,3; three experiments capture 90.4% of EVPI_LQ. (Established numerically for this plant; the near-submodularity is not proven.)
+
+**T3 — level/contrast split.** Near-constant spends make the weekly stream inform mostly the decision-null level direction (dive 03's null theorem): in the no-experiment loop the level-risk drains 12× (0.033→0.0026) while contrast risk ρ stalls at a floor ~0.018 ≈ 80% of static EVPI. Directionally right — but the flat-in-drift loss this predicted is *not* the mechanism that survives verification (§5, round 4).
+
+## 4. The attack-and-refine history
+
+**Round 1 (construct, prior session):** system as in §1 + policies never / cadence:τ / trigger (ledger ≥ p*, round-robin menu) / trigger_lqc (menu by gauss-u score per cost) / trigger_rand.
+
+**Round 2 (attacks embedded in the prior session's code):** (a) *corner blindness* — at a belief-optimal corner $b_j\!\approx\!0$, Hill's $h'(0)=0$ zeroes D's column, hiding dark-channel risk from the ledger → probe-point ledger (trigger_pp) and a coverage guard (trigger_lqcg: force-probe any channel stale >100 wk or dark >30 wk); (b) *jitter leakage* — s3b reruns the cadence grid with jitter 0.004 to check the obs stream isn't doing the experiments' work; (c) *spend-floor control* — s9 asks whether a 15–30% exploration floor alone (no experiments) buys the same protection.
+
+**Round 3 (this session's attack on the numbers):** means are dominated by rare catastrophic seeds → trap anatomy (threshold-robust, R4b); the s5 scaling fit refutes T1's drift half (q-exponent 0.47±0.08, then 0.1–0.2 at 48 seeds/cell, vs law's 1.0) while confirming its cost half (c-exponent 0.457±0.042 vs 0.5); zero-drift control was missing its baseline → run it; LQC-trap mechanism unproven → probe-coverage diagnostic.
+
+**Round 4 (refine + clean-room):** cadence grids at q=0.0075 and 0.03 show the law's *argmin* survives even where its *value* fails (empirical best cadence 80 / 40 / 10–20 wk vs τ* = 80 / 40 / 20). The verification agent's independent linear-Gaussian loop then **refuted my drainage attribution** of the flatness: an exact Kalman closed loop shows q-exponent 1.01 (law intact, ℓ* within 15–20%), c-exponents 0.43–0.50, argmin tracking within 2×. So the flattening in *my* loop is not observation drainage — it is nonlinear-filter pathology, consistent with the trap data (trap rate **rises** as drift falls: 17/48 at q=0.0075 vs 5–7/48 at q≥0.015; process noise is regularization for an EKF). Attribution revised; no further construction changes demanded. Round 5 (R5, q=0.03 grid) produced confirmation only → stopped.
+
+## 5. Findings (all numbers from `code/05_fusion_loop.py` + state; CRN across policies; 16–48 seeds as noted)
+
+**F1 — the cadence law is a good selector and a bad forecaster.** Argmin tracking 3/3 across a 4× drift range (above). Cost scaling confirmed: c-exponent 0.457±0.042 (law 0.5). Drift scaling refuted in the nonlinear loop: min-loss q-exponent ≈ 0.1–0.5 (48-seed row: medians 0.0150/0.0149/0.0202/0.0178 across q=0.0075–0.06) vs law's 1.0 — but confirmed (1.01) in the clean-room *linear* loop. Level: empirical/law ratio 1.4–4.0 (mean 2.2 over the 12-cell grid), consistent with dive 03's known ~2–3× LQ conservatism at realistic widths plus delay and κ_actual<κ_plan. Devil's advocate: the 9-cell exponent fit uses trap-contaminated medians with 16 seeds/cell; the 48-seed refit's bootstrap se (±0.4) cannot exclude 0.5, only ~1.0 marginally. What is solid: loss is far flatter in drift than any linear theory allows, and the flatness co-occurs with the trap-rate inversion.
+
+**F2 — the trap economy: experimentation in the loop is mostly insurance, not precision.** With realistic belief-error starts, 32 seeds: never traps (loss>0.05) 15/32; any powered experiment stream cuts this to 8–10/32; ordering robust to threshold ∈ {0.03, 0.05, 0.10}. Among *non-trapped* runs every policy lands at regret 0.014–0.020 — statistically indistinguishable. The marginal-precision value the EVSI machinery of dives 03–04 prices is real but small in-loop; the big money is trap prevention. Mean losses: never 0.161±0.047 → trigger 0.088±0.027 → trigger+15% spend floor **0.031±0.013**. The cheap belief-independent safeguard does most of the work: floor-30 alone (no experiments at all) reaches 0.051±0.011.
+
+**F3 — the ledger cannot see the failures it must prevent.** In trapped runs the belief-computed risk ρ underestimates realized regret by ~×13 (late regret 0.230 vs ρ 0.018, 12 seeds, trap-dominated mean) — the belief is confidently wrong, so threshold policies do not fire when most needed. Any production loop needs belief-independent components: minimum cadence, coverage constraints, spend floors.
+
+**F4 — belief-driven design selection is the loop's own trap-maker.** trigger_lqc (pick the menu design by score under current belief) leaves some channel entirely unprobed in 5/32 runs — and **all five trap** (P(trap | zero-probe) = 1.00 vs 0.19 otherwise). Round-robin never leaves a channel unprobed (0/32). The scheduler exploits its own misbelief: a channel believed worthless is never tested, hence never corrected — the sequential, self-inflicted version of dive 03's plateau lesson. With the coverage guard (trigger_lqcg) zero-probe runs vanish and performance matches round-robin; scored selection then adds nothing (trigger 0.088 ≈ trigger_rand 0.090 ≈ trigger_lqcg 0.104, all ±~0.03). **In-loop, WHICH powered experiment matters even less than statically; WHETHER, WHEN, and COVERAGE are the decisions that pay.**
+
+**F5 — controls (the instrument discriminates).** Weak-design menu (tenth-size pulses): trigger ≈ never (0.199±0.081 vs 0.192) while powered menus roughly halve loss — power cliff reproduced in-loop. Cadence ≥ 90 wk ≈ never. Zero-drift world: the trigger correctly fires only ~7× (draining initial uncertainty) vs 16–22 under drift; note the zero-drift/zero-Q loop is itself trap-prone (never-policy median 0.29 — no process noise, no forgetting, no escape), a caution against turning drift terms off in production filters.
+
+**F6 — robustness.** Filter-drift misspecification is asymmetric: q_filter=q/4 is catastrophic (0.243±0.072 — overconfidence → few triggers → traps), q_filter=4q merely wasteful (0.111±0.050, 24 experiments). Set filter drift high, not low. Burst drift (rare ±0.25 jumps) breaks the smooth-drift trigger (0.378); innovation-based covariance inflation recovers part (0.289). Ingestion: moment-matched vs linearized EKF update — median paired diff +0.0007, mean +0.012±0.027; no significant difference at this noise level (the moment ingester's robustness advantage from dive 02's operator nonlinearity does not clear MC resolution here).
+
+## 6. The E6 architecture (design doc distilled from the findings)
+
+Components, in order of measured value: (1) **drift-aware filter** with generous process noise and innovation inflation; (2) **spend floors** (10–15% of historical per channel) — belief-independent trap insurance at ~zero infrastructure cost; (3) **cadence backbone**: schedule from T1's τ*(c, r, κ) using planning-time constants — do not let the belief postpone tests (F3); treat the trigger ρ≥p* as an accelerator only (fire early when the ledger spikes, never later than τ_max≈1.5τ*); (4) **coverage constraint**: every channel probed within G≈2τ* weeks, dark channels within ~30 wk — a hard constraint, not a score bonus (F4); (5) **design menu**: powered designs only (F5); prefer switch/dual designs for their higher κ (dive 04); round-robin is an acceptable production default, scored selection optional once the guard exists; (6) **moment-matching ingestion** through the operator map — no refit needed weekly; (7) **risk ledger** ρ_t for reporting and acceleration, never as sole gatekeeper.
+
+```
+loop weekly:
+  belief.predict(Q_drift, inflate=innovation_ewma)     # (1)
+  belief.update_revenue(y_t)
+  if experiment_delivered: belief.ingest_moment(L_obs, operator)   # (6)
+  b_t = argmax_allocation(belief.mean, floor=0.12*hist)            # (2)
+  rho = ledger(belief.Sigma, probe_point=max(b_t, 0.15*hist))      # (7, corner fix)
+  due  = weeks_since_last_launch >= tau_star(c, r_plan, kappa_plan)
+  cov  = any(channel_stale(G) or dark_channel_stale(30))           # (4)
+  if (rho >= p_star or due or cov) and none_in_flight:
+      launch(next_design(menu_powered, forced=cov))                # (3,5)
+```
+
+## 7. Limitations and failure modes
+
+Single EKF, not full MCMC: trap rates are partly a property of this filter; a re-fit-from-scratch weekly Bayesian MMM would trap differently (likely less, at 1000× compute) — the insurance economics should be re-run against a NUTS refit before believing the absolute trap rates. Drift only on β (K, S, α static); cost c is exogenous and identical across designs except the dual's 2× (BL7's geo-count power model still unbuilt); 16-wk delivery latency fixed; one experiment in flight at a time; J=3. The trap threshold (0.05) is a chosen scalar, though orderings survive 0.03–0.10. T2's near-submodularity is unproven. Means at 16–32 seeds carry wide CIs because loss is bimodal; medians + trap rates are the stable statistics, and both are reported wherever a claim depends on them.
+
+## 8. Next steps for a future session
+
+1. **Trap theory (new, the dive's sharpest open edge):** why does EKF trap probability *rise* as drift falls? Formalize process-noise-as-regularization; characterize basins (dark-corner beliefs) and derive the minimal floor/cadence that guarantees escape — the missing piece the clean-room verification exposed.
+2. **Belief-independent risk ledgers:** replace ρ (×13 underestimate in traps) with a bound that doesn't trust the belief mean — e.g., worst-case regret over a trust region around the belief, or a held-out predictive-residual monitor as trigger.
+3. **BL7 (cost fairness):** geo-count power model → per-design c(d); redo F2/F4 economics.
+4. **NUTS-refit comparison:** replace the EKF with periodic full refits; measure trap-rate delta at matched compute.
+5. **Portfolio scheduling under overlap:** currently one in-flight experiment; extend to concurrent non-interfering designs using T2's ceiling as the concurrency planner.
+
+## Sources
+
+- Internal: dives 01–04 (design/FIM, operator map, LQ regret + EVSI machinery, LQC/gauss-u scorers, switch/dual designs); catalogs `../02_open_questions.md` E6/M10, `../03_mmm_adoption_barriers.md` §B5/§H8.
+- [Foster et al. 2021, Deep Adaptive Design](https://arxiv.org/abs/2103.02438) · [Rainforth et al. 2024, Modern Bayesian Experimental Design](https://arxiv.org/abs/2302.14545) · [Sinopoli et al. 2004, Kalman filtering with intermittent observations](https://people.eecs.berkeley.edu/~sastry/pubs/PDFs%20of%20Pubs2000-2005/Publications%20of%20Grad%20Students%2020042005/Sinopoli/SinopoliKalmanFiltering2004.pdf) · [Feit & Berman, Test & Roll](https://www.ron-berman.com/papers/testandroll.pdf)
+- [Zhang et al. 2024, MMM calibration with Bayesian priors (Google)](https://storage.googleapis.com/gweb-research2023-media/pubtools/pdf/a09f404fdc3107fafb7a52cc5af6a80e4d0fda2b.pdf) · [Meridian calibration docs](https://developers.google.com/meridian/docs/advanced-modeling/roi-priors-and-calibration) · [Heusch 2026, structural MMM estimation from geo-experiments](https://arxiv.org/abs/2608.21128) · [Ng et al. 2021, Bayesian TVC MMM (Uber)](https://arxiv.org/abs/2106.03322)
+- [Endogenous-spend MMM benchmark (≈2.5× ROAS inflation)](https://arxiv.org/html/2608.21130) · [Zhang et al. 2021 PNAS, inference under adaptive allocation](https://www.pnas.org/doi/10.1073/pnas.2014602118) · [Recast on experiment prioritization](https://getrecast.com/how-to-prioritize-experiments-when-you-cant-run-them-all/) · [Recast lift-test calibration](https://getrecast.com/how-to-use-lift-tests-to-calibrate-an-mmm/) · [Haus experiments](https://www.haus.io/experiments) · [LiftLab](https://liftlab.com/solutions/incrementality-testing/)

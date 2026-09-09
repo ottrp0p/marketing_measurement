@@ -1,0 +1,24 @@
+{
+ "e15": {
+  "deadband h* / q / K / gamma": "0.43666 / 0.01 / 0.5 / 1.0",
+  "EXACT INVARIANCE: a constant bias shifts zhat and x together, so the trigger statistic |zhat-x| is unchanged -> a biased estimate never causes churn.": "",
+  "--- deadband h*=0.4367 ---": "",
+  "  [h*] b=0.05: excess bias / noise / pi": "0.001186 / 0.001304 / pi=0.909 +- 0.404",
+  "  [h*] b=0.05 quad bias/noise , move bias/noise": "0.001241 / -0.000765  ,  -0.000056 / 0.002069",
+  "  [h*] b=0.10: excess bias / noise / pi": "0.004927 / 0.008454 / pi=0.583 +- 0.069",
+  "  [h*] b=0.10 quad bias/noise , move bias/noise": "0.004983 / -0.001539  ,  -0.000056 / 0.009993",
+  "  [h*] b=0.20: excess bias / noise / pi": "0.019958 / 0.068475 / pi=0.291 +- 0.015",
+  "  [h*] b=0.20 quad bias/noise , move bias/noise": "0.020007 / 0.005263  ,  -0.000049 / 0.063212",
+  "  [h*] b=0.40: excess bias / noise / pi": "0.080132 / 0.265288 / pi=0.302 +- 0.004",
+  "  [h*] b=0.40 quad bias/noise , move bias/noise": "0.080031 / 0.061601  ,  0.000101 / 0.203687",
+  "--- act-always h=0 [POWER CONTROL] ---": "",
+  "  [h0] b=0.05: excess bias / noise / pi": "0.001250 / 0.001254 / pi=0.997 +- 0.003",
+  "  [h0] b=0.05 quad bias/noise , move bias/noise": "0.001250 / 0.001254  ,  0.000000 / 0.000000",
+  "  [h0] b=0.10: excess bias / noise / pi": "0.005000 / 0.005017 / pi=0.997 +- 0.003",
+  "  [h0] b=0.10 quad bias/noise , move bias/noise": "0.005000 / 0.005017  ,  0.000000 / 0.000000",
+  "  [h0] b=0.20: excess bias / noise / pi": "0.020000 / 0.020069 / pi=0.997 +- 0.003",
+  "  [h0] b=0.20 quad bias/noise , move bias/noise": "0.020000 / 0.020069  ,  0.000000 / 0.000000",
+  "  [h0] b=0.40: excess bias / noise / pi": "0.080000 / 0.080275 / pi=0.997 +- 0.003",
+  "  [h0] b=0.40 quad bias/noise , move bias/noise": "0.080000 / 0.080275  ,  0.000000 / 0.000000"
+ }
+}
