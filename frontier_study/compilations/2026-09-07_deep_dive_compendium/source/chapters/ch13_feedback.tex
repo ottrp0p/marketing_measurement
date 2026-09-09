@@ -1,0 +1,365 @@
+% ===========================================================================
+% Chapter: Inference inside the measurement--allocation feedback loop (dives 16 + 19)
+% ===========================================================================
+\chapter[Inference inside the feedback loop]{Inference inside the\\ measurement--allocation feedback loop}
+\label{ch:feedback}
+
+\begin{provenance}
+\textbf{Source dives:} \dive{16} \emph{Inference in the measurement--allocation feedback loop: the loop's pathology is frozen learning, not false confidence} (run 2026-09-03, file \texttt{16\_feedback\_loop\_inference.md}, written 03:44 UTC); \dive{19} \emph{EXTEND of dive 16: detecting the stall, the multichannel stall geometry, and what survives adstock and confounding} (run 2026-09-03, file \texttt{19\_feedback\_loop\_inference\_ext.md}, written 21:41 UTC; results \texttt{code/19\_results\_all.json}).
+\textbf{Code:} \texttt{code/16\_feedback\_loop\_inference.py}, \texttt{code/19\_feedback\_loop\_inference\_ext.py}.
+\textbf{Frontier-study problem(s) addressed:} M7 --- Hadad et al.\ solve inference under a \emph{known} adaptive assignment rule; in practice budgets adapt to interim estimates, so assignment depends on past estimators; wanted: valid confidence sequences for ROAS under endogenous, estimator-dependent adaptive designs (the statistical twin of E2).
+\textbf{Backlog items closed:} \BL{56} (partly), \BL{57}, \BL{58} (by \dive{19}); \textbf{opened:} \BL{55}--\BL{58} (from \dive{16}), \BL{68}--\BL{72} (from \dive{19}; \BL{70} later priced in \cref{ch:identification}).
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item A policy-agnostic anytime-valid confidence sequence is the RSS contour $\{\theta : \mathrm{RSS}_t(\theta) \le R^*_t\}$ with a mixture radius: valid under estimator-dependent spend and unknown $\sigma$ (coverage 0.998--1.000 in every policy cell; clean-room 0.9999 under a CI-triggered policy) at 2.3--3$\times$ the naive width.
+\item Smooth feedback is second-order for the naive interval: $O(g)$ bias exactly zero, $O(g)$ variance $\propto \kappa_3 g$ with coefficient $-0.00156$ matched to three digits, coverage 0.95 at any gain. The only first-order failure is drift $\times$ trigger (0.90/0.88/0.86 at $T = 104/208/416$; fixed hold 0.96); peeking dominates everything (0.66 $\to$ 0.40).
+\item A certainty-equivalent loop without exogenous exploration stalls (Keskin--Zeevi transported): $D$ frozen at 23.9 from $T = 104$ to 832, manifold identity 0.028 vs 0.375; in the Hill MMM loop the mROAS half-width stays $\approx 40\%$ forever and the model's own mROAS at current spend echoes the breakeven target (1.000 $\pm$ 0.005 vs true 0.81--1.32). $t^{-1/4}$ exploration beats the stall by 27\% in profit; constant exploration loses.
+\item The echo at the set-point is an identity (sd $10^{-15}$); at realised spend its false-alarm law is a scale mixture (0.22/0.043/0.012 at $k = 1/3/6$) the Gaussian theory misses by 5--150$\times$. The exogenous clock $D^\perp_t = vt$ alarms sharply but needs logged set-points; no log-only statistic separates exploration from demand chasing, which is the real pathology: spend $+158\%$, true mROAS 0.27 reported as 1.01, naive coverage 0.000 and the anytime-valid CS 0.007--0.017.
+\item Multichannel: the budget direction is never identified under budget-neutral variation (rmse 5.6 vs 0.13); optimal passive exploration is $V \propto H_f^+$ with curvature-free cost (1.77 vs 1.75, 5.2 vs 6.25), exactly a mixture of pairwise switches with $w_{ij} = 1/(c_ic_jS)$, but bent inside the loop. An AR(1)-mixture CS restores validity at AR $= 0.8$ (0.927 $\to$ 1.00) and is 42\% narrower.
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+Every operating measurement system is a closed loop: a model reports a marginal return, the advertiser moves budget, and next week's data arrive from the moved budget. M7 frames this as a \emph{validity} problem---the model's intervals were calibrated for a design that does not depend on the estimator, yet the design does, through an allocation rule that is usually unlogged and often a threshold (``scale when the lift is significant''). The adaptive-inference literature (Hadad et al., 2021; Zhang, Janson and Murphy, 2020) handles designs that depend on past \emph{outcomes} through a known, logged rule; the marketing loop's rule depends on past \emph{estimators} and is neither.
+
+\dive{16} argues the framing is mostly wrong. Validity under arbitrary predictable designs is not open: a mixture martingale over the regression likelihood gives an anytime-valid set that needs no knowledge of the policy. The naive interval is damaged only at second order by smooth feedback, at first order by one combination (a drifting hold level plus estimate-triggered jumps), and far more by weekly peeking than by adaptivity. The real pathology is that a certainty-equivalent allocator \emph{stops learning}: spend converges to where the fitted and true curves cross, the design information freezes, and the reported marginal ROAS at current spend becomes an exact echo of the target that set the spend---Keskin and Zeevi's (2014) incomplete learning transported from price to spend, with a corollary pricing does not need: ``mROAS $\approx 1.0$ at current spend, stable for two years'' can be the loop closing on itself. \dive{19} then asks whether the stall can be detected from logs, what the echo's false-alarm rate is against a channel genuinely at breakeven, what the stall looks like with several channels under a budget, and what survives adstock, a demand confounder that also drives spend, and autocorrelated residuals. Its central finding: the dangerous regime is the loop reacting to a demand state the model does not see, and there the anytime-valid interval fails as completely as the naive one.
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{Confidence sequences and test martingales; why fixed-$n$ intervals fail}
+
+A \emph{confidence sequence} at level $1 - \delta$ satisfies $\Prob(\theta_0 \in \mathrm{CS}_t\ \forall t) \ge 1 - \delta$: one guarantee for every look, hence for any data-dependent stopping time. The construction (Ville, 1939; Robbins, 1970; Lai, 1976) starts from a \emph{test martingale}, a nonnegative process with $M_0 = 1$ and $\E[M_t \mid \mathcal F_{t-1}] \le M_{t-1}$ under the null; \emph{Ville's inequality} $\Prob(\exists t : M_t \ge 1/\delta) \le \delta$ is the time-uniform Markov inequality. \emph{Robbins' method of mixtures} builds $M_t(\theta_0) = \int\prod_{s \le t}p_\theta(y_s \mid \mathcal F_{s-1})\,\dd\Pi(\theta)\big/\prod_{s \le t}p_{\theta_0}(y_s \mid \mathcal F_{s-1})$ from a proper prior $\Pi$ on the alternative, and $\mathrm{CS}_t = \{\theta_0 : M_t(\theta_0) < 1/\delta\}$. Howard, Ramdas, McAuliffe and Sekhon (2021) generalise to \emph{sub-$\psi$ processes} $S_t$ with variance process $V_t$ for which $\exp(\lambda S_t - \psi(\lambda)V_t)$ is a supermartingale; mixing over $\lambda$ with a $\mathcal N(0, \rho^2)$ density gives the normal-mixture boundary
+\begin{equation}
+\abs{S_t} \le \sqrt{(V_t + \rho^2)\log\!\big((V_t + \rho^2)/(\rho^2\delta^2)\big)}\quad\text{for all } t,
+\label{eq:fb:mixture}
+\end{equation}
+whose width grows like $\sqrt{V_t\log V_t}$ against the fixed-$n$ $\sqrt{V_t}$: the $\sqrt{\log}$ is the price of time-uniformity. A nonnegative process dominated by a test martingale under every null is an \emph{e-process} (Ramdas, Gr\"unwald, Vovk and Shafer, 2023); Lai (1976) handles unknown variance by mixing over both parameters, and Wasserman, Ramdas and Balakrishnan (2020) show that profiling a nuisance parameter out of a likelihood-ratio process preserves validity.
+
+Fixed-$n$ intervals fail in two distinct ways. Under monitoring, the law of the iterated logarithm guarantees the $z$-statistic eventually crosses 1.96, so a 5\% test looked at repeatedly rejects a true null with probability one; Armitage, McPherson and Rowe (1969) computed type-I error about 0.19 at 10 looks and 0.37 at 100. Under \emph{adaptive} collection the failure exists at fixed $T$: if $x_t$ depends on past estimates it depends on past errors, $\Cov(x_t, \varepsilon_u) \ne 0$ for $u < t$, and the exogeneity least squares needs is lost (Nie, Tian, Taylor and Zou, 2018: arm means from a bandit that samples the apparently better arm are negatively biased).
+
+\subsection{Least squares under adaptive designs (Lai--Wei, 1982; Abbasi-Yadkori et al., 2011; Hadad et al., 2021; Zhang--Janson--Murphy, 2020)}
+
+Lai and Wei (1982) prove that least squares with martingale-difference errors and $\mathcal F_{t-1}$-measurable regressors is strongly consistent whenever $\lambda_{\min}(X_t^\T X_t) \to \infty$ and $\log\lambda_{\max} = o(\lambda_{\min})$, but asymptotic normality needs the much stronger \emph{stability} condition that $X_t^\T X_t/t$ converge to a deterministic limit---which a spend-follows-estimate loop can violate. For a \emph{known} noise scale $R$, Abbasi-Yadkori, P\'al and Szepesv\'ari (2011) give the self-normalised ellipsoid $\norm{\hat\theta_t - \theta}_{\bar V_t} \le R\sqrt{2\log(\det(\bar V_t)^{1/2}\det(\lambda I)^{-1/2}/\delta)} + \sqrt\lambda S$ uniformly in $t$ for every predictable design, $\bar V_t = \lambda I + X_t^\T X_t$: the same $\sqrt{d\log t}$ price as \cref{eq:fb:mixture}.
+
+Hadad, Hirshberg, Zhan, Wager and Athey (2021) evaluate a policy after a bandit with \emph{known} assignment probabilities $e_t(w)$: they average the doubly robust score $\hat\Gamma_t(w) = \hat\mu_t(w) + \ind\{W_t = w\}(Y_t - \hat\mu_t(w))/e_t(w)$ with \emph{adaptive weights} $h_t$ that are $\mathcal F_{t-1}$-measurable, $\hat Q^h(w) = \sum_t h_t\hat\Gamma_t(w)/\sum_t h_t$, chosen (for instance $h_t \propto \sqrt{e_t(w)}$) so that the conditional variances are stabilised and a martingale central limit theorem applies even when $e_t(w) \to 0$. Zhang, Janson and Murphy (2020) show that least squares on batched-bandit data is asymptotically \emph{non-normal} when arms are indistinguishable, because allocation probabilities fail to concentrate, and standardise within each batch before combining as a martingale sum. Both need a logged assignment rule with known probabilities---what the marketing loop lacks.
+
+\subsection{Incomplete learning under certainty equivalence (Keskin and Zeevi, 2014, 2018)}
+
+A seller faces demand $D_t = a + bp_t + \varepsilon_t$ with unknown $(a, b)$ and each period sets the revenue-maximising price under the current least-squares fit: greedy iterated least squares, the certainty-equivalent policy. Keskin and Zeevi (2014) prove that with positive probability the prices converge to an \emph{uninformative price}, where the fitted and true demand lines intersect, so that further observations confirm the fit and never move it; regret is then linear. Their fix is a \emph{dispersion condition}, $\sum_{s \le t}(p_s - \bar p_t)^2 \ge \kappa\sqrt t$, forcing deviations of order $t^{-1/4}$ per period and recovering regret $O(\sqrt T\log T)$ against the $\Omega(\sqrt T)$ lower bound; Lai and Wei (1987) add probing noise of decaying variance to a self-tuning regulator for the same reason, and Keskin and Zeevi (2018) treat general certainty-equivalence control. Ziemann and Sandberg (2021, 2024) give the multidimensional version: an optimal policy can be \emph{uninformative}---Fisher information singular---and since $\mathrm{Fisher}(\pi) = \mathrm{Fisher}(\pi^*) + O(\mathrm{regret})$, low regret forces near-singular information along a subspace whose dimension sets a regret lower bound.
+
+\subsection{Feedback detection and curvature-shaped exploration}
+
+$y$ \emph{Granger-causes} $x$ (Granger, 1969) if lagged $y$ improves the prediction of $x_t$ given lagged $x$; the test is the $F$-statistic for $y_{t-1}, \ldots, y_{t-p}$ in the regression of $x_t$ on its own lags and theirs. Caines and Chan (1975) prove that two stationary processes are feedback-free iff neither Granger-causes the other, so ``is spend policy-driven?'' is a Granger test of outcome $\to$ spend. Gustavsson, Ljung and S\"oderstr\"om (1977) show that a system under a fixed low-order feedback law is not identifiable from closed-loop data---the regressors are collinear---unless the regulator is complex or time-varying or an external excitation is present; the certainty-equivalent allocator is such a regulator. On the exploration side, Levine and Koltun's (2013) maximum-entropy controller has action covariance $Q_{uu}^{-1}$, the inverse curvature of the value function, and Aoyama et al.\ (2026) note that inverse-Hessian exploration costs $\tau n/2$ per step independently of the Hessian's eigenvalues. \dive{19} derives the \emph{learning-side} corollary: Hessian-whitened exploration makes estimation precision isotropic in the profit metric, so the cost of a target decision precision is curvature-free.
+
+\section{Setup and assumptions}
+
+\begin{definition}[The single-channel loops]
+\label{fb:def:loops}
+Weekly data follow the \emph{linear} model $y_t = \alpha + \beta x_t + \varepsilon_t$ (marginal ROAS $\beta$) or the \emph{Hill} model $y_t = \alpha + \beta H(x_t; K, s) + \varepsilon_t$, $H(x) = x^s/(x^s + K^s)$, $\mROAS(x) = \beta H'(x)$; $\varepsilon_t$ independent, mean zero, variance $\sigma^2$, third moment $\kappa_3$. The estimator is OLS with intercept on all data through $t$ (linear) or profile-OLS over a $K$ grid (Hill), refreshed every $R$ weeks. Spend follows a \emph{predictable policy} $x_t = \pi(\hat\theta_{t-1}, x_{t-1}) + \xi_t$, $\xi_t \sim \mathcal N(0, v)$ exogenous \emph{exploration}. Families: \emph{smooth}, $x_t = x_0 + g(\hat\beta_{t-1} - \beta_{\mathrm{ref}}) + \xi_t$, the optimum of a linear-quadratic advertiser with profit $\beta x - x^2/(2g) - mx$, $x^* = g(\beta - m)$, \emph{loop gain} $g = 1/\text{curvature}$; \emph{threshold}, jump to $x_{\mathrm{hi}}$ or $x_{\mathrm{lo}}$ when $\hat\beta$ (deadband) or the naive CI (CI-triggered) crosses $\beta_{\mathrm{ref}}$, else hold at the last \emph{realised} spend (which inherits $\xi$: a random-walk hold) or the last \emph{base} level; \emph{self-driven}, smooth with $v = 0$. The Hill loop sets $x_t = x^*(\hat\beta, \hat K) = \argmax_x\hat\beta\hat H(x) - x$ (target mROAS 1) every $R$ weeks with partial adjustment $\rho$. Every run opens with $T_0 = 8$ burn-in weeks at a fixed $\pm 20$--30\% pulse. Working points: linear $\alpha = 10$, $\beta = 2$, $x_0 = 5$, $\sigma = 1$, $v = 1$, $x_{\mathrm{hi}}/x_{\mathrm{lo}} = 7.5/2.5$; Hill $\alpha = 20$, $\beta = 40$, $K = 5$, $s = 1$, $\sigma = 2$, $R = 4$, $x^* = \sqrt{\beta K} - K = 9.14$.
+\end{definition}
+
+\begin{definition}[Information clocks, targets, and the multichannel loop]
+\label{fb:def:clocks}
+The \emph{design information} is $D_t = \sum_{u \le t}(x_u - \bar x_t)^2$ (linear; $\Var(\hat\beta) = \sigma^2/D_t$ for a fixed design) or $D_H = \sum_u(H_u - \bar H)^2$ at the profiled $K$ (Hill); \dive{19}'s \emph{exogenous clock} is $D^\perp_t = \sum_{u \le t}(x_u - x^*(\hat\theta_{u-1}))^2$, the dispersion of realised spend around the logged set-point. Targets are the fixed-time coverage of the naive 95\% $t$ (linear) or profile-likelihood-ratio (Hill) interval at $T$, its \emph{time-uniform} coverage over weekly looks (what a ``scale when significant'' protocol consumes), the growth of $D_t$, and the profit cost of exploration. The multichannel loop is $y = \alpha + \sum_j(b_jx_j - c_jx_j^2/2) + \varepsilon$ under $\one^\T x = B$---the second-order expansion of any separable Hill loop at its optimum, $c_j$ the profit curvature---with the allocator equalising fitted marginal returns $\hat b_j - \hat c_jx_j$. With $P = I - \one\one^\T/n$, $H = \diag(c)$, $H_f = PHP$ and pseudo-inverse $H_f^+$, the decision loss from a feasible-gradient error $e$ is $\tfrac12e^\T H_f^+e$ and budget-neutral exploration $\xi \sim \mathcal N(0, s^2V)$, $V\one = 0$, costs $\tau = \tfrac12s^2\tr(HV)$ per week. \dive{19} adds adstock $a_t = x_t + \lambda a_{t-1}$, an unobserved AR(1) demand state $d_t$ ($\rho_d = 0.8$) entering as $\gamma d_t$, and \emph{demand chasing} $x_t = x^*(\hat\theta) + \varphi d_t + \xi_t$.
+\end{definition}
+
+\begin{assumption}[Independent errors; no omitted regressor]
+\label{fb:ass:main}
+$\varepsilon_t$ is independent across weeks (the one assumption \cref{fb:con:cs} needs; \cref{fb:con:arcs} relaxes it), and the likelihood the estimator mixes over is correctly specified: nothing drives both spend and outcome outside the model (\cref{fb:prop:chase} is what happens otherwise).
+\end{assumption}
+
+\section{Main results}
+
+\subsection{A policy-agnostic anytime-valid confidence sequence}
+
+\begin{construction}[RSS-contour confidence sequence]
+\label{fb:con:cs}
+\tagEstablished\ (Assembly of known parts; \dive{16}.) For any proper mixing prior $\Pi$ on $(\theta, \sigma^2)$ and true $(\theta_0, \sigma_0^2)$, $M_t = \int p(y_{1:t} \mid x_{1:t}, \theta, \sigma^2)\,\dd\Pi\big/p(y_{1:t} \mid x_{1:t}, \theta_0, \sigma_0^2)$ is a nonnegative martingale with $M_0 = 1$ for \emph{every} predictable design, because the likelihood factorises as $\prod_s p(y_s \mid x_s, \theta, \sigma^2)$ with $x_s$ any function of the past---including past estimators and past intervals---so Ville gives $\Prob(\exists t : M_t \ge 1/\delta) \le \delta$. Projecting $\{M_t < 1/\delta\}$ onto $\theta$ by the sup over $\sigma^2$, $\sup_\sigma p(y \mid \theta, \sigma) = (2\pi\,\mathrm{RSS}_t(\theta)/t)^{-t/2}e^{-t/2}$, gives
+\begin{equation}
+\mathrm{CS}_t = \{\theta : \mathrm{RSS}_t(\theta) \le R^*_t\},\qquad R^*_t = \frac{t}{2\pi}\exp\!\Big(-\frac{2(\log m_t + \log\delta)}{t} - 1\Big),
+\label{eq:fb:cs}
+\end{equation}
+with $m_t$ the normal-inverse-gamma marginal likelihood in closed form ($\theta \mid \sigma^2 \sim \mathcal N(\mu_0, \sigma^2\Lambda_0^{-1})$, $\sigma^2 \sim \mathrm{IG}(a_0, b_0)$; in the Hill case mixed with a uniform prior on the $K$ grid).
+\end{construction}
+
+The set has exactly the shape of the classical likelihood-ratio set---the ellipsoid $(\theta - \hat\theta)^\T X^\T X(\theta - \hat\theta) \le R^*_t - \mathrm{RSS}_{\min}$ around OLS---with a data-dependent radius. Its projected half-width on $\beta$ is $\mathrm{se}_\beta\cdot\rho_t$, $\rho_t^2 = (R^*_t - \mathrm{RSS}_{\min})/s^2$, and expanding the exponential gives the \emph{radius law}
+\begin{equation}
+\rho_t^2 \approx (t-2)\big(e^{2(\Delta_t + \log(1/\delta))/t} - 1\big) \approx 2\log(1/\delta) + 2\Delta_t,\qquad \Delta_t = \log p(y \mid \hat\theta, \hat\sigma) - \log m_t,
+\label{eq:fb:radius}
+\end{equation}
+against $1.96^2 = 3.84$ for the naive interval, $\Delta_t \approx \tfrac12\log\det(I + \Lambda_0^{-1}X^\T X)$ plus prior terms being the Occam penalty. Under a vague prior the measured $\rho^2$ is 38.1/33.5/32.4/32.8/34.0/35.5 at $T = 26$--832 ($g = 3$, $v = 1$): a half-width 2.9--3.0$\times$ naive with time-uniform coverage 0.9993--1.000 (clean-room: 0.9999 under the CI-triggered policy at width ratio 2.98). The refinement \emph{CS-B} takes the burn-in posterior as the mixing prior for the adaptive phase---legitimate because it is fixed before any adaptive week---and drops the ratio to 2.34--2.48$\times$ at $T = 104$--832, against 1.78--2.05$\times$ for Bonferroni over weekly looks, which needs a fixed horizon and a non-adaptive design. The martingale is Robbins' and Lai's; the assembly---the RSS-contour form, the fact that it needs no knowledge of the policy, and the price---is the contribution.
+
+\begin{construction}[AR(1)-mixture confidence sequence]
+\label{fb:con:arcs}
+\tagNumerical\ (\dive{19}.) The conditional density $p(y_t \mid y_{t-1}, x_{1:t}, \theta, \sigma^2, \phi) = \mathcal N(\alpha(1-\phi) + \beta(x_t - \phi x_{t-1}) + \phi y_{t-1}, \sigma^2)$ is a valid one-step likelihood for every predictable $x$, so a mixture over $(\theta, \sigma^2, \phi)$ with $\phi$ on a grid is again a martingale, and the sup over $(\sigma^2, \phi)$ gives $\mathrm{CS}_t = \{\theta : \min_\phi\mathrm{RSS}_{\phi,t}(\theta) \le R^*_t\}$. In the smooth loop ($g = 10$, $v = 1$) it has time-uniform coverage 1.00 at AR $= 0/0.6/0.8$ against 1.00/0.99/0.927 for the iid mixture (naive fixed-time 0.947/0.80/0.66) and is \emph{narrower} where it matters---median half-width 0.355 vs 0.445 at AR $= 0.6$, 0.204 vs 0.352 (42\% narrower) at AR $= 0.8$ (the GLS efficiency of prewhitening)---at a 6\% price at AR $= 0$.
+\end{construction}
+
+\subsection{Smooth feedback is second-order}
+
+Write $x_t = \xi_t + gd_t$ with $\xi$ the exogenous design and $d_t = \hat\beta_{t-1} - \beta_{\mathrm{ref}}$ the estimator the policy reacts to. The OLS error is $N/D$, $N = \sum(x_t - \bar x)\varepsilon_t$, $D = \sum(x_t - \bar x)^2$; to first order $N = N_0 + gN_1$, $D = D_0 + gD_1$ with $N_1 = \sum(d_t - \bar d)\varepsilon_t$, $D_1 = 2\sum(\xi_t - \bar\xi)(d_t - \bar d)$, and $d_t = \sum_{u<t}w_{u,t}\varepsilon_u$ with centred weights $w_{u,t} = (\xi_u - \bar\xi_{t-1})/S_{t-1}$.
+
+\begin{theorem}[First-order benignity]
+\label{fb:thm:benign}
+\tagEstablished\ Conditional on $\xi$, for independent mean-zero errors: (i) the $O(g)$ bias of $\hat\beta$ vanishes for any noise distribution, so bias is $O(g^2)$; (ii) the $O(g)$ variance term is
+\begin{align}
+\frac{\dd\Var}{\dd g}\Big|_0 &= 2\Big[\frac{\E(N_0N_1)}{D_0^2} - \frac{\E(N_0^2D_1)}{D_0^3}\Big],
+\label{eq:fb:dvar}\\
+\E(N_0N_1) &= -\frac{\kappa_3}{T}\sum_s(\xi_s - \bar\xi)\sum_{u>s}w_{s,u},\qquad
+\E(N_0^2D_1) = 2\kappa_3\sum_t(\xi_t - \bar\xi)^2\sum_{s>t}(\xi_s - \bar\xi)w_{t,s},\nonumber
+\end{align}
+proportional to $\kappa_3$, zero for symmetric noise, with sign $-\sign(\kappa_3g)$.
+\end{theorem}
+
+The bias proof is two lines: $\E[N_1] = 0 - (\sigma^2/T)\sum_t\sum_{u<t}w_{u,t} = 0$ by centring, and $\E[N_0D_1] = 2\sigma^2\sum_t(\xi_t - \bar\xi)\cdot1 = 0$. Positive skew with positive gain therefore \emph{shrinks} the true variance below the naive $\mathrm{se}^2$ (conservative); negative skew, or a policy that cuts spend when the estimate rises, inflates it. With common random numbers ($T = 40$, $v = 1$, $R = 40{,}000$) the bias shift is $+0.00001$ to $+0.00007$ at $g = 0.5$--4 (sd$(\hat\beta) = 0.15$); Gaussian $\dd\Var/g^2$ is $-0.00060/-0.00055/-0.00046/-0.00030$ (quadratic); at $\kappa_3 = 2$, $\dd\Var/g$ is $-0.00186/-0.00198/-0.00204/-0.00189$ (linear) against \cref{eq:fb:dvar} on the realised designs, $-0.00156$, which matches $-0.00186 + 0.00030$ (the $g^2$ term at $g = 0.5$) exactly; clean-room $-0.00181/-0.00195/-0.00203$, flipping to $+0.00118/+0.00079/+0.00013$ under negative skew. At $T = 104$ the naive coverage is 0.950--0.957 for $g = 0$--100; skew $+2$ pushes it to 0.968/0.978 at $g = 10/30$, skew $-2$ to 0.931/0.920.
+
+\begin{proposition}[Failure taxonomy]
+\label{fb:prop:taxonomy}
+\tagNumerical\ At $T = 104$ with weekly looks the naive interval's failures rank \emph{peeking} (uniform coverage 0.66 fixed design, 0.55 CI-triggered; 0.40--0.56 by $T = 416$) $\gg$ \emph{drift $\times$ trigger} (fixed-time 0.902/0.881/0.855 at $T = 104/208/416$ for the CI-triggered policy with random-walk hold, the se under-estimating the true sd by 35--96\%) $\gg$ \emph{smooth adaptivity} (0.950--0.957). A pure random walk with no adaptivity covers at 0.943--0.946 and the same triggers with a \emph{fixed} hold at 0.946--0.967 (\cref{fb:tab:cover}).
+\end{proposition}
+
+The anti-conservatism needs both ingredients---the jump's lever arm is selected on the estimate's error, and the drift lets that selection dominate the design as $T$ grows---a distinction the clean-room agent flagged independently, turning Round 1's ``threshold policies fail'' into ``drift $\times$ trigger fails''. CS-B removes all three sources at once (0.998--1.000 in every cell).
+
+\subsection{The learning stall and the policy echo}
+
+\begin{proposition}[Stall of the certainty-equivalent loop]
+\label{fb:prop:stall}
+\tagTransported\ (Keskin--Zeevi transported to spend; by simulation.) In the self-driven linear loop ($v = 0$, $g = 10$) the design information freezes---median $D_T = 22.9/23.8/23.9/23.9$ at $T = 30/104/416/832$---and with it everything: sd$(\hat\beta_T) = 0.106/0.099/0.098/0.098$, naive se 0.217 and half-width 0.425 at $T = 30$ and at $T = 832$. Spend converges (mean $\abs{x_T - x_{T-1}} = 3\times10^{-5}$) to a level $x_\infty$ at which the fitted line crosses the true line, the \emph{stall manifold}
+\begin{equation}
+(\hat\alpha - \alpha) = -(\hat\beta - \beta)\,x_\infty,
+\label{eq:fb:manifold}
+\end{equation}
+verified as mean $\abs{(\hat\alpha - \alpha) + (\hat\beta - \beta)x_\infty} = 0.028$ against the unconstrained scale $\abs{\hat\beta - \beta}x_0 = 0.375$ (clean-room 0.027 vs 0.371), with sd$(x_\infty) = g\cdot\mathrm{sd}(\hat\beta_\infty)$ exactly (0.9799 = 0.9799).
+\end{proposition}
+
+Two things pricing does not emphasise follow. The naive interval is \emph{conservative and frozen} (fixed-time coverage 0.96--0.98 across $g = 1$--100), because the loop's negative feedback corrects the estimate without adding dispersion: the stall is invisible to a coverage audit and visible only as an interval that stops shrinking. And gain trades slope error for spend error one-for-one (sd$(\hat\beta_\infty) = 0.290/0.186/0.097/0.058/0.041$ against sd$(x_\infty) = 0.29/0.56/0.97/1.74/2.94$ at $g = 1/3/10/30/100$) with the per-period loss $g\Var(\hat\beta_\infty)/2$ nearly flat at 0.042--0.083, about 1\% of profit. \tagRefuted\ Round 1 had predicted from the recursion $D' = g^2\sigma^2/D$ that information grows like $g\sigma\sqrt{2t}$; the attack refuted it, because a frozen slope error contributes an \emph{offset} the sample mean absorbs, not dispersion; a one-shot cubic stall law reproduces the scaling of sd$(\hat\beta_\infty)$ but misses the constants by up to 40\%.
+
+\begin{proposition}[The policy echo]
+\label{fb:prop:echo}
+\tagEstablished\ In the Hill loop the model's own mROAS at the set-point, $\hat\beta\hat K/(x^* + \hat K)^2$, equals the breakeven target by construction at every refit, in every regime: 1.0000 with sd $\le 10^{-15}$ across all of \dive{19}'s configurations (0.003 with a grid optimiser; \dive{16}'s $1.0000 \pm 0.005$ reflects the refit lag). The true mROAS at that spend has sd 0.16 and 5--95\% range $[0.81, 1.32]$, and the parameters wander along the manifold ($\hat\beta$ 5--95\% $[35, 220]$ against 40; $\hat K$ $[0.5, 47]$ against 5; 37\% of runs pin $\hat K$ at a grid edge).
+\end{proposition}
+
+The estimand the loop reports converges to the policy's set-point. The Hill stall survives every realism knob \dive{16} tried (refresh 1--13 weeks, partial adjustment, $\sigma$, $s = 2$, gain): mROAS-error sd 0.179/0.164/0.158/0.155 at $T = 52/104/416/832$, naive half-width 0.44 $\to$ 0.38 ($\approx 40\%$ of mROAS) forever, at a loss of only 0.08--0.10 per week ($\approx 0.5\%$ of profit) because the profit curve is flat at its optimum. In three channels the fitted marginal returns are equal across channels by construction (fitted spread 0, sd $6\times10^{-16}$, against true spread 0.46 quadratic and 0.127 $\to$ 0.120 Hill).
+
+\begin{proposition}[Restoring learning]
+\label{fb:prop:explore}
+\tagTransported\ Keskin--Zeevi's dispersion condition transports unchanged: exploration $\xi_t \sim \mathcal N(0, t^{-2d})$ with $d = 0.25$ ($\sum\xi^2 \propto \sqrt t$) keeps $D$ growing (57.6 $\to$ 163 from $T = 104$ to 832; sd$(\hat\beta)$ 0.105 $\to$ 0.071), $d = 0.5$ barely (36.9 $\to$ 66), $d = 1$ not at all (27 $\to$ 32). In the Hill loop decaying exploration $2t^{-1/4}$ (20\% of spend in week 8, 6\% by week 832) is \emph{profitable}---cumulative loss 60.4 $\pm$ 1.4 vs 82.6 $\pm$ 3.1 for the stall at $T = 832$ (27\% lower), mROAS sd 0.157 $\to$ 0.092---while constant exploration at 11--16\% of spend loses more than the stall (95.8, 162.7; \cref{fb:tab:hill}).
+\end{proposition}
+
+\begin{law}[Profit price of a valid interval]
+\label{fb:law:price}
+\tagEstablished\ (Weak feedback; qualified at strong feedback.) A half-width $w$ needs $D_T \ge \rho^2\sigma^2/w^2$ ($\rho = 1.96$ naive, $\rho_t$ for the CS); exogenous exploration of variance $v$ costs $v/(2g)$ per week and buys $D \approx Tv$, so
+\begin{equation}
+C(w) = \frac{\rho^2\sigma^2}{2gw^2},
+\label{eq:fb:price}
+\end{equation}
+independent of the horizon: the price of inference is paid once, in profit, and only its timing depends on $T$.
+\end{law}
+
+At $g = 1$, $w = 0.15$ (theory 85.3) the measured exogenous cost is 73.2/76.3/91.4/89.2 at $T = 52/104/208/416$ on a $\pm 14\%$ grid. At $g = 10$ (theory 8.5) the exogenous cost \emph{falls} with $T$ (7.3/6.3/5.3/4.3) because the loop's own wobble supplies dispersion, but the total deviation cost \emph{rises} (9.0/10.1/12.3/17.2): the loop's persistent offset from $x^*$ costs profit without adding dispersion. Offset costs, dispersion informs---and \cref{fb:rem:bend} shows that even the dispersion the loop generates is worth 4--20$\times$ less than the same dispersion supplied exogenously.
+
+\subsection{Detecting the stall}
+
+\begin{construction}[The exogenous clock]
+\label{fb:con:clock}
+\tagEstablished\ (\dive{19}.) Under a pure certainty-equivalent loop $D^\perp_t \equiv 0$; under exploration of variance $v$ it grows at $v$ per week (0.0096/0.038/0.086/0.239/0.956 at $v = 0.01/0.04/0.09/0.25/1$; raw spend variance overstates it by 3--30\% because the set-point wanders). A bookkeeping identity, not a test, but the only clock guaranteed \emph{unconfounded}: it counts dispersion that no belief and no demand state chose. Its threshold is \cref{fb:law:price} transported locally, $v_{\min} = (1.96\sigma/w)^2/T_h$ for half-width $w$ by horizon $T_h$, and the alarm ``$D^\perp/\text{week} < v_{\min}$'' over $W$ weeks has false-alarm rate $\Prob(\chi^2_W/W < v_{\min}/v)$ and power one against the exact stall: with $W = 26$ the alarm rate is 1.00/1.00/0.83/0.02/0.00/0.00 at $v = 0/0.01/0.04/0.09/0.25/1$, firing exactly where exploration has stopped buying anything (true-mROAS sd at the set-point 0.169 $\to$ 0.101, loss 0.093 $\to$ 0.036 across the sweep).
+\end{construction}
+
+Without set-points an auditor has the \emph{Lai--Wei clock} ($\lambda_{\min}$ of the design at $T$ vs $T/2$: 1.01 stall, 1.47 exploration, 1.40 demand chasing, 1.72 fixed spend plus exploration) and the \emph{Caines--Chan test} (Granger 5\% rejection 0.19 stall, 0.54 at weekly refits; 0.10 exploration; 0.30 chasing; 0.04 fixed). \tagRefuted\ as a hope: the eigenvalue clock separates the stall from everything else but not learning from pseudo-learning, and the Granger test has power 0.2--0.5 and is structurally silent on confounding---once lagged spend, which carries the state, is conditioned on, lagged outcomes add little. No log-only statistic in the dive separates exogenous exploration from demand-driven spend (\BL{68}).
+
+\begin{law}[Echo false-alarm law]
+\label{fb:law:echo}
+\tagNumerical\ Let $\hat m_j$ be the reported mROAS at \emph{realised} spend $x^* + \xi_j$, $\xi_j \sim \mathcal N(0, v)$, at refit $j$. Then $\hat m_j - 1 = e_j + \hat m'_j\xi_j$, with $e_j$ the slow model error at $x^*$ (adjacent-refit correlation 0.99) and $\hat m'_j\xi_j$ the fitted slope times the fresh draw, and the false-alarm rate of ``$\abs{\hat m_j - 1} \le \epsilon$ for $k$ consecutive refits'' against a breakeven, non-stalled channel is the scale mixture
+\begin{equation}
+\mathrm{FA}_k(\epsilon) = \E_{e,\hat m'}\Big[\Big(\Phi\big(\tfrac{\epsilon - e}{\abs{\hat m'}\sqrt v}\big) - \Phi\big(\tfrac{-\epsilon - e}{\abs{\hat m'}\sqrt v}\big)\Big)^k\Big],\qquad e \sim \mathcal N(0, \mathrm{se}^2 - \E[\hat m'^2]v),
+\label{eq:fb:fa}
+\end{equation}
+$\hat m'$ drawn from the fitted slopes. The stall hits every cell with probability one.
+\end{law}
+
+At $T = 208$, sd$(\hat m - 1) = 0.21$ with components 0.13 and 0.16 (true $m'(x^*) = -0.141$) and adjacent-refit correlation only 0.36. The obvious Gaussian theory---$\mathcal N(0, \Sigma)$ with the empirical sd and correlation---is wrong by 5--150$\times$ at $k \ge 3$ (\cref{fb:tab:fa}), because $\hat\beta$ and $\hat K$ wander along the ridge so $\abs{\hat m'}$ varies $3\times$ across runs, and scale mixtures put far more mass near zero than a normal of the same variance; \cref{eq:fb:fa} is within $2\times$. Operationally, ``mROAS $= 1.00 \pm 0.02$ for three consecutive quarterly refreshes'' has a false-alarm rate below 1\% against a truly breakeven channel with 10\% spend dispersion and a hit rate of one against the stall; with no dispersion the test is vacuous.
+
+\subsection{Confounded pseudo-learning: anytime validity is not identification}
+
+\begin{proposition}[Demand chasing]
+\label{fb:prop:chase}
+\tagEstablished\ (Negative result; clean-room exact.) With an unobserved demand state and chasing $\varphi = 1.5$, $\gamma = 6$ in the Hill loop, every clock reads the \emph{opposite} of the stall---$D_x$ grows $55\times$ faster (7,650 vs 138 at $T = 208$), the eigenvalue clock reads 1.40, $\hat\beta$ concentrates (5--95\% $[83, 134]$ vs $[35, 238]$)---on the wrong value: spend is 158\% above the true optimum, the true mROAS there is 0.27, and the model reports $1.01 \pm 0.13$. In the linear loop ($\varphi = 1$, $\gamma = 1$, $v = 0.3$) the naive interval's coverage is 0.000 (bias $+0.66$ on $\beta = 2$) and the confidence sequence of \cref{fb:con:cs} has time-uniform coverage 0.007--0.017 (clean-room 0.016). Observing the demand state removes all of it (spend bias $+2\%$, mROAS bias 0.004).
+\end{proposition}
+
+The CS is valid under \emph{any} predictable spend policy and useless under a spend that carries an omitted regressor: its guarantee is exactly as strong as the likelihood it mixes over. This is Heusch's (2026) endogeneity bias with a sharper diagnosis---``performance chasing'' is harmless if it chases the model's own optimum and catastrophic if it chases realised outcomes that contain demand. At $\varphi = 0.5$, $\gamma = 2$ the bias is still $+0.46$.
+
+\subsection{Multichannel geometry, the whitened exploration law and its switch representation}
+
+\begin{proposition}[The budget direction]
+\label{fb:prop:budget}
+\tagNumerical\ In the quadratic loop ($n = 3$, $B = 10$) the feasible-direction gradient error is frozen (rmse 1.469 at $T/2$, 1.466 at $T$; loss 1.77 per week) and budget-neutral isotropic exploration ($s = 0.5$) unfreezes it (0.311 $\to$ 0.225; loss 0.174). But with spend always on $\one^\T x = B$ the regressors $(1, x_1, \ldots, x_n)$ are collinear and the total marginal value $\one^\T g/n$ is identified by the quadratic form only: rmse 5.6 (median 3.4, true level 2.3) at the stall, 1.06 under budget-neutral exploration, 0.13 only when exploration is \emph{not} budget-neutral.
+\end{proposition}
+
+A loop that explores within a fixed budget can learn how to split it and never whether the budget is right; the ``total mROAS'' such a model reports is a functional-form artefact. This is \cref{ch:deadband}'s budget coupling seen from the identification side and Ziemann--Sandberg's singular subspace made concrete: under budget coupling the singular direction is $\one$. \cref{ch:identification} later proves the exact rank theorem and prices the escape (\BL{70}).
+
+\begin{law}[Passive curvature-whitened exploration]
+\label{fb:law:whiten}
+\tagEstablished\ (Derived; verified to its constant.) With spend $x^* + \xi_t$, $\xi \sim \mathcal N(0, s^2V)$ on the feasible subspace, $\Cov(\hat e) = \sigma^2(Ts^2V)^+$ and $\E[L] = \sigma^2\tr(HV)\tr(H_f^+V^+)/(4T\tau)$ at fixed cost $\tau$, minimised by Cauchy--Schwarz at
+\begin{equation}
+V \propto H_f^+,\qquad \E[L]^* = \frac{\sigma^2(n-1)^2}{4T\tau},
+\label{eq:fb:whiten}
+\end{equation}
+independent of the curvature spectrum. Isotropic $V = P$ costs $\tr(H_f)\tr(H_f^+)/(n-1)^2$ times more, $V \propto H_f$ (stiff directions) $\sum\lambda^2\sum\lambda^{-2}/(n-1)^2$. At $c = (0.1, 0.4, 1.6)$, $b = (3, 3, 3.5)$, $\tau = 0.2$, $T = 208$: mean loss 0.046/0.026/0.134 for isotropic/$H^+$/$H$, ratios 1.77 vs theory 1.75 and 5.2 vs 6.25 (the shortfall is the burn-in's information; clean-room 1.76 and 5.39, derivation confirmed).
+\end{law}
+
+\begin{theorem}[Switch representation]
+\label{fb:thm:switch}
+\tagEstablished\ For a separable Hessian $H = \diag(c)$, with $S = \sum_k1/c_k$ and $d_{ij} = e_i - e_j$,
+\begin{equation}
+H_f^+ = \sum_{i<j}w_{ij}\,d_{ij}d_{ij}^\T,\qquad w_{ij} = \frac{1}{c_ic_jS} > 0,
+\label{eq:fb:switch}
+\end{equation}
+exactly: the optimal exploration is a rotating schedule of \cref{ch:voi}'s budget-neutral pairwise switches with squared amplitudes $\propto 1/(c_ic_j)$---switch most between the two flattest channels.
+\end{theorem}
+
+The proof is the constrained inverse $M = C^{-1} - C^{-1}\one\one^\T C^{-1}/S$, whose off-diagonals $-1/(c_ic_jS)$ are the negatives of the weights (residual $10^{-15}$ over 200 random curvature vectors at each $n = 3, \ldots, 6$; $c = (0.1, 0.4, 1.6)$ gives $w = 1.905, 0.476, 0.119$). It is not generic: with cross-channel interactions the nonnegative-least-squares residual is nonzero in 4.5\%/28\%/65\% of random Hessians at $n = 3/4/5$---the pairwise dictionary has exactly $n(n-1)/2$ elements, the dimension of symmetric forms on the feasible subspace, so representability is a sign condition, not a rank condition (\BL{71}).
+
+\begin{remark}[The law bends inside the loop]
+\label{fb:rem:bend}
+\tagRefuted\ in part. With the same three designs at the same $\tau$ inside the certainty-equivalent loop, the ranking survives by \emph{median} with attenuated ratios (isotropic/$H^+$ 1.07, $H/H^+$ 1.75 vs 1.63/3.78 passive) and \emph{reverses} by mean (0.76, 0.91), because the loss is heavy-tailed (mean/median 4--6; $q_{99}$ 2.1--2.6 against a median 0.05). The natural refinement---the loop's own wobble is already $H^{-1}$-shaped (whitened eigenvalues 0.38, 1.28), so water-fill the complement---was built and refuted (median 0.068 vs 0.045). A passive design given an \emph{exogenous} wobble of the loop's measured covariance reaches loss 0.012 against the loop's 0.19--0.25 mean / 0.045 median: the same dispersion is worth 4--20$\times$ less when the loop generates it, because the loop samples where its own error is ($x_{\mathrm{dev}} = H^+e$) and at certainty-equivalent gain the $O(g^2)$ terms are not small ($g\cdot\mathrm{sd}/\sqrt v \approx 7$). \dive{16}'s ``dispersion informs'' is a weak-feedback statement (\BL{69}).
+\end{remark}
+
+\begin{proposition}[Adstock leaves the stall intact]
+\label{fb:prop:adstock}
+\tagNumerical\ With true $\lambda = 0.5$ and a 9-point $\lambda$ grid profiled at each refit ($T = 312$): own long-run mROAS 1.000 (sd $10^{-16}$), true-mROAS sd at the set-point 0.248 $\to$ 0.240, $\hat\lambda$ frozen at burn-in precision (sd 0.092 at both times, mean 0.478). Decaying exploration $1.5t^{-1/4}$ cuts the mROAS error (0.240 $\to$ 0.184) and the loss (0.124 $\to$ 0.076) but leaves sd$(\hat\lambda)$ at 0.092: iid weekly dispersion does not identify carryover, as \cref{ch:identification} found for the passive design (the transient needs block pulses of length $\approx 3/(1-\lambda)$).
+\end{proposition}
+
+\section{Numerical evidence}
+\label{fb:sec:numerics}
+
+Linear-loop cells use $R = 2{,}000$--8,000 replications ($\pm 0.005$ on a coverage), re-implemented from the claim text by a clean-room agent at $R = 8{,}000$--60,000; \cref{fb:tab:cover} collects the taxonomy with its controls. The CS-B power control ($g = 10$, $v = 1$, $T = 104$) excludes $\beta + 0.4$ (a 20\% error) in 68\% of runs at median week 79 and $\beta + 0.8$ always at median week 24, while the naive interval excludes the \emph{true} value in 55\% of runs by week 33. The Hill loop (\cref{fb:tab:hill}) uses $R = 1{,}000$; \dive{19}'s diagnostics $R = 300$--400 ($\pm 0.02$--0.03 on a rate) with a clean-room at $R = 1{,}600$ for the echo table, whose values \cref{fb:tab:fa} reports because two of the dive's own $R = 400$ cells (0.015 and 0.003) were 2--5$\times$ high on 6 and 1 hits. The multichannel evidence is $R = 300$ passive and $R = 600$ in-loop at $T = 208$: passive mean loss 0.046 $\pm$ 0.003 / 0.026 $\pm$ 0.001 / 0.134 $\pm$ 0.011 for isotropic/$H^+$/$H$; in-loop means 0.190/0.250/0.227 (se 0.016--0.021), medians 0.048/0.045/0.078 (se $\approx 10\%$). Five seeds give true-mROAS sd 0.155--0.170 and $D_x$ 129--152 for the Hill stall.
+
+\begin{table}[htbp]
+\centering\footnotesize
+\caption{Coverage of the naive 95\% interval for $\beta$ in the linear loop (\dive{16} E1, E4, E7, E9). ``Uniform'' is coverage at every weekly look through $T$; CS-B is the burn-in-prior sequence of \cref{fb:con:cs}. Monte Carlo $\pm 0.005$; clean-room values in parentheses.}
+\label{fb:tab:cover}
+\begin{tabular}{llccc}
+\toprule
+Policy & $T$ & fixed-time & uniform, naive & uniform, CS-B \\
+\midrule
+fixed design & 104 & 0.950 & 0.66 (0.658) & 0.998--1.000 \\
+smooth $g = 10$, $v = 1$ & 104 & 0.950--0.957 (0.953--0.955) & 0.67--0.69 & 0.9992 \\
+smooth $g = 100$, $v = 0.09$ & 104 & 0.94--0.97 (0.950--0.953) & --- & 1.000 \\
+smooth, skew $-2$, $g = 30$--100 & 104 & 0.920--0.924 & --- & --- \\
+self-driven $g = 10$, $v = 0$ & 104 & 0.96--0.98 (0.981) & 0.77 & 1.000 \\
+pure random walk & 104--416 & 0.943--0.946 & --- & --- \\
+CI-triggered, random-walk hold & 104/208/416 & 0.902/0.881/0.855 (0.907) & 0.55/---/0.40 & 0.9980 \\
+CI-triggered, fixed hold & 104--416 & 0.963--0.967 & --- & --- \\
+deadband 0.1, random-walk hold & 104/208/416 & 0.915/0.909/0.929 & --- & 0.9988 \\
+smooth $g = 10$, AR(1) 0.3 / 0.6 & 104 & --- / 0.826 & --- & 0.9982 / 0.9778 \\
+smooth $g = 10$, heteroskedastic & 104 & --- & --- & 0.9985 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Hill MMM loop ($\beta = 40$, $K = 5$, $s = 1$, $\sigma = 2$, refit every 4 weeks, spend at the fitted optimum; \dive{16} E12, $R = 1{,}000$). sd$_m$ is the sd of the mROAS error at current spend; the half-width is the naive one for mROAS (the CS is 2.3--2.6$\times$ wider at coverage 1.000); loss is cumulative profit loss with its standard error.}
+\label{fb:tab:hill}
+\begin{tabular}{lccccc}
+\toprule
+Exploration & $T$ & sd$_m$ & naive half-width & fixed-time cov. & cum.\ loss \\
+\midrule
+none & 52 & 0.179 & 0.44 & 0.975--0.979 & --- \\
+none & 832 & 0.155 & 0.38 & 0.975--0.979 & 82.6 $\pm$ 3.1 \\
+constant 1.0 (11\% of spend) & 832 & --- & --- & --- & 95.8 \\
+constant 1.5 (16\%) & 832 & --- & --- & --- & 162.7 \\
+decaying $2t^{-1/4}$ & 832 & 0.092 & --- & --- & 60.4 $\pm$ 1.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\footnotesize
+\caption{False-alarm rate of the echo test at realised spend against a genuinely breakeven, non-stalled channel with 10\% spend dispersion, $T = 208$, 4-weekly refits (\dive{19} E3; clean-room $R = 1{,}600$ with binomial se). Hit rate against the stall is 1 in every cell.}
+\label{fb:tab:fa}
+\begin{tabular}{lcccc}
+\toprule
+$\epsilon$ & $k = 1$ & $k = 3$ & $k = 6$ & Gaussian theory, $k = 3$ / $6$ \\
+\midrule
+0.05 & 0.223 $\pm$ 0.010 & 0.043 $\pm$ 0.005 & 0.012 $\pm$ 0.003 & 0.0085 / $8\times10^{-5}$ \\
+0.02 & 0.094 & 0.0063 $\pm$ 0.002 & $< 0.003$ & --- \\
+0.01 & 0.048 & 0.0006 $\pm$ 0.0006 & $\approx 0$ & --- \\
+\midrule
+scale-mixture law \cref{eq:fb:fa}, $\epsilon = 0.05$ & --- & 0.056 & 0.026 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Limitations and the devil's advocate}
+
+\emph{Against ``second-order'':} \cref{fb:thm:benign} is conditional on a persistent exogenous design; as $v \to 0$ the expansion parameter $g\cdot\mathrm{sd}(\hat\beta)/\sqrt v$ is not small---at $g = 100$, $v = 0.09$ the bias reaches 0.24 sd and coverage 0.92 under negative skew, and \dive{19} measures the parameter at $\approx 7$ for a certainty-equivalent loop. It also assumes independent errors; at AR(1) $= 0.6$ the fixed-design naive interval already fails (0.83). \emph{Against the stall:} real spend is not the fitted optimum---finance cuts, seasonal budgets and channel caps are exploration in disguise; the stall is the limit of a \emph{disciplined} certainty-equivalent allocator, which is what automated MMM-to-budget pipelines (Pathak et al., 2026; \cref{ch:fusion}) aim to build, and drift in the true $\beta$ does not rescue it. \emph{Against the echo:} exact only at the fitted optimum (with a target $\ne 1$ or a budget the echo is of that target); at realised spend the test needs dispersion, and its false-alarm law is an approximation within $2\times$. \emph{Against the diagnostics:} the exogenous clock is only as good as the set-point log, which pipelines commonly overwrite with realised spend, and implementation noise is informative only if independent of demand, which finance-driven cuts are not. \emph{Against the CS:} 2.3--3$\times$ naive is a heavy price at $T \approx 100$; Ville's slack (0.998 at $\delta = 0.05$) means a calibrated $\delta$ could be larger (\BL{55}); a practitioner who never peeks and uses a smooth policy is entitled to the naive interval. \emph{Against the pricing law:} LQ only; its strong-feedback failure (17 vs 8.5 at $T = 416$) shows the loop's regret cannot be booked as inference spend. \emph{Against the confounding result:} $\varphi = 1.5$, $\gamma = 6$ is a strong chaser and the numbers are illustrative. \emph{Against the exploration law:} local quadratic, scalar noise, one gain, a heavy tail unexplained, a switch theorem needing a separable Hessian. \emph{Against the budget-direction claim:} curvature does identify $\one^\T g$, just $8\times$ worse than a total pulse, and a fixed-form model will report a confident number. \emph{Against novelty:} every ingredient is known; the contributions are the transport, the taxonomy with sizes, the first-order coefficient, the echo and its false-alarm law, the learning-side whitening corollary with its switch representation and in-loop breakdown, the budget-direction non-identification, the validity-is-not-identification demonstration, and the AR(1) projection.
+
+What the attack rounds changed: the $\sqrt t$ growth law was refuted and replaced by the manifold; ``threshold policies fail'' became ``drift $\times$ trigger''; a pulseless burn-in that collapsed spend in week one was replaced; the Gaussian echo theory was refuted by its own Monte Carlo; the in-loop exploration law came out \emph{reversed} in Round 2, was partly rescued by fixing a clipped channel and a tiny exploration budget, then held by median only; water-filling was refuted; ``frozen'' three-channel Hill spread became ``slowly shrinking'' (0.127 $\to$ 0.120).
+
+\section{Discussion: impacts}
+
+For practice the first message is a reassurance with a boundary. A vendor whose users move budget smoothly in response to model output---a Meridian or Robyn optimiser applied with partial adjustment---owes them no new interval: \cref{fb:thm:benign} says the naive interval keeps its level at any gain and the sign of its one first-order term is known. What the vendor owes them is a warning about the two things that do break it, looking every week (0.66) and scaling on a trigger from a drifting hold level (0.86). Both are removed by \cref{fb:con:cs}, which any Bayesian MMM can emit almost for free---the marginal likelihood $m_t$ is what the sampler already computes and the RSS contour is the model's own likelihood-ratio set with a different radius---and which, unlike the sequential tests in production at experimentation platforms, needs no logged assignment rule.
+
+The second message is for the CMO. A stable, precise marginal ROAS of 1.0 at current spend, produced by a pipeline that sets spend where the model says the marginal ROAS is 1.0, is not a measurement of the channel; it is the set-point returned as a measurement (\cref{fb:prop:echo}). The remedy is not more model but a small amount of deliberate, \emph{logged}, decaying dispersion---20\% of spend early, 6\% after a decade in the dive's units---which pays for itself in profit (27\% lower cumulative loss) and turns on the only unconfounded clock. The information architecture this needs is a set-point log, which MMM-to-budget pipelines discard; the exogenous clock, the echo test at realised spend and the switch schedule of \cref{fb:thm:switch} all consume it. \cref{ch:deadband}'s deadband protocol gains an ``information clock stopped'' trigger with a computable false-alarm rate (\BL{72}); \cref{ch:voi}'s switch experiments acquire an optimal schedule.
+
+The third message is a warning about the limits of the fix. \cref{fb:prop:chase} shows that the case practitioners actually fear---spend chasing demand the model does not observe---defeats naive and anytime-valid intervals alike (0.000 and 0.007--0.017) while every clock reads ``learning''. This is \cref{ch:archaeology}'s leakage in a closed loop and \cref{ch:fusion}'s traps with a statistic attached; no log-only statistic in the two dives separates it from healthy exploration.
+
+For theory the chapter moves M7 from ``find a valid interval'' to ``the valid interval exists and is cheap; the problem is identification''. It transports Keskin--Zeevi's incomplete learning to saturating response with a corollary pricing does not need, because pricing reports prices, not measurements; gives the loop-gain question a coefficient (\cref{eq:fb:dvar}); and shows that under budget coupling the uninformative subspace is exactly the budget direction---the seed of \cref{ch:identification}'s rank theorem, which proves the sum direction lies in the null space of any number of budget-neutral tones and prices the escape at 4--615$\times$.
+
+\section{Further exploration}
+
+Of \dive{16}'s next steps four became backlog items: a calibrated-$\delta$ or stitched boundary tuned to the burn-in posterior, to take the CS from 2.3$\times$ toward the 1.8$\times$ Bonferroni figure without a fixed horizon (\BL{55}); the stall statistic and echo test (\BL{56}, largely done by \dive{19} but without a log-only confounding detector); the multichannel geometry (\BL{57}, done); and adstock, confounding and autocorrelation (\BL{58}, done). \dive{19} opened five more: a log-only confounding detector, with a Hausman contrast between pulse-window and loop-window slopes or the sign of \cref{eq:fb:dvar}'s skew coefficient as a feedback fingerprint (\BL{68}); the $O(g^2)$ covariance correction and the optimal design given the loop's error-correlated wobble, where the answer may be to explore where the wobble is most error-correlated rather than least dispersed (\BL{69}); the budget-direction escape, since priced in \cref{ch:identification} (\BL{70}); switch cones under synergy, with triple switches $d_{ij} + d_{jk}$ (\BL{71}); and an exact echo law from the ridge distribution of $(\hat\beta, \hat K)$, wired into \cref{ch:deadband}'s protocol with a derived $\alpha$ (\BL{72}). Both dives propose an empirical run of the clocks on Heusch's endogenous-spend benchmark, where set-points are known by construction, and \dive{16} notes that \cref{ch:simulator}'s prequential e-process is the scale-parameter special case of \cref{fb:con:cs}.
+
+In the compiler's judgement the most valuable extension is \BL{68}, because it alone addresses the regime the dives found actually dangerous, and its failure would itself be a theorem worth having: if no function of spend and outcome logs separates exploration from demand chasing, the set-point log is not a convenience but a necessary condition for auditing any closed-loop measurement system. Second is \BL{69}: the 4--20$\times$ gap between exogenous and loop-generated dispersion is the largest unexplained number in the chapter and decides how much of the ``exploration in disguise'' in real budgets is worth anything.
+
+\begin{reviewernote}[(compiler)]
+\textbf{Timestamps.} The INDEX log line for \dive{19} is stamped ``2026-09-03 $\sim$14:45'' while the file was last written at 21:41 UTC, a seven-hour gap with no stated reason; the \dive{16} pair (03:30 log, 03:44 file) is consistent.
+
+\textbf{``Nine realism configurations''.} \dive{16} \S3.3 lists ``refresh 1 or 13 weeks, $\rho = 0.5/0.25$, $\sigma = 1/4$, $s = 2$, half or double gain'' and says the stall holds ``in all nine configurations''. The shipped \texttt{E13()} runs seven (base, refresh 1, refresh 13, $\rho = 0.5$, $\sigma = 1$, $s = 2$, gain $\times 2$); $\rho = 0.25$, $\sigma = 4$ and half gain are not in the code. \dive{19}'s E10 independently covers $\sigma = 4$ and $s = 2$, so the conclusion is safe, but the count is not reproducible from the file.
+
+\textbf{``Matched to three digits''.} The $-0.00156$ match subtracts a $g^2$ term ($+0.00030$) estimated from the \emph{Gaussian} run at $g = 0.5$ from the \emph{skewed} run's $-0.00186$; that the $O(g^2)$ coefficient is the same under skew is assumed, not shown. The raw skewed measurements ($-0.00186$ to $-0.00204$; clean-room $-0.00181$ to $-0.00203$) sit 16--31\% above the theory. ``Three digits'' describes the corrected number only.
+
+\textbf{Gaussian false-alarm constants differ between text and JSON.} \dive{19} \S3.1 quotes the Gaussian theory as 0.0085 ($k = 3$) and $8\times10^{-5}$ ($k = 6$), whence ``5--150$\times$''; \texttt{19\_results\_all.json} records 0.0069 and $5.5\times10^{-5}$ for the same cells, which would give 6$\times$ and 220$\times$. The conclusion is unaffected; the quoted constants do not reproduce from the shipped results.
+
+\textbf{The exogenous-clock ``identity''.} $D^\perp_t = vt$ is true by construction---the code sums the injected $\xi^2$---so ``holds to Monte Carlo precision'' checks bookkeeping, not a result; and all five E11 cells share one seed, so $D^\perp/(vW) = 0.956$ in every cell: one realisation rescaled, not five confirmations, and the ledger's ``$\pm 3\%$'' should be read accordingly. The threshold and the alarm rates are the genuine content.
+
+\textbf{Pseudo-inverses (\BL{82}).} The INDEX names dives 16 and 19 among those reporting \texttt{pinv}-based numbers without the $s_{\min}/s_{\max}$ audit \dive{21} made mandatory. \dive{19}'s pseudo-inverses ($H_f^+$, $(Ts^2V)^+$) act on a feasible subspace of \emph{known} rank $n - 1$, so the risk is far lower than for a singular FIM and the switch weights are verified in closed form; the passive-law ratios (1.77, 5.2) and the loss $\tfrac12e^\T H_f^+e$ have nonetheless not had the audit. \dive{16} reports no FIM-based standard errors.
+
+\textbf{Grids, labels, rounding.} \dive{16}'s code uses an 80-point $K$ grid on $[0.5, 60]$, \dive{19} a 40-point grid; \dive{16}'s burn-in pulse is 0.2 (linear) and 0.3 (Hill), \dive{19}'s 0.25. The INDEX rounds the pure random walk to ``0.95'' (writeup 0.943--0.946), and ``coverage 0.95 at any gain'' covers a band 0.943--0.957 that includes one seed at 0.943. \dive{16}'s claim text mis-stated sd$(\hat\beta_T)$ at $T = 40$ as 0.24 (it is 0.15) until the clean-room caught it. The pricing law is called ``verified'' on a $\pm 14\%$ grid where the measured values (73--91) straddle theory (85.3) by up to 14\%.
+
+\textbf{Consistency checks passed.} $27\% = (82.6 - 60.4)/82.6$; $42\% = 1 - 0.204/0.352$; $55\times = 7{,}650/138.5$; 158\%, 0.27, $[83, 134]$, $[35, 238]$, the switch weights ($S = 13.125$), the passive ratios 1.77/5.18, the in-loop medians and means, the water-filling cells, the exogenous-wobble 0.012, the AR-CS widths and coverages, the E5 rmse values and the adstock cells all reproduce from the JSON to the stated digits.
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item Howard, S. R., Ramdas, A., McAuliffe, J. and Sekhon, J. (2021). \emph{Time-uniform, nonparametric, nonasymptotic confidence sequences}. Annals of Statistics 49(2), 1055--1080. \url{https://par.nsf.gov/servlets/purl/10251927}
+\item Ville, J. (1939). \emph{\'Etude critique de la notion de collectif}. Gauthier-Villars, Paris.
+\item Robbins, H. (1970). \emph{Statistical methods related to the law of the iterated logarithm}. Annals of Mathematical Statistics 41(5), 1397--1409.
+\item Lai, T. L. (1976). \emph{On confidence sequences}. Annals of Statistics 4(2), 265--280. \url{https://projecteuclid.org/euclid.aos/1176343406}
+\item Ramdas, A., Gr\"unwald, P., Vovk, V. and Shafer, G. (2023). \emph{Game-theoretic statistics and safe anytime-valid inference}. Statistical Science 38(4), 576--601. \url{https://arxiv.org/abs/2210.01948}
+\item Wasserman, L., Ramdas, A. and Balakrishnan, S. (2020). \emph{Universal inference}. PNAS 117(29), 16880--16890. \url{https://www.pnas.org/doi/10.1073/pnas.1922664117}
+\item Armitage, P., McPherson, C. K. and Rowe, B. C. (1969). \emph{Repeated significance tests on accumulating data}. Journal of the Royal Statistical Society A 132(2), 235--244.
+\item Lai, T. L. and Wei, C. Z. (1982). \emph{Least squares estimates in stochastic regression models with applications to identification and control of dynamic systems}. Annals of Statistics 10(1), 154--166. \url{https://doi.org/10.1214/aos/1176345697}
+\item Lai, T. L. and Wei, C. Z. (1987). \emph{Asymptotically efficient self-tuning regulators}. SIAM Journal on Control and Optimization 25(2), 466--481. \url{https://dl.acm.org/doi/10.1137/0325026}
+\item Abbasi-Yadkori, Y., P\'al, D. and Szepesv\'ari, C. (2011). \emph{Improved algorithms for linear stochastic bandits}. NeurIPS 24. \url{https://sites.ualberta.ca/~szepesva/papers/linear-bandits-NeurIPS2011.pdf}
+\item Hadad, V., Hirshberg, D. A., Zhan, R., Wager, S. and Athey, S. (2021). \emph{Confidence intervals for policy evaluation in adaptive experiments}. PNAS 118(15). \url{https://www.pnas.org/doi/10.1073/pnas.2014602118}
+\item Zhang, K. W., Janson, L. and Murphy, S. A. (2020). \emph{Inference for batched bandits}. NeurIPS 33. \url{https://arxiv.org/abs/2002.03217}
+\item Nie, X., Tian, X., Taylor, J. and Zou, J. (2018). \emph{Why adaptively collected data have negative bias and how to correct for it}. AISTATS. \url{https://arxiv.org/abs/1708.01977}
+\item Keskin, N. B. and Zeevi, A. (2014). \emph{Dynamic pricing with an unknown demand model: asymptotically optimal semi-myopic policies}. Operations Research 62(5), 1142--1167. \url{https://pubsonline.informs.org/doi/10.1287/opre.2014.1294}
+\item Keskin, N. B. and Zeevi, A. (2018). \emph{On incomplete learning and certainty-equivalence control}. Operations Research 66(4), 1136--1167. \url{https://pubsonline.informs.org/doi/10.1287/opre.2017.1713}
+\item Ziemann, I. and Sandberg, H. (2021). \emph{On uninformative optimal policies in adaptive LQR with unknown B-matrix}. L4DC. \url{https://arxiv.org/abs/2011.09288}; (2024). \emph{Regret lower bounds for learning linear quadratic Gaussian systems}. IEEE Transactions on Automatic Control. \url{https://arxiv.org/abs/2201.01680}
+\item Granger, C. W. J. (1969). \emph{Investigating causal relations by econometric models and cross-spectral methods}. Econometrica 37(3), 424--438.
+\item Caines, P. E. and Chan, C. W. (1975). \emph{Feedback between stationary stochastic processes}. IEEE Transactions on Automatic Control 20(4), 498--508. \url{https://ieeexplore.ieee.org/document/1101008/}
+\item Gustavsson, I., Ljung, L. and S\"oderstr\"om, T. (1977). \emph{Identification of processes in closed loop---identifiability and accuracy aspects}. Automatica 13(1), 59--75. \url{https://www.sciencedirect.com/science/article/abs/pii/0005109777900097}
+\item Levine, S. and Koltun, V. (2013). \emph{Guided policy search}. ICML.
+\item Aoyama, Y., et al. (2026). arXiv:2606.00737. \url{https://arxiv.org/abs/2606.00737}
+\item Heusch, A. (2026). \emph{Synthetic benchmark with endogenous marketing spend for validating MMMs}. arXiv:2608.21130. \url{https://arxiv.org/abs/2608.21130}
+\item Pathak, S., et al. (2026). \emph{Learning to Spend}. arXiv:2604.27186. \url{https://arxiv.org/abs/2604.27186}
+\item Frontier study (internal): \texttt{02\_open\_questions.md}, entries M7 and E2; \texttt{03\_mmm\_adoption\_barriers.md}, entry O5.
+\item Program (internal): \dive{01} (adstock needs block pulses), \dive{03}/\dive{04} (EVSI, switch experiments), \dive{05} (coverage constraints, traps), \dive{07} (overlap correlation), \dive{08}/\dive{09} (deadband, budget coupling), \dive{11} (leakage), \dive{15} (prequential e-process), \dive{21} (budget-neutral rank theorem, \BL{70}, \BL{82}).
+\end{enumerate}
+\endgroup

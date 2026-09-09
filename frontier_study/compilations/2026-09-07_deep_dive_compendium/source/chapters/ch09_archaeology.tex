@@ -1,0 +1,281 @@
+% ===========================================================================
+% Chapter: The data-archaeology compiler (dive 11)
+% ===========================================================================
+\chapter[The data-archaeology compiler]{The data-archaeology compiler: imputation leakage, certified taxonomies and a provenance-typed likelihood}
+\label{ch:archaeology}
+
+\begin{provenance}
+\textbf{Source dives:} \dive{11} \emph{The data-archaeology compiler: imputation leakage, the certify-the-mass audit law, and a provenance-typed likelihood (B5 / O1 / O3)} (run 2026-09-02, file \texttt{11\_data\_archaeology\_compiler.md}, written 2026-09-02 03:33 UTC).
+\textbf{Code:} \texttt{code/11\_data\_archaeology\_compiler.py} (experiments E1--E20).
+\textbf{Frontier-study problem(s) addressed:} program queue item B5 = adoption barriers O1 (data archaeology is 70--80\% of an MMM project) and O3 (the geo tier demands geo-level spend that nationally bought channels never report, so practitioners impute it by population share): a spend-data taxonomy standard, an LLM-assisted extraction pipeline, and geo-imputation whose error enters the MMM likelihood rather than being treated as data.
+\textbf{Backlog items closed:} none; \textbf{opened:} \BL{32}--\BL{36}.
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item Population-share imputation of a nationally bought channel in a geo MMM obeys an exact \emph{leakage law} into the correctly measured channel, $\mathrm{bias}(b_D)/\beta_{TV} = \sum_t s_td_t\Cov_g(\eta,\zeta)/[\sum_t d_t^2\Var_g(\zeta)+\sum_t r_t^2(1+\bar\zeta)^2]$, with the \emph{raw} seasonal cross-product in the numerator: seasonality controls do not protect (digital $+17\%$/TV $-7\%$ baseline, $+79\%$/$-48\%$ strong; clean-room $\pm0.01$).
+\item Imputation manufactures the bias: the national model is unbiased, so a geo model with an imputed channel is worse than no geos; a geo-specific loading on the national path (adstock profiled, 30/30 correct) is unbiased and most precise, but hierarchical shrinkage tighter than the true misallocation re-opens the leak ($+0.05 \to +0.68$).
+\item A Hausman-type plug-in-versus-latent difference detects the leak at $|t| = 4$--$8$; under Hill the leak flips sign across the knee ($+0.11 \to -0.05$) and misallocation is observationally equivalent to effectiveness heterogeneity (profile SSR flat to 0.6\%), so the imputed channel's curve can only be bracketed.
+\item For LLM-classified line items with Pareto spends the certify-top-$k$ MSE law (verified to 1--5\%) shows that certifying 2.5\% of lines by spend cuts channel-total error from $\sim$5\% to 1.5\%, while PPI and matrix-calibration rectifiers are MSE-worse than the raw labels at a 20\% audit budget.
+\item Ledger, as allocation regret in percent of optimal revenue: baseline leak 0.28\%, strong 8.2\%, raw LLM taxonomy 0.13\%, certified taxonomy 0.00\%, Berkson share noise 0.20\%.
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+Two of the frontier study's adoption barriers are operational. O1: finding and cleaning spend data is 70--80\% of an MMM project---years of weekly history scattered across platforms, agencies and finance systems under chaotic campaign taxonomies. O3: the geo-hierarchical model class, the statistical answer to small $T$ (\cref{ch:identification}), needs weekly geo-level spend across 50--100 markets, which national TV buys, sponsorships and some walled gardens never report; practitioners impute it by population share, as Meridian's documentation recommends. The queue asked for a taxonomy standard, LLM extraction, and imputation whose error reaches the likelihood.
+
+\dive{11} takes the \emph{compiler} view: every spend series carries a provenance type---\emph{measured}, \emph{classified} (line items assigned to channels by an LLM with a confusion matrix) or \emph{imputed} (a national total split by an assumed share vector)---and the compiler emits, per type, the correct likelihood term and the cheapest acquisition action that makes the residual error decision-negligible. Three questions came first. What does population-share imputation do to a geo MMM---not only to the imputed channel, where Sun et al.\ (2017) reported positive bias, but to the correctly measured channels beside it? What does LLM misclassification do to channel totals, and how should a finite audit budget be spent, given that prediction-powered inference was built for i.i.d.\ means rather than Pareto-weighted totals? And which defects are worth fixing, in the decision-loss units of \cref{ch:voi,ch:deadband}? Prior art was thin: one Google section on the imputed channels' own curves, Berkson theory never combined with a geo panel, no audit-size rule for LLM-classified spend, no spend taxonomy at all.
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{Geo-hierarchical MMM and population-share imputation (Sun et al., 2017; Meridian)}
+
+The geo-level Bayesian hierarchical MMM of Sun, Wang, Jin, Chan and Koehler (2017) models each geo's per-capita KPI as $y_{gt} = \tau_g + \sum_m \beta_{m,g}H(a_{m,g,t}) + \text{controls} + \varepsilon_{gt}$, adstock and Hill as in \cref{ch:transport}, with geo coefficients partially pooled by $\beta_{m,g} \sim \mathcal N(\beta_m, \sigma_m^2)$; more observations and more spend variation give tighter credible intervals than a national model. Its \S4.4 handles channels known only nationally by allocating national spend to geos in proportion to population---in per-capita units, the same path $S_t$ in every geo---and finds ``larger biases and wider credible intervals for the response curves'', positive and worsening as more channels are imputed; the measured channels are not reported. Meridian follows the recommendation, and no package carries a national-only flag with model-side uncertainty. The pooling scale $\sigma_m$ matters below: fixed small, or estimated from data that cannot push it up, it pulls geo coefficients to their common value.
+
+\subsection{Classical and Berkson error; weight shifting (Berkson, 1950; Carroll et al., 2006; Abel, 2017)}
+
+With \emph{classical} error the observed regressor is $W = X + U$, $U \perp X$: the OLS slope on $W$ is attenuated by the reliability $\lambda = \Var X/(\Var X + \Var U)$, and with a second, correctly measured regressor the lost weight shifts, $\mathrm{plim}\,b_2 = \beta_2 + \beta_1(1-\lambda)\gamma_{12}$, $\gamma_{12}$ the auxiliary-regression coefficient of $X_1$ on $X_2$ (Abel, 2017, gives the multi-regressor form). With \emph{Berkson} error the truth scatters around the assigned value, $X = W + U$, $U \perp W$, so $\E[Y \mid W] = \beta W$ and the linear slope is unbiased; through a nonlinear response $\E[f(W+U) \mid W] \approx f(W) + \tfrac12 f''(W)\Var U$ (Carroll et al., 2006), the Jensen term \cref{ch:aggregation} works out for Hill. Population-share allocation is Berkson error: $S_t$ is the pivot and the true $S_t(1+\eta_g+e_{gt})$ scatters around it. Harmlessness requires the deviation to be independent of everything in the design; the persistent part $\eta_g$ is a geo characteristic (local CPMs, coverage, planners' weights) correlated with the measured channel's own loading $\zeta_g$ wherever the advertiser's customers concentrate.
+
+\subsection{Hausman specification tests (Hausman, 1978)}
+
+Given $\hat b_0$, efficient under the null but inconsistent under the alternative, and $\hat b_1$, consistent under both, $\Var(\hat b_1 - \hat b_0) = \Var(\hat b_1) - \Var(\hat b_0)$ under the null, and $(\hat b_1 - \hat b_0)^\T[\Var(\hat b_1)-\Var(\hat b_0)]^{-1}(\hat b_1 - \hat b_0)$ is asymptotically $\chi^2$; the classic uses are random versus fixed effects and OLS versus IV. The leak test takes the plug-in fit as $\hat b_0$ and the latent-loading fit as $\hat b_1$.
+
+\subsection{Prediction-powered inference, matrix calibration, monetary-unit sampling}
+
+Prediction-powered inference (Angelopoulos, Bates, Fannjiang, Jordan and Zrnic, 2023) estimates a mean from $N$ predictions $f_i$ and $n \ll N$ gold labels $Y_i$ by correcting the prediction mean with a \emph{rectifier} from the labelled subsample,
+\begin{equation}
+\hat\theta_{PP} = \frac1N\sum_{i=1}^{N} f_i - \frac1n\sum_{i=1}^{n}\big(f_i - Y_i\big),
+\label{arch:eq:ppi}
+\end{equation}
+unbiased with valid intervals whatever the predictor's quality, variance $\Var(f)/N + \Var(f-Y)/n$; PPI++ (Angelopoulos, Duchi and Zrnic, 2023) adds a tuning weight so it is never worse than the $n$-label classical estimator, and DSL (Egami et al., 2023) is the same design-based idea for regressions on LLM-labelled text. \emph{Matrix calibration} (Buonaccorsi, 2010; Gustafson, 2003) estimates the confusion matrix $\hat M[c,\hat c]$ from the labelled sample and inverts it on predicted-class totals, $T_{\mathrm{true}} = \hat M^{-\T}T_{\mathrm{pred}}$. All are built for i.i.d.\ units with bounded contributions. A channel total $\sum_i s_i\ind[c_i = k]$ weights units by amounts from a Pareto tail with index $\alpha \approx 1.3$---infinite variance, a handful of lines carrying most of $\sum s_i^2$---which auditing practice meets with monetary-unit sampling (PPS, probability proportional to size) and cut-off designs that examine every item above a threshold (PCAOB AS 2315; Amorim et al., 2021). ``Certify the mass'' is a cut-off design; the dive contributes its MSE law and the head-to-head against the rectifiers.
+
+\section{Setup and assumptions}
+
+Geos $g = 1,\ldots,G$ with population shares $p_g$, weeks $t = 1,\ldots,T$, per-capita outcome
+\begin{equation}
+y_{gt} = \mu_g + \beta_{TV}\, f_{TV}\big(a^{TV}_{gt}\big) + \beta_D\, f_D\big(a^D_{gt}\big) + \text{season}_t + \varepsilon_{gt},
+\label{arch:eq:dgp}
+\end{equation}
+geometric adstock $a_t = x_t + \alpha a_{t-1}$, $f$ linear or Hill $H(a;K,s) = a^s/(a^s+K^s)$. National per-capita paths $S_t$ (TV, bought nationally) and $D_t$ (digital, geo-measured). True TV spend $x^{TV}_{gt} = S_t(1+\eta_g+e_{gt})$, $\eta_g$ a persistent relative misallocation and $e_{gt}$ time-varying share noise; the imputed regressor is $\hat x^{TV}_{gt} = S_t$; digital $x^D_{gt} = D_t(1+\zeta_g)$. Adstock is linear, so $a(S(1+\eta_g)) = (1+\eta_g)a(S)$. Time-demeaned paths $s_t = a(S)_t - \overline{a(S)}$, $d_t = a(D)_t - \overline{a(D)}$; $r_t$ is $d$ residualised on the geo-constant columns of the fitted design (imputed TV path, seasonal basis $F_t$); $\Cov_g$, $\Var_g$, $\bar\zeta$ are unweighted geo moments. Part II: $N$ line items with spends $s_i$ (Pareto, index $\alpha$), true channel $c_i$, LLM label $\hat c_i$ from a confusion matrix $M[c,\hat c]$, audit budget $n$.
+
+\begin{assumption}[Persistent, correlated misallocation]
+\label{arch:ass:persistent}
+$\eta_g$, $\zeta_g$ are time-invariant with population-weighted mean zero and $\Corr(\eta,\zeta) = \rho_{\eta\zeta} \ne 0$ in the realistic case; $e_{gt}$ is i.i.d.\ and independent of the design.
+\end{assumption}
+
+\begin{assumption}[Plug-in design]
+\label{arch:ass:design}
+Geo fixed effects, common $\beta_{TV}$ on $a(\hat x^{TV})$, common $\beta_D$ on $a(x^D)$, a geo-constant Fourier seasonal basis (three harmonics), equal geo weights in OLS, adstock rates known (the repair profiles $\alpha_{TV}$).
+\end{assumption}
+
+\begin{assumption}[Audit model]
+\label{arch:ass:audit}
+Off-diagonal confusion rate $e$; errors independent across lines or clustered by campaign family; certification exact; spends Pareto with $\alpha \in \{1.3, 2, 3\}$.
+\end{assumption}
+
+Defaults: $G = 50$, $T = 104$, $\alpha_{TV} = 0.5$, $\alpha_D = 0.2$, $\beta_{TV} = \beta_D = 1$, $\sigma = 0.5$; the national paths share a Q4 seasonal ramp and AR(1) log-noise with a common component of weight $\rho_{SD}$. \emph{Baseline}: $(\rho_{SD}, \rho_{\eta\zeta}, \sigma_\eta = \sigma_\zeta) = (0.6, 0.5, 0.3)$; \emph{strong}: $(0.9, 0.8, 0.5)$. Hill runs: $K = 1.5$, $s = 1$, $\beta_{TV} = 3$, $\beta_D = 1$, $\sigma = 0.3$.
+
+\section{Main results}
+
+\subsection{The imputation leakage law}
+
+The plug-in model of \cref{arch:ass:design}, with OLS coefficients $b_{TV}$, $b_D$, omits $z_{gt} = \beta_{TV}s_t\eta_g$: a national time shape times a geo loading, which geo-constant controls cannot absorb and geo fixed effects only de-mean.
+
+\begin{theorem}[Leakage law, linear response]
+\label{arch:thm:leak}
+\tagEstablished\ Under \cref{arch:ass:persistent,arch:ass:design} with linear $f$,
+\begin{equation}
+\frac{\mathrm{bias}(b_D)}{\beta_{TV}} = \frac{\sum_t s_td_t\,\Cov_g(\eta,\zeta)}{\sum_t d_t^2\,\Var_g(\zeta) + \sum_t r_t^2\,(1+\bar\zeta)^2}.
+\label{arch:eq:leak}
+\end{equation}
+\end{theorem}
+
+By Frisch--Waugh--Lovell, $\mathrm{bias}(b_D) = \sum_{g,t}\tilde x_{gt}z_{gt}/\sum_{g,t}\tilde x_{gt}^2$ with $\tilde x$ the digital column $d_t(1+\zeta_g)$ residualised on the geo-constant columns $C_t = (s_t, F_t)$. Because $C$ is identical in every geo and geos are equally weighted, the pooled projection coefficient is $(1+\bar\zeta)$ times the time-series projection of $d$ on $C$, so $\tilde x_{gt} = d_t(\zeta_g-\bar\zeta) + (1+\bar\zeta)r_t$. The cross term in $\sum\tilde x^2$ vanishes since $\sum_g(\zeta_g-\bar\zeta) = 0$, giving $G[\sum_t d_t^2\Var_g(\zeta) + (1+\bar\zeta)^2\sum_t r_t^2]$; and $\sum\tilde xz = \beta_{TV}G[\sum_t s_td_t\Cov_g(\eta,\zeta) + (1+\bar\zeta)\bar\eta\sum_t r_ts_t]$, whose last sum is zero because $r$ is orthogonal to $s$. The law matches the exact finite-sample projection $(X^\T X)^{-1}X^\T z$ (the omitted-variable bias, OVB) to three decimals and the Monte Carlo mean to $\pm0.01$ in every configuration (E1; clean-room $\pm0.01$, per-replication correlation 0.86--0.99).
+
+Three consequences. (i) The numerator is the \emph{raw} cross-product of the national paths, not the seasonally residualised one: the leak runs through geo-heterogeneous seasonal \emph{amplitude}, so when the paths share nothing but their Q4 ramp ($\rho_{SD} = 0$) the leak is still $+0.17$. (ii) The leak is largest when the measured channel's own geo heterogeneity is modest and its time path mostly shared shape ($r$ small)---the ordinary world in which every channel ramps for Q4. (iii) The imputed channel's own coefficient is pulled the other way, its variance handed to digital: TV $-7\%$, digital $+17\%$ at baseline; TV $-48\%$, digital $+79\%$ strong. The round-1 closed form residualised the numerator on the seasonal basis, under-predicted the leak $4$--$6\times$ and failed the $\rho_{SD} = 0$ case ($+0.004$ predicted); it is \tagRefuted.
+
+\begin{corollary}[Imputation manufactures the bias]
+\label{arch:cor:manufacture}
+\tagNumerical\ The population-weighted national model on the same data is unbiased for both channels (E13: $+0.00/+0.00$), because aggregation kills the geo loading. A geo model with a common coefficient on an imputed channel is therefore strictly worse than no geos at all for the measured channels: strong-scenario bias/sd of $b_D$ is $+0.79/0.12$ (geo plug-in), $+0.00/0.07$ (national), $+0.00/0.04$ (geo-latent, \cref{arch:prop:latent}).
+\end{corollary}
+
+\subsection{The latent-loading repair, shrinkage, and the leak test}
+
+\begin{proposition}[Latent-loading repair]
+\label{arch:prop:latent}
+\tagEstablished\ Model the imputed channel with a geo-specific loading on the national path, $y_{gt} = \mu_g + \lambda_g a(S)_t + \beta_D a(x^D)_{gt} + F_t^\T\gamma + \varepsilon_{gt}$, and report $\beta_{TV} = \sum_g p_g\lambda_g$. It is exactly identified whenever the national path is not collinear with the measured channels' geo paths, and it is what a hierarchical geo-varying coefficient already does in the linear case---except that the recovered ``geo heterogeneity of TV effectiveness'' is in truth misallocation. E2: bias 0.00 at every $\rho_{SD}$ from 0 to 0.995, sd rising from 0.024 to 0.058 (oracle with true spend 0.023--0.039).
+\end{proposition}
+
+Three failure modes were measured in the strong scenario. \emph{Shrinkage re-opens the leak} (E3): a hierarchical prior on the $\lambda_g$ tighter than the true dispersion (0.5) pulls them back toward the plug-in fit---prior sd 0.5, 0.16, 0.05 give bias $+0.05$, $+0.30$, $+0.68$---so a Meridian-style estimated heterogeneity scale protects only if the data can push it up. \emph{Geo $\times$ season interactions} (E14) remove the purely seasonal leak ($\rho_{SD} = 0$: $0.32 \to 0.01$) but leave half the correlated-path leak ($\rho_{SD} = 0.9$: $0.77 \to 0.39$) at a precision cost. \emph{The imputed channel's adstock must be right} (E11): with $\alpha_{TV}$ fixed at 0.7 or 0.3 instead of 0.5 the latent model leaks $+0.57$ or $-0.18$; profiling $\alpha_{TV}$ on a grid inside the latent model picks the truth 30/30 and restores bias 0.00 (E20), because the loadings absorb any shape and the likelihood then prefers the true adstock.
+
+\begin{construction}[Leak test]
+\label{arch:con:leaktest}
+\tagEstablished\ The plug-in and latent fits agree iff $\Cov_g(\eta,\zeta)\sum_t s_td_t \approx 0$, so the Hausman-type difference $b_D^{\mathrm{plug\text{-}in}} - b_D^{\mathrm{latent}}$ is a specification test the compiler runs on every imputed channel. E12: $|t| = 4.0$ at $(G,T) = (20,52)$, 5.2 at $(50,104)$, 7.8 at $(100,156)$ with a leak; $0.0$--$0.2$ when $\rho_{\eta\zeta} = 0$.
+\end{construction}
+
+\subsection{Hill response: sign flip across the knee, and what is not identified}
+
+\begin{proposition}[Sign flip]
+\label{arch:prop:hill}
+\tagNumerical\ Under Hill the omitted term is $\beta_{TV}[H(a_t(1+\eta_g)) - H(a_t)] \approx \beta_{TV}\,a_tH'(a_t)\,\eta_g$, so \cref{arch:eq:leak} applies with $s_t$ replaced by the time-demeaned \emph{elasticity path} $a_tH'(a_t)$. For $s = 1$, $aH'(a) = aK/(a+K)^2$ has derivative $K(K-a)/(a+K)^3$: its time variation vanishes at the knee $a = K$ and reverses beyond it. E17: the leak into digital runs from $+0.11$ at $a/K = 0.2$ through $0.00$ at 2.0 to $-0.05$ at 4.0, and the exact OVB at the true $K$ tracks every point (\cref{arch:tab:hill}).
+\end{proposition}
+
+The imputed channel's own national mROAS under the plug-in runs from $-36\%$ ($a/K = 0.2$) to $+27\%$ (4.0); the hierarchical-$\beta_g$ model does much better below the knee but is $+25\%$ deep in saturation, and at very large misallocation ($\sigma_\eta = 0.8$) both overstate (plug-in $+24\%$, hierarchical $+52\%$; E5). This reconciles Sun et al.'s positive bias with the negative TV bias here---\emph{demonstrated, not proven}, in the dive's words: persistent misallocation attenuates through the leak below the knee, while \emph{time-varying} share noise is Berkson-through-Hill and inflates (E7: linear $b_{TV}$ unbiased at every $\sigma_e$, as Berkson theory requires; Hill plug-in mROAS $+1.5\%$ at $\sigma_e = 0.3$, $+21\%$ at 0.6). The sign of the bias says which mechanism dominates.
+
+\begin{proposition}[Non-identification near the knee]
+\label{arch:prop:nonident}
+\tagNumerical\ (Demonstrated on one panel, not proven.) With common $(\beta,K)$ and geo loadings $\eta_g$ inside the Hill argument, the profiled SSR (sum of squared residuals) is flat in $K$ to 0.6\% over $K \in [0.5,3]$ and $\Corr(\hat\eta,\eta)$ ranges from $-0.27$ to $+0.55$ (E19): near the knee a geo's response amplitude is stationary in $\eta$, so misallocation and effectiveness heterogeneity are observationally equivalent to first order while implying different marginal ROI.
+\end{proposition}
+
+The linear repair works because amplitude is proportional to $1+\eta$; the Hill repair fails exactly where the leak is small, so the compiler must record an imputed channel's national curve as \emph{bracketed}, not estimated, unless geo spend is obtained (\BL{34}).
+
+\subsection{Taxonomy misclassification: the certify-the-mass law}
+
+\begin{law}[Certify-top-$k$ MSE law]
+\label{arch:law:certify}
+\tagEstablished\ Channel $k$'s total error under LLM labels is $\Delta_k = \sum_i s_i(\ind[\hat c_i = k] - \ind[c_i = k])$; certifying a set $A$ zeroes its terms. With off-diagonal rate $e$,
+\begin{equation}
+\Var(\Delta_k) \approx e(1-e)\sum_{i \notin A} s_i^2 \ \text{(in- and out-flow classes)},\qquad
+\E[\Delta_k] = e\Big(\sum_{i \notin A,\,\mathrm{inflow}} s_i - \sum_{i \notin A,\,\mathrm{outflow}} s_i\Big),
+\label{arch:eq:mse}
+\end{equation}
+verified within 1--5\% at every $k \ge 20$ (E16, 400 replications; clean-room 1--3\%).
+\end{law}
+
+Two facts follow. (a) Under Pareto $\alpha < 2$ the top lines dominate $\sum s_i^2$---at $\alpha = 1.3$, 90\% of it sits in 0.2\% of lines and 99\% in 12.6\% (E8)---so certifying the top 2.5\% of lines cuts channel-total RMSE from about 5\% to 1.5\% and the flow bias from 2.2\% to 0.3\% (E9: $N = 2000$, $e = 0.10$, asymmetric flow matrix); with 60 lines a week, certifying the top 3 per week takes a national MMM coefficient from $-6\%$ bias / 12\% RMSE to 0\% / 1.3\% (E18). At $k = 0$ the RMSE is itself seed-unstable (clean-room 0.165 against the dive's 0.05) because one mislabelled top line moves the total---the strongest argument for certification. (b) \emph{Random-sample rectification is the wrong tool} \tagNumerical: the difference estimator \cref{arch:eq:ppi} adds variance $(N/n-1)V_{\mathrm{tail}}$, so at $n = 400$ of 2000 it is still $2\times$ worse than the raw labels (RMSE 0.10 against 0.05); PPS sampling gives 0.04 and matrix calibration 0.07, since a 10\% rate estimated from about 130 labels per class carries 2.6 points of uncertainty times the whole tail spend (the dive's summary calls all three MSE-worse than raw at every budget $n \le 400$, i.e.\ $\le 20\%$ of lines; on PPS see the reviewer's note). PPI's guarantee is validity against the $n$-label classical estimator, not MSE against raw predictions that are already within a few percent; the round-1 design that used PPI as the taxonomy fix is \tagRefuted. The ranking survives $\alpha \in \{1.3,2,3\}$, size-dependent error and asymmetric flows; with errors clustered by campaign family, certifying by \emph{family mass} beats certifying by line (E15: 0.013 against 0.017 at $n = 50$; 0.000 against 0.009 at $n = 200$). The \emph{audit rule} \tagConjecture: certify down the spend-sorted list of lines or families until $e(1-e)\sum_{\mathrm{tail}}s_i^2 + [e\cdot\text{net flow}_{\mathrm{tail}}]^2 < (\tau T_k)^2$, $T_k$ the channel total, for the tolerance $\tau$ the decision needs (\cref{ch:deadband} supplies it; the ledger suggests $\tau \approx 3\%$ is decision-free), using a small random tail sample only to estimate $e$, never to rectify totals.
+
+\subsection{The compiler and the ledger}
+
+\begin{construction}[Provenance-typed compiler]
+\label{arch:con:compiler}
+\tagConjecture\ (Design grounded in the theorems, not a field result.) The \emph{taxonomy standard} is minimal and machine-checkable: each line item carries channel, tactic, buying model, geo scope $\in \{$geo-measured, national, unknown$\}$, funnel objective, spend basis (gross/net/fee-inclusive), currency, date range, source system, and a \emph{provenance type} $\in \{$measured; classified($e$, family id, certified?); imputed(share vector, share-uncertainty class)$\}$. Extraction is an LLM map from raw campaign strings to this schema with a per-line confidence and a family id. Each provenance type compiles to a likelihood term and an acquisition action (\cref{arch:tab:compiler}).
+\end{construction}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Provenance types and what the compiler emits for each (\dive{11} \S3.5).}
+\label{arch:tab:compiler}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+Provenance type & Likelihood term & Acquisition action \\
+\midrule
+measured & ordinary & none \\
+classified & after certification to $\tau$, ordinary; residual variance inflates the spend measurement covariance (classical, small) & certify by (family) mass down to $\tau$; small tail sample for $e$ \\
+imputed, persistent misallocation & geo loading $\lambda_g$ on the national path, un-shrunk or data-scaled prior; report $\sum_g p_g\lambda_g$; run the leak test; curve \emph{bracketed} under saturation & obtain geo spend or an auxiliary geo share \\
+imputed, time-varying share noise & Berkson term $\E[H(a(1+e))] \approx H + \tfrac12H''a^2\sigma_e^2$, $\Var \mathrel{+}= \beta^2H'^2a^2\sigma_e^2$ (\cref{ch:aggregation}) & only if $\sigma_e$ is large \\
+imputed with auxiliary geo signal & impressions/GRPs/traffic as share vector; reclassify as measured-with-noise & \BL{35} derives the crossover \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The \emph{archaeology ledger} (E10, \cref{arch:tab:ledger}) propagates each defect's measured biases into a two-channel Hill allocation ($\beta = (3,1)$, $K = (1.5,1)$, $s = 1$, budget 2.5, 300 replications) and reports expected regret as a share of optimal revenue. As the dive reads it, for a \$100M budget the baseline leak is worth about \$280k a year and the strong case about \$8M: geo spend for the imputed channel, or the free latent-loading fit, is the highest-value archaeology; certification is cheap and closes its gap; share noise matters only when large.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Archaeology ledger (E10): expected allocation regret in percent of optimal revenue, se $\le 0.05$ percentage points; inputs are the biases measured in the experiment named.}
+\label{arch:tab:ledger}
+\begin{tabular}{llc}
+\toprule
+Data defect & Input biases (source) & Regret (\%) \\
+\midrule
+clean data (sd 3\%) & --- & 0.01 \\
+imputation leak, baseline & TV $-7\%$, D $+17\%$ (E1) & 0.28 \\
+imputation leak, strong & TV $-48\%$, D $+79\%$ (E1) & 8.2 \\
+taxonomy, raw LLM labels & D $-6\% \pm 12\%$ (E18) & 0.13 \\
+taxonomy, top 5\% certified & sd 1.3\% (E18) & 0.00 \\
+Hill Berkson share noise $\sigma_e = 0.6$ & TV $+21\%$ (E7) & 0.20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Numerical evidence}
+\label{arch:sec:numerics}
+
+\cref{arch:tab:leak} gives the leakage law's four E1 configurations with the independent clean-room replication (different seeds, 100 replications) and \cref{arch:tab:hill} the Hill sweep; the strong-scenario estimator ranking (E13, 100 replications) and the repair variants (E3, E11, E14: 60; E20: 30) are quoted in \cref{arch:cor:manufacture,arch:prop:latent} and the text following them. Negative controls are E1's third configuration, E12's $\rho_{\eta\zeta} = 0$ rows ($|t| \le 0.2$) and E7's linear rows; the power control is E12's $(G,T)$ sweep. Standard errors are reported for E1, E17 (se $\le 0.01$) and E10 (se $\le 0.05$ pp); other entries are means and sds.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Leakage law across the E1 configurations ($G = 50$, $T = 104$, $\sigma_\eta = \sigma_\zeta$): Monte Carlo bias of $b_D$ (dive, 60 replications) against the clean-room re-implementation (100); the closed form \cref{arch:eq:leak} matches the dive column within 0.01 in every row. n/r: not reported.}
+\label{arch:tab:leak}
+\begin{tabular}{lcccccc}
+\toprule
+Configuration & $\rho_{SD}$ & $\rho_{\eta\zeta}$ & $\sigma_\eta$ & bias $b_D$ (dive) & clean-room & bias $b_{TV}$ \\
+\midrule
+baseline & 0.6 & 0.5 & 0.3 & $+0.181$ & $+0.188$ & $-0.07$ \\
+strong & 0.9 & 0.8 & 0.5 & $+0.771$ & $+0.782$ & $-0.48$ \\
+no correlation (control) & 0.6 & 0.0 & 0.3 & $-0.001$ & $+0.001$ & n/r \\
+seasonal only & 0.0 & 0.8 & 0.3 & $+0.168$ & $+0.158$ & n/r \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Hill operating-point sweep (E17; $\beta_{TV} = 3$, $K = 1.5$, strong-scenario shares, 15 replications per point, se $\le 0.01$ on the leaks): leak into $b_D$ under the plug-in, exact OVB at the true $K$, and relative bias of the imputed channel's national mROAS.}
+\label{arch:tab:hill}
+\begin{tabular}{lccccc}
+\toprule
+$a/K$ & 0.2 & 0.8 & 1.3 & 2.0 & 4.0 \\
+\midrule
+leak into $b_D$, plug-in & $+0.11$ & $+0.09$ & $+0.03$ & $0.00$ & $-0.05$ \\
+exact OVB at true $K$ & $+0.11$ & $+0.08$ & $+0.04$ & $-0.00$ & $-0.04$ \\
+mROAS bias, plug-in & $-36\%$ & n/r & $-4\%$ & n/r & $+27\%$ \\
+mROAS bias, hierarchical $\beta_g$ & $-11\%$ & $-6\%$ & $+1\%$ & n/r & $+25\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Limitations and the devil's advocate}
+
+The dive's own counterarguments: the DGP puts all of TV's geo variation into one persistent loading, whereas real misallocation drifts (\BL{33}) and the outcome may carry geo-varying seasonality correlated with $\eta$, adding terms to the law (the leak test remains the honest instrument); the national model is unbiased only because there is no unmodelled national confounder, with one the geo model's advantage returns for the measured channels; the $\lambda_g$ are unshrunk, a hierarchical scale estimated from 20 geos $\times$ 52 weeks may not open wide enough, and under Hill nothing repairs; certify-the-mass assumes exact certification and independent errors below the certified set, and a wholesale misreading of a tactic (all ``CTV'' to ``TV'') is a family error E15 handles only if families are identifiable from names; the PPI verdict concerns MSE of spend totals and leaves PPI's interval validity untouched; the ledger has two channels, one Hill shape and one budget---magnitudes illustrative, ordering the claim.
+
+Stated scope: linear-response law only; two channels (\BL{32}); Fourier seasonality rather than Meridian's knot-spline time effects, which E14 suggests leak \emph{more}; measured channel's adstock known; no multiple-imputation congeniality analysis in Meng's (1994) sense (the Berkson term is the congenial replacement); spend-basis errors untreated (\BL{36}). The attack rounds changed three results---the closed form (raw numerator), the taxonomy fix (certification for PPI) and the Hill ``repair'' (a bracket plus the non-identification statement)---and a fourth round of seed, size, operating-point and shrinkage sweeps changed nothing.
+
+\section{Discussion: impacts}
+
+For practice the message inverts a recommendation. The geo tier is sold as the statistical upgrade and population-share imputation as the harmless workaround that lets national channels ride along; \cref{arch:thm:leak} says the workaround converts the \emph{measured} channels' geo heterogeneity into bias, seasonality controls do not help, and the national model would have been unbiased. The fix is nearly free in a hierarchical package---a geo-varying coefficient on the national path with a prior the data can widen, adstock profiled---but default shrinkage silently undoes it, so a vendor implementing a \texttt{national\_media} flag must also change the prior, run the leak test, and under saturation report a bracket rather than a curve. For the pipeline the result is a budget rule: audit the largest lines or families until the tail clears the decision's tolerance, and do not buy a random-sample rectifier for spend totals. For CMO decisions the ledger orders the archaeology: geo spend for a nationally bought channel (or the loading fit) dominates, and a strong leak costs two orders of magnitude more regret than a raw LLM taxonomy.
+
+For theory the chapter combines Berkson error, weight shifting and a geo panel into one exact projection, separates two imputation mechanisms with opposite signs, and exhibits a non-identification sitting exactly where the leak vanishes. Outward: \cref{ch:identification} inherits the leak as cross-channel shape leakage in \dive{22}'s multichannel shape-prior ledger (\BL{86}); \cref{ch:deadband} supplies $\tau$ and receives the Hill bracket as a probability-of-regret interval (\BL{34}); \cref{ch:refresh} gains a refresh-flip source, since adding geos to a refresh can create flips through the leak (\BL{33}); \cref{ch:aggregation} supplies the Jensen algebra of the Berkson term.
+
+\section{Further exploration}
+
+Five of the dive's six next steps became backlog items. \BL{32} generalises the law to $k$ measured channels (numerator $\sum_t s_td_t^{(j)}\Cov_g(\eta,\zeta_j)$, denominator the measured channels' geo-heterogeneity Gram matrix) and tests it against Meridian's knot-spline time effects. \BL{33} asks where between the persistent (attenuating) and i.i.d.\ (Berkson-upward) limits an AR(1) misallocation $\eta_{gt}$ changes the leak's sign and whether a state-space loading $\lambda_{gt}$ repairs it. \BL{34} computes the identified set of an imputed channel's national mROAS under Hill as the $\eta/\beta_g$ exchange curve, in the interval format of \cref{ch:deadband}. \BL{35} derives when a noisy measured share vector (geo impressions, GRPs, traffic; classical error) beats the latent loading (Berkson). \BL{36} extends the audit law to gross/net/fee-basis misreads, multiplicative and correlated within source system. The sixth step, a field pilot of the leak test on a real geo MMM with a nationally bought channel, would be the first field measurement of imputation leakage.
+
+In the compiler's judgement the field pilot is the most valuable next move: everything here rests on a simulated family and the test needs no new data---two fits and a difference---but it first requires a per-dataset variance for the Hausman statistic (see the reviewer's note). Second is \BL{33}, since real misallocation is neither fixed nor i.i.d.\ and the sign-change point decides whether the imputed channel's ROI should be expected under- or over-stated.
+
+\begin{reviewernote}[(compiler)]
+\textbf{Log versus file.} The INDEX log row for \dive{11} is timestamped 2026-09-01 $\sim$21:20 and sits after the row for \dive{12} (2026-09-02 $\sim$04:50), while the file was written 2026-09-02 03:33 UTC; the log line otherwise agrees with the writeup on every number.
+
+\textbf{The PPS row contradicts the headline.} The log line and the verification table say PPI/PPS/matrix rectifiers are ``MSE-worse than raw labels at any budget $\le 20\%$'', but \S3.4 reports PPS at 0.04 against raw 0.05 at $n = 400$---marginally \emph{better}. As the $k = 0$ RMSE is seed-unstable (0.05 versus the clean-room's 0.165), the raw baseline is soft in both directions; the safe statement is that top-$k$ certification dominates every rectifier at every budget, which the dive does show.
+
+\textbf{The leak test's $|t|$ is not a test statistic.} E12 computes $|t|$ as $|\text{mean}|/\text{sd}$ of the plug-in--latent difference across 60 Monte Carlo replications, not a per-dataset Hausman statistic with a variance-difference or bootstrap a practitioner could compute; the power numbers describe detectability in principle.
+
+\textbf{Numbers that differ across experiments.} The headline $+17\%/+79\%$ (\S3.1, reused by the ledger) differ from E1's tabulated $+0.181/+0.771$ for the same configurations; E13 (different seed) gives $+0.79$ for the strong case, and the dive does not say which run the pair comes from. The verification table says E1 has ``4 configs'' while the code runs five (the fifth, $\rho_{\eta\zeta} = -0.5$, is unreported). The ledger's dollar reading applies a percentage of optimal \emph{revenue} to a \$100M \emph{budget}.
+
+\textbf{Thin evidence in places.} \cref{arch:prop:nonident} rests on one simulated panel (E19 has no replication loop); the Hill mROAS biases use 15 (E17) or 40 (E4/E5) replications with standard errors printed by the code but not quoted, and \cref{arch:tab:hill} places the dive's three unlabelled ``below the knee'' hierarchical-$\beta_g$ values at $a/K = 0.2, 0.8, 1.3$ by position (the code's grid also has 0.4); the E3 shrinkage entries carry no sds. The closed form uses unweighted geo moments while the DGP renormalises $\eta,\zeta$ to population-weighted zero mean, and the code notes the formula ``assumes $\sum_g\eta_g = 0$''; the derivation above shows the $b_D$ component does not need it (the $\bar\eta$ term multiplies $\sum_t r_ts_t = 0$), but the imputed channel's own bias does, so the $-7\%/-48\%$ TV figures are Monte Carlo, not closed-form.
+
+\textbf{Scope and novelty.} \cref{arch:cor:manufacture} holds in a DGP with no national confounder and a linear response; the dive says so, the log line does not. ``$\tau \approx 3\%$ is decision-free'' is a first-order reading of one ledger. Cut-off sampling of the largest items is standard audit practice (the dive cites PCAOB AS 2315); the new content is the MSE law \cref{arch:eq:mse} and the Pareto-weighted comparison with PPI. No result depends on a pseudo-inverse or Fisher-information computation of the kind \BL{82} flagged.
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item Sun, Y., Wang, Y., Jin, Y., Chan, D. and Koehler, J. (2017). \emph{Geo-level Bayesian Hierarchical Media Mix Modeling}. Google research report, \S4.4. \url{https://storage.googleapis.com/gweb-research2023-media/pubtools/3804.pdf}
+\item Google (2026). \emph{Meridian documentation: geo-level modeling and national-level media data; Unified MMM Schema}. \url{https://developers.google.com/meridian/docs/pre-modeling/geo-selection-national-data}
+\item Berkson, J. (1950). \emph{Are There Two Regressions?} Journal of the American Statistical Association 45(250), 164--180.
+\item Carroll, R. J., Ruppert, D., Stefanski, L. A. and Crainiceanu, C. M. (2006). \emph{Measurement Error in Nonlinear Models: A Modern Perspective}, 2nd ed. Chapman \& Hall/CRC.
+\item Abel, A. B. (2017). \emph{Classical Measurement Error with Several Regressors}. Wharton working paper. \url{https://faculty.wharton.upenn.edu/wp-content/uploads/2018/02/attenuation-bias-17.pdf}
+\item Hausman, J. A. (1978). \emph{Specification Tests in Econometrics}. Econometrica 46(6), 1251--1271.
+\item Angelopoulos, A. N., Bates, S., Fannjiang, C., Jordan, M. I. and Zrnic, T. (2023). \emph{Prediction-Powered Inference}. Science 382(6671), 669--674. \url{https://arxiv.org/abs/2301.09633}
+\item Angelopoulos, A. N., Duchi, J. C. and Zrnic, T. (2023). \emph{PPI++: Efficient Prediction-Powered Inference}. arXiv:2311.01453. \url{https://arxiv.org/abs/2311.01453}
+\item Egami, N., Hinck, M., Stewart, B. M. and Wei, H. (2023). \emph{Using Imperfect Surrogates for Downstream Inference: Design-based Supervised Learning for Social Science Applications of Large Language Models}. NeurIPS 2023. \url{https://arxiv.org/abs/2306.04746}
+\item Buonaccorsi, J. P. (2010). \emph{Measurement Error: Models, Methods, and Applications}. Chapman \& Hall/CRC.
+\item Gustafson, P. (2003). \emph{Measurement Error and Misclassification in Statistics and Epidemiology}. Chapman \& Hall/CRC.
+\item Amorim, G., Tao, R., Lotspeich, S., Shaw, P. A., Lumley, T. and Shepherd, B. E. (2021). \emph{Two-Phase Sampling Designs for Data Validation in Settings with Covariate Measurement Error and Continuous Outcome}. Journal of the Royal Statistical Society A 184(4), 1368--1389. \url{https://academic.oup.com/jrsssa/article/184/4/1368/7068831}
+\item PCAOB. \emph{AS 2315: Audit Sampling}. \url{https://pcaobus.org/oversight/standards/auditing-standards/details/AS2315}
+\item Meng, X.-L. (1994). \emph{Multiple-Imputation Inferences with Uncongenial Sources of Input}. Statistical Science 9(4), 538--558. \url{https://projecteuclid.org/journals/statistical-science/volume-9/issue-4/Multiple-Imputation-Inferences-with-Uncongenial-Sources-of-Input/10.1214/ss/1177010269.full}
+\item Frontier study (internal): \texttt{03\_mmm\_adoption\_barriers.md}, entries O1, O3 and M2; \texttt{00\_INDEX.md}, queue item B5.
+\item Program (internal): \dive{06} (Jensen/Berkson algebra), \dive{07} (refresh stability), \dive{03}/\dive{08} (decision-loss units), \dive{22} (\BL{86}).
+\end{enumerate}
+\endgroup

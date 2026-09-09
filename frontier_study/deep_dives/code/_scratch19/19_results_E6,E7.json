@@ -1,0 +1,128 @@
+{
+ "E6_passive_iso": {
+  "dec_loss": 1.5180731251419115,
+  "se": 0.10424474122692474,
+  "gd_rmse": 1.0268532911232742
+ },
+ "E6_passive_Hinv": {
+  "dec_loss": 1.6286351724969266,
+  "se": 0.13727512904649197,
+  "gd_rmse": 1.0893399823656957
+ },
+ "E6_passive_H": {
+  "dec_loss": 1.7085683744062392,
+  "se": 0.11161144045199468,
+  "gd_rmse": 1.0414800931701675
+ },
+ "E6_loop_iso": {
+  "dec_loss": 0.8418392361241237,
+  "se": 0.08388550428546816,
+  "gd_rmse": 0.48339010439107744,
+  "wobble_whitened_eigs": [
+   0.0,
+   0.112,
+   0.893
+  ],
+  "realised_loss_T": 0.7603178261886309
+ },
+ "E6_loop_Hinv": {
+  "dec_loss": 1.205652203021273,
+  "se": 0.1393803726338212,
+  "gd_rmse": 0.5541316173085717,
+  "wobble_whitened_eigs": [
+   0.0,
+   0.111,
+   1.301
+  ],
+  "realised_loss_T": 1.1425805555368178
+ },
+ "E6_loop_H": {
+  "dec_loss": 0.7871654089660157,
+  "se": 0.07315297878525089,
+  "gd_rmse": 0.45608834108634305,
+  "wobble_whitened_eigs": [
+   0.0,
+   0.091,
+   0.807
+  ],
+  "realised_loss_T": 0.7058945576068489
+ },
+ "E6_summary": {
+  "passive_iso_over_Hinv": 0.9321136806928295,
+  "passive_H_over_Hinv": 1.0490798696105548,
+  "loop_iso_over_Hinv": 0.6982438501041497,
+  "loop_H_over_Hinv": 0.652895923877084,
+  "theory_iso_over_Hinv": 1.7500000000000009,
+  "theory_H_over_Hinv": 6.250000000000004,
+  "loop_noexplore_wobble_whitened_eigs": [
+   0.0,
+   1.392,
+   2.498
+  ],
+  "loop_noexplore_dec_loss": 26.68084864940646
+ },
+ "E7_n3": {
+  "frac_exact": 1.0,
+  "med_rel_resid": 3.0889951164528177e-16,
+  "max_rel_resid": 2.015674413803473e-15
+ },
+ "E7_n4": {
+  "frac_exact": 1.0,
+  "med_rel_resid": 3.3915705244456745e-16,
+  "max_rel_resid": 5.688238666228749e-15
+ },
+ "E7_n5": {
+  "frac_exact": 1.0,
+  "med_rel_resid": 3.9119060834354764e-16,
+  "max_rel_resid": 3.9929860011934165e-15
+ },
+ "E7_n6": {
+  "frac_exact": 1.0,
+  "med_rel_resid": 4.320913792220347e-16,
+  "max_rel_resid": 4.8702850847709114e-15
+ },
+ "E7_example": {
+  "c": [
+   0.1,
+   0.4,
+   1.6
+  ],
+  "pairs": [
+   [
+    0,
+    1
+   ],
+   [
+    0,
+    2
+   ],
+   [
+    1,
+    2
+   ]
+  ],
+  "w": [
+   1.9048,
+   0.4762,
+   0.119
+  ],
+  "w_closed": [
+   1.9048,
+   0.4762,
+   0.119
+  ],
+  "resid": 1.2944286067291897e-15
+ },
+ "E7_nondiag_n3": {
+  "frac_Hinv_nondiag_representable": 0.955,
+  "frac_H_diag_representable": 0.74
+ },
+ "E7_nondiag_n4": {
+  "frac_Hinv_nondiag_representable": 0.715,
+  "frac_H_diag_representable": 0.39
+ },
+ "E7_nondiag_n5": {
+  "frac_Hinv_nondiag_representable": 0.35,
+  "frac_H_diag_representable": 0.24
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "e9": {
+  "deadband h* (dive 08 law)": "0.43666",
+  "MSE=b^2, b=0.02: excess regret bias / noise": "-0.000258 / -0.000141   ratio pi=-258345862.527",
+  "   (b=0.02) move costs bias/noise/none": "0.02039 / 0.02075 / 0.02076",
+  "MSE=b^2, b=0.05: excess regret bias / noise": "0.000669 / 0.001773   ratio pi=0.378",
+  "   (b=0.05) move costs bias/noise/none": "0.02025 / 0.02319 / 0.02076",
+  "MSE=b^2, b=0.10: excess regret bias / noise": "0.004412 / 0.008381   ratio pi=0.526",
+  "   (b=0.10) move costs bias/noise/none": "0.02025 / 0.03071 / 0.02076",
+  "MSE=b^2, b=0.20: excess regret bias / noise": "0.019464 / 0.070132   ratio pi=0.278",
+  "   (b=0.20) move costs bias/noise/none": "0.02026 / 0.08531 / 0.02076",
+  "MSE=b^2, b=0.40: excess regret bias / noise": "0.080388 / 0.266558   ratio pi=0.302",
+  "   (b=0.40) move costs bias/noise/none": "0.02060 / 0.22474 / 0.02076"
+ },
+ "e11": {
+  "sigma=0.02 T=104: Psi0 / sd(mROAS) / u_half": "  28.133 / 0.29455 / 2.0366",
+  "sigma=0.02 T=156: Psi0 / sd(mROAS) / u_half": "  19.804 / 0.21131 / 1.9262",
+  "sigma=0.02 T=312: Psi0 / sd(mROAS) / u_half": "  23.948 / 0.15773 / 1.9865",
+  "sigma=0.05 T=104: Psi0 / sd(mROAS) / u_half": "  28.133 / 0.73636 / 2.0366",
+  "sigma=0.05 T=156: Psi0 / sd(mROAS) / u_half": "  19.804 / 0.52828 / 1.9262",
+  "sigma=0.05 T=312: Psi0 / sd(mROAS) / u_half": "  23.948 / 0.39433 / 1.9865",
+  "sigma=0.10 T=104: Psi0 / sd(mROAS) / u_half": "  28.133 / 1.47273 / 2.0366",
+  "sigma=0.10 T=156: Psi0 / sd(mROAS) / u_half": "  19.804 / 1.05655 / 1.9262",
+  "sigma=0.10 T=312: Psi0 / sd(mROAS) / u_half": "  23.948 / 0.78867 / 1.9865",
+  "--- probe period sweep (T=156, sigma=0.05, amp=0.10) ---": "",
+  "period=13: Psi0 / sd(mROAS) / cond(FIM)": "  2371.226 / 10.98913 / 8.85e+07",
+  "period=21: Psi0 / sd(mROAS) / cond(FIM)": "  1283.059 / 7.23101 / 3.54e+07",
+  "period=26: Psi0 / sd(mROAS) / cond(FIM)": "     3.755 / 9.02433 / 6.02e+04",
+  "period=34: Psi0 / sd(mROAS) / cond(FIM)": "  1128.113 / 6.18647 / 1.95e+07",
+  "period=52: Psi0 / sd(mROAS) / cond(FIM)": " 28727.286 / 6446.25209 / 2.33e+07",
+  "period=78: Psi0 / sd(mROAS) / cond(FIM)": " 70054.545 / 44.74059 / 1.12e+09",
+  "--- amplitude sweep (T=156, period=26) ---": "",
+  "amp=0.02: Psi0 / sd(mROAS) / d": "   368.291 / 911.07000 / -2.450 -0.201 +0.083",
+  "amp=0.05: Psi0 / sd(mROAS) / d": "    13.435 / 55.68358 / +0.631 +0.183 -0.140",
+  "amp=0.10: Psi0 / sd(mROAS) / d": "     3.755 / 9.02433 / +3.002 +0.520 -0.330",
+  "amp=0.20: Psi0 / sd(mROAS) / d": "    10.324 / 3.86302 / +3.569 +0.667 -0.386",
+  "amp=0.40: Psi0 / sd(mROAS) / d": "    44.571 / 1.98662 / +3.046 +0.835 -0.352"
+ }
+}

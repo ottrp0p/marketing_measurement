@@ -1,0 +1,21 @@
+# Local machine files and credentials
+.DS_Store
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Temporary LaTeX builds and simulation execution logs
+/frontier_study/compilations/*/source/build/
+/frontier_study/deep_dives/code/**/*.log

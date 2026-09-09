@@ -1,0 +1,118 @@
+% ---------------------------------------------------------------------------
+% Shared preamble for the Deep-Dive Compendium (loaded by compendium.tex and
+% by the standalone chapter test wrapper). Chapter files must NOT load packages.
+% ---------------------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{mathpazo}
+\linespread{1.04}
+\renewcommand{\sfdefault}{phv}
+\renewcommand{\ttdefault}{pcr}
+\usepackage[letterpaper,margin=1in,headheight=14pt]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{booktabs,array,longtable,tabularx,multirow}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage[most]{tcolorbox}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{url}
+\usepackage[hidelinks,pdfusetitle,bookmarksnumbered]{hyperref}
+\usepackage[capitalise,noabbrev]{cleveref}
+
+\setlist{itemsep=2pt,topsep=3pt,parsep=0pt}
+\setlength{\parskip}{3pt}
+\setlength{\emergencystretch}{2em}
+\urlstyle{same}
+\allowdisplaybreaks
+
+% ---- Chapter and section headings ----
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{12pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{-10pt}{24pt}
+
+% ---- Headers ----
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\nouppercase{\leftmark}}
+\fancyhead[R]{\small Deep-Dive Compendium, compiled 2026-09-07}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\thepage}\renewcommand{\headrulewidth}{0pt}}
+
+% ---- Theorem-like environments ----
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{law}[theorem]{Law}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{construction}[theorem]{Construction}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+% ---- Colours ----
+\definecolor{provgray}{RGB}{245,245,245}
+\definecolor{keyblue}{RGB}{232,240,250}
+\definecolor{keyblueframe}{RGB}{60,100,160}
+\definecolor{revorange}{RGB}{255,244,229}
+\definecolor{revorangeframe}{RGB}{200,110,20}
+\definecolor{bgframe}{RGB}{120,120,120}
+
+% ---- Boxes ----
+% Provenance block at the top of each chapter
+\newtcolorbox{provenance}{enhanced,breakable,colback=provgray,colframe=bgframe,
+  boxrule=0.4pt,arc=1pt,left=6pt,right=6pt,top=4pt,bottom=4pt,
+  fontupper=\small,title=\small\bfseries Provenance,coltitle=black,colbacktitle=provgray,
+  attach boxed title to top left={yshift=-2mm,xshift=4mm},boxed title style={boxrule=0pt,colframe=provgray}}
+% Key ideas summary box
+\newtcolorbox{keyideas}{enhanced,breakable,colback=keyblue,colframe=keyblueframe,
+  boxrule=0.6pt,arc=1pt,left=6pt,right=6pt,top=4pt,bottom=4pt,
+  title=\bfseries Key ideas in this chapter,coltitle=white}
+% Reviewer's note (compiler's own flags)
+\newtcolorbox{reviewernote}[1][]{enhanced,breakable,colback=revorange,colframe=revorangeframe,
+  boxrule=0.6pt,arc=1pt,left=6pt,right=6pt,top=4pt,bottom=4pt,fontupper=\small,
+  title=\small\bfseries Reviewer's note #1,coltitle=white}
+
+% ---- Status tags for results (mirror the dives' own labels) ----
+\newcommand{\tagEstablished}{\textcolor{keyblueframe}{\textsf{\small[established in the dive]}}}
+\newcommand{\tagTransported}{\textcolor{keyblueframe}{\textsf{\small[transported from the literature]}}}
+\newcommand{\tagNumerical}{\textcolor{keyblueframe}{\textsf{\small[numerically established]}}}
+\newcommand{\tagConjecture}{\textcolor{revorangeframe}{\textsf{\small[conjecture / speculative]}}}
+\newcommand{\tagRefuted}{\textcolor{revorangeframe}{\textsf{\small[refuted within the dive]}}}
+
+% ---- Cross-reference helpers ----
+\newcommand{\dive}[1]{Dive~#1}
+\newcommand{\BL}[1]{BL\,#1}
+
+% ---- Math macros ----
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\DeclareMathOperator{\Var}{Var}
+\DeclareMathOperator{\Cov}{Cov}
+\DeclareMathOperator{\Corr}{Corr}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\sign}{sign}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\newcommand{\ind}{\mathbf{1}}
+\newcommand{\one}{\mathbf{1}}
+\newcommand{\T}{\mathsf{T}}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+\newcommand{\inner}[2]{\left\langle #1,#2\right\rangle}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\ROAS}{\mathrm{ROAS}}
+\newcommand{\mROAS}{\mathrm{mROAS}}
+\newcommand{\iROAS}{\mathrm{iROAS}}

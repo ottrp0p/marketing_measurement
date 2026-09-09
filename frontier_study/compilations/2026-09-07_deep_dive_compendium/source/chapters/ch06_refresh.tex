@@ -1,0 +1,269 @@
+% ===========================================================================
+% Chapter: Refresh stability and analyst degrees of freedom (dive 07)
+% ===========================================================================
+\chapter{Refresh stability and analyst degrees of freedom}
+\label{ch:refresh}
+
+\begin{provenance}
+\textbf{Source dives:} \dive{07} \emph{Refresh stability and analyst degrees of freedom (B1: barriers M6/M4)} (run 2026-09-01, file \texttt{07\_refresh\_stability.md}, last written 2026-09-01 11:56 UTC; INDEX log entry $\sim$12:30).
+\textbf{Code:} \texttt{code/07\_refresh\_stability.py} (base stages \texttt{s1}--\texttt{s11} plus merged attack modules \texttt{attack1}--\texttt{attack7}).
+\textbf{Frontier-study problem(s) addressed:} queue item B1, i.e.\ adoption-barrier catalogue entries M6 (``refresh instability: the ROAS that flipped'') and M4 (``model multiplicity and analyst degrees of freedom'') of \texttt{03\_mmm\_adoption\_barriers.md}, with open-questions entry H8 (pre-registered decision rules) nearest; the open-questions codes M4/M6 (auction interference, heavy tails) are unrelated.
+\textbf{Backlog items closed:} none; \textbf{opened:} \BL{18} (rotation theory of refresh decorrelation), \BL{19} (posterior mean versus MAP flip rates), \BL{20} (optimal hysteresis deadband, later resolved by \dive{08}, \cref{ch:deadband}).
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item For asymptotically linear estimators on overlapping windows, adjacent refreshes correlate at the overlap fraction $\rho = \omega = (W-\Delta)/W$ and a ranking flips with probability $F(z,\rho) = 2[\Phi(-z) - \Phi_2(-z,-z;\rho)]$, verified to $\pm 0.016$ (clean-room $\pm 0.015$); annualised flips scale as $\Delta^{-1/2}$, so refreshing \emph{more} often shows \emph{more} churn at identical model quality.
+\item The nonlinear MMM breaks the law informatively ($\rho \approx 0.46$--$0.63 \ll 0.875$): optimizer, warm start, functional and noise level are exonerated, an exactly linear ``anchored'' estimator still gives $\rho = 0.568$ (decomposition predicts 0.620), and the cause is rotation of the information matrix's near-null eigenspace with each window's realised spend.
+\item Naive posterior-as-prior on a moving window counts overlapping data once per window: width collapses as $1/\sqrt{k+1}$ (0.327 versus $1/3$ at $k = 8$), 90\% coverage falls to 0.24 in the MMM, and RMSE \emph{rises} (0.51 $\to$ 0.66).
+\item CPPD (increment likelihood, discount $a = \omega$, variance floor, drift test) gives flips 0.12 versus 0.28 for fresh refits at coverage 0.91 and the best static log-RMSE (0.48); freezing coefficients is genuinely best under noise domination (RMSE 0.59) but carries a structural break as permanent bias.
+\item Analyst degrees of freedom amplify flips only under the \emph{Janus condition}---near-tied specifications disagreeing in sign on the reported gap---where random selection at a 30\% switch rate multiplies flips $5.8\times$ (0.295 versus 0.051); sign-agreeing ties \emph{reduce} flips (0.204 versus 0.279).
+\item A pre-registered $1\sigma$ reporting deadband cuts reported flips 78\% (0.25 $\to$ 0.057) with the wrong-order rate unchanged (0.518 $\to$ 0.518).
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+A marketing-mix model is refitted every month or quarter on a window that slides forward, and its channel rankings change. The adoption study records this as the single most visible trust-destroyer for executives: a Robyn deployment in which a channel's ROAS went from 0.75 to 0.2 over five refreshes, driven partly by the moving window; Robyn issues \#890 and \#507 in which refreshes zero out channels; Meridian's warning that ``even a relatively small amount of new data may have a noticeable effect''. The industry's quiet fix is to freeze media coefficients between refreshes, which Recast calls ``effectively just lying about the model results''; Robyn's \texttt{robyn\_refresh} bounds hyperparameters near the last run, stability by construction. The principled alternative---carry the previous posterior forward as the next prior---is named and left open by Meridian's documentation: ``setting priors that match an old MMM's results effectively counts the old data twice''.
+
+\dive{07}'s literature search confirmed two gaps: no one publishes a \emph{measured} flip rate, and no stability-constrained refresh scheme with a formal guarantee exists anywhere. The dive assembles the unassembled machinery around five deliverables: a flip-rate law, a diagnosis of what drives refresh instability in nonlinear MMMs, an overlap-corrected sequential updating scheme, a characterisation of when analyst degrees of freedom amplify instability, and a pre-registrable reporting protocol. Its sharpest finding is negative for the folk theories: refresh flips in a weakly identified MMM are a \emph{geometry} problem, not an optimizer, seed or noise problem, so better data will not fix them.
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{Overlapping windows and the bivariate-normal orthant (Sheppard, 1899; Harri and Brorsen, 2009)}
+
+Two standard normal variables with correlation $\rho$ fall in the negative quadrant with probability given by Sheppard's formula, $\Prob(U < 0, V < 0) = \tfrac14 + \arcsin(\rho)/(2\pi)$, so they \emph{disagree} in sign with probability $\tfrac12 - \arcsin(\rho)/\pi$: $\tfrac12$ at $\rho = 0$, $0$ at $\rho = 1$. For a general threshold the joint tail is the bivariate normal distribution function $\Phi_2(h, k; \rho) = \Prob(U \le h, V \le k)$, non-elementary but routine to evaluate.
+
+Harri and Brorsen study regressions whose observations are $W$-period sums of an underlying series (multi-period returns, moving averages): two observations $\Delta$ periods apart share $W - \Delta$ underlying shocks and their errors correlate at $(W-\Delta)/W$, a moving-average structure standard errors must account for. The same arithmetic applies to any estimator that is, to first order, an average of per-observation scores: an OLS coefficient on $W$ stationary observations is $\hat\theta \approx \theta + W^{-1}M^{-1}\sum_{t} x_t\varepsilon_t$ with $M = \E[x_tx_t^\T]$, so two windows sharing $W - \Delta$ observations have $\Cov(\hat\theta_k, \hat\theta_{k+1}) = ((W-\Delta)/W)\Var(\hat\theta_k)$: the overlap fraction $\omega = (W-\Delta)/W$ is the adjacent-refresh correlation of any asymptotically linear estimator with exogenous regressors and independent noise.
+
+\subsection{Type-S errors, the vibration of effects and the garden of forking paths}
+
+Gelman and Carlin (2014) define the \emph{Type-S} error of an estimate as the probability that it has the wrong sign and the \emph{Type-M} error as its expected exaggeration, both computed from the true effect and the standard error; when the true effect is small relative to the standard error the sign of any single estimate is close to a coin toss. Patel, Burford and Ioannidis (2015) fit every combination of 13 adjustment covariates ($8{,}192$ specifications) to 417 exposure variables predicting mortality in NHANES and call the spread of estimates across specifications the \emph{vibration of effects}; 31\% of variables showed a \emph{Janus effect}, named for the two-faced god: estimates on both sides of the null depending on the specification. Gelman and Loken (2013) supply the epistemology, the \emph{garden of forking paths}: an analyst who chooses window length, controls or transformations after seeing the data has performed a data-contingent analysis, invalid even without conscious fishing because a different data set would have led down a different path; pre-registration fixes the path in advance. In MMM the forks are the modelling window, the seasonality terms, the adstock prior ``camp'' (short versus long carryover), and the choice of one model from Robyn's Pareto front, where the \texttt{decomp.RSSD} criterion rewards attribution close to spend shares.
+
+\subsection{Power priors, forgetting and why posterior-as-prior double counts}
+
+The \emph{power prior} of Ibrahim and Chen (2000) discounts historical data $D_0$ by raising its likelihood to a power, $\pi(\theta \mid D_0, a_0) \propto L(\theta \mid D_0)^{a_0}\,\pi_0(\theta)$, $a_0 \in [0,1]$: $a_0 = 1$ pools fully, $a_0 = 0$ ignores the past, and for a Gaussian posterior with precision $P_1$ the effect is the scaling $a_0P_1$. The control-theory version is \emph{exponential forgetting} (Kulh\'avy and K\'arn\'y, 1984): before each update the posterior is flattened towards an alternative density, $p_{t\mid t-1}(\theta) \propto p_{t-1\mid t-1}(\theta)^{\lambda}\,p_{\mathrm{alt}}(\theta)^{1-\lambda}$, which for Gaussians blends precisions, $\lambda P_{t-1} + (1-\lambda)P_{\mathrm{alt}}$. Sm\'idl and Gustafsson (2012) estimate $\lambda$ online and read its drops as change detection; Masegosa et al.\ (2017) put a hierarchical prior on the power; Pawel et al.\ (2023) show normalised power priors always discount. Reznik (2026) derives the discount minimising predictive log-loss, $a_0^\star = d/(2N_0\bar D_0 + d)$, with $d$ the parameter dimension, $N_0$ the historical sample size and $\bar D_0$ the mean Kullback--Leibler divergence between historical and current data-generating distributions: compatible data pool in full, any discrepancy caps the borrowed information.
+
+Sequential Bayes is exact only on \emph{disjoint} increments, $p(\theta \mid D_1, D_2) \propto p(\theta \mid D_1)\,p(D_2 \mid \theta, D_1)$. Taking window $k$'s posterior as the prior and multiplying by the likelihood of the \emph{whole} window $k+1$ re-counts the $W - \Delta$ shared observations; Du (2026) shows such factorised updates reproduce the joint posterior only under conditional independence and deviate with the correlation strength, while conditional-likelihood updates stay consistent. Kessler et al.\ (2023) show exact sequential updating fails under misspecification, where each increment's pseudo-true value moves. Both are the everyday condition of an MMM refresh.
+
+\subsection{MAP, the Laplace approximation and the information ridge (Jin et al., 2017; \cref{ch:identification})}
+
+A MAP fit maximises the log posterior; the Laplace approximation replaces the posterior by $\mathcal N(\hat\theta, H^{-1})$, $H$ the Hessian of the negative log posterior at $\hat\theta$, which for Gaussian-noise nonlinear regression in Gauss--Newton form is $H = J^\T J/\sigma^2 + P_0$ with $J$ the Jacobian of the mean function and $P_0$ the prior precision. One Gauss--Newton step from an anchor $\theta_a$ gives an estimator \emph{linear in the data},
+\begin{equation}
+\hat\theta = \theta_a + \Big(\tfrac{J^\T J}{\sigma^2} + P_0\Big)^{-1}\Big[\tfrac{J^\T(y - \mu(\theta_a))}{\sigma^2} + P_0(m_0 - \theta_a)\Big],
+\label{eq:refresh:gn}
+\end{equation}
+$m_0$ the prior mean. Along eigenvectors of $J^\T J$ with large eigenvalues the data term dominates; along near-null eigenvectors the prior term does, however small $\sigma$ is. \cref{ch:identification} showed that in the geometric-adstock, Hill-saturation MMM of Jin et al.\ (2017) the likelihood is flat along ridges trading adstock decay, saturation shape and effectiveness, so with weekly national data the near-null eigenspace is several dimensions wide. This chapter's addition: the \emph{orientation} of that eigenspace depends on the window's realised spend path, and so rotates from refresh to refresh.
+
+\section{Setup and assumptions}
+
+The data-generating process is a weekly national MMM with $J = 3$ channels,
+\begin{equation}
+y_t = c_0 + \sum_{j=1}^{3}\beta_j\,\mathrm{Hill}\big(\mathrm{adstock}(x_{jt}; \alpha_j); K_j, s_j\big) + \gamma_c\cos\tfrac{2\pi t}{52} + \gamma_s\sin\tfrac{2\pi t}{52} + \varepsilon_t,
+\label{eq:refresh:dgp}
+\end{equation}
+$\varepsilon_t \sim \mathcal N(0, \sigma^2)$ i.i.d., geometric adstock $a_t = x_t + \alpha a_{t-1}$, $\mathrm{Hill}(a; K, s) = a^s/(a^s + K^s)$, exogenous AR(1)-lognormal spend (autocorrelation 0.5, coefficient of variation 0.35). Truth: $\beta = (1.20, 1.00, 0.55)$, $K = (1.00, 1.20, 0.80)$, $s = (1.8, 1.6, 2.0)$, $\alpha = (0.55, 0.35, 0.70)$, mean spend $(1.0, 0.9, 0.6)$, $c_0 = 2$, $\sigma = 0.25$. The 15 parameters $(c_0, \gamma_c, \gamma_s, \log\beta_j, \log K_j, \log s_j, \mathrm{logit}\,\alpha_j)$ are estimated by MAP under weak independent Gaussian priors on the transformed scale (sds 3, 1, 1, 1.5, 1.0, 0.5, 2.0), with Laplace covariance. The design is deliberately MMM-realistic: weakly identified, with log-ROAS estimation noise of about 0.4--0.9.
+
+\begin{definition}[Refresh, overlap, flip]
+\label{refresh:def:refresh}
+Refresh $k$ fits the window of $W = 104$ weeks ending at $t_k = W + k\Delta$; the \emph{overlap fraction} is $\omega = (W - \Delta)/W$ ($\omega = 0.875$ at the quarterly $\Delta = 13$). The reported quantity is the window ROAS $\hat R_j = \hat\beta_j\,\overline{\mathrm{Hill}(\hat a_{jt})}/\bar x_j$ over the window. A \emph{ranking flip} for the pair $(i, j)$ is a reversal of $\sign(\hat R_i - \hat R_j)$ between adjacent refreshes. Writing $D_k = \hat R_{i,k} - \hat R_{j,k}$, the \emph{signal} is $z = \abs{\E D_k}/\mathrm{sd}(D_k)$ and $\rho = \Corr(D_k, D_{k+1})$. Unless stated otherwise the reported pair is channels 1 and 2, which are near-tied ($z \approx 0.2$).
+\end{definition}
+
+\begin{definition}[Refresh schemes]
+\label{refresh:def:schemes}
+\emph{IND}: refit each window from the base prior. \emph{NPP}: previous Laplace posterior as prior, likelihood of the full new window. \emph{FRZ}: media parameters frozen at the first fit, baseline and seasonality refitted. \emph{CPP}: likelihood of the $\Delta$ \emph{new} observations only, adstock warmed on the full spend history, prior = (previous posterior)$^{a}$ $\otimes$ (base prior)$^{1-a}$ with $a = \omega$. \emph{CPPD}: CPP plus a per-parameter prior-sd floor of $0.3\times$ the base prior sd and a predictive drift test (chi-square of the $\Delta$ new standardised residuals at nominal level 0.01, parameters at the previous MAP) that drops $a$ to 0.2 when it fires.
+\end{definition}
+
+\begin{assumption}[Regime of the flip law]
+\label{refresh:ass:linear}
+For \cref{refresh:law:flip} the estimator is asymptotically linear in the data, the regressors are exogenous and stationary, the noise is independent, and $(D_k, D_{k+1})$ is bivariate normal with common mean and variance.
+\end{assumption}
+
+\begin{assumption}[Simulation scope]
+\label{refresh:ass:scope}
+Known $\sigma$; MAP/Laplace throughout; one DGP family; static truth except in the drift (log-random-walk $\beta$, step 0.01) and break ($\beta_1$ cut to 45\% at week 156) regimes; no endogenous spend.
+\end{assumption}
+
+\section{Main results}
+
+\subsection{The flip-rate law and the cadence law}
+
+\begin{law}[Flip-rate law]
+\label{refresh:law:flip}
+\tagEstablished\ Under \cref{refresh:ass:linear}, $\rho = \omega$ and the probability that the pair's ranking flips between adjacent refreshes is
+\begin{equation}
+F(z, \rho) = 2\big[\Phi(-z) - \Phi_2(-z, -z; \rho)\big],
+\qquad
+F(0, \rho) = \tfrac12 - \frac{\arcsin\rho}{\pi}.
+\label{eq:refresh:F}
+\end{equation}
+\end{law}
+
+With $\delta = \E D_k$, $s_D = \mathrm{sd}(D_k)$, $U = (D_k - \delta)/s_D$, $V = (D_{k+1} - \delta)/s_D$ and $z = \delta/s_D \ge 0$, a flip from positive to negative has probability $\Prob(U < -z, V > -z) = \Phi(-z) - \Phi_2(-z, -z; \rho)$, the reverse flip the same by symmetry; at $z = 0$ Sheppard's formula gives the closed form. The falsifiable content is the orthant form plus $\rho = \omega$ ($z$ uses the empirical sd, which the dive notes is self-referential). In the linear probe (OLS, $\Delta \in \{4, 13, 26, 52, 104\}$, 400 replications of 8 refreshes) $\rho_{\mathrm{emp}}$ was within 0.01 of $\omega$ and $F$ within 0.005--0.016 of prediction; a clean-room agent re-derived the formula and confirmed it at $40{,}000$ replications ($F$ within 0.005--0.015; its $\rho$ ran 0.837 against $\omega = 0.875$, attributed to finite-sample design variation, the mechanism of \cref{refresh:sec:rotation}).
+
+\begin{corollary}[Cadence law]
+\label{refresh:cor:cadence}
+\tagEstablished\ For a null pair the annualised number of visible flips is
+\begin{equation}
+\frac{52}{\Delta}\,F\Big(0, 1 - \frac{\Delta}{W}\Big) \approx \frac{52}{\pi}\sqrt{\frac{2}{W\Delta}} \;\propto\; \Delta^{-1/2},
+\label{eq:refresh:cadence}
+\end{equation}
+using $\arcsin(1 - x) = \pi/2 - \sqrt{2x} + O(x^{3/2})$.
+\end{corollary}
+
+More frequent refreshes generate \emph{more} observed ranking churn per year at identical model quality: quarterly to weekly multiplies visible flips by $\sqrt{13} \approx 3.6$ in principle. The clean-room round forced a softening: measured at $\Delta = 4$ versus $\Delta = 26$ the ratio is $2.26 \pm 0.04$ against 2.50 from the exact law (the asymptote overstates by about 10\% at small $\Delta$), and at $\Delta \le 2$ empirical flips run \emph{below} prediction. The practical reading stands: a CMO buying monthly refreshes is buying more apparent instability, by arithmetic rather than model failure.
+
+\subsection{Naive posterior-as-prior is quantified overconfidence}
+
+\begin{proposition}[Double counting]
+\label{refresh:prop:npp}
+\tagEstablished\ Under NPP with Gaussian conjugacy and a stationary design, the posterior precision after $k$ refreshes is $P_k \approx P_0 + (k+1)P_W$ with $P_W$ the full-window likelihood precision, so the reported width collapses as $1/\sqrt{k+1}$ while the information actually available stays that of one window.
+\end{proposition}
+
+Each observation is counted once per window containing it. The exact-conjugate linear simulation gives width ratio 0.327 at $k = 8$ against $1/3$ (clean-room 0.326--0.328); nominal 90\% coverage collapses to 0.52--0.56 in the linear model and 0.24 in the nonlinear MMM while flips drop to 0.036--0.048. This is the mechanics of stability by freezing beliefs: Robyn-refresh-style anchoring buys calm with collapsing honesty, and RMSE simultaneously \emph{rises} (0.51 $\to$ 0.66 in log-ROAS) because the frozen belief locks in early-window errors.
+
+\subsection{The corrected scheme: increment likelihood with discount $a = \omega$}
+
+\begin{construction}[CPP and CPPD]
+\label{refresh:con:cpp}
+\tagEstablished\ Condition refresh $k$ on the $\Delta$ new observations only, with adstock warmed on the full spend history, under the Gaussian prior with precision $aP_{k-1} + (1-a)P_0$ and precision-weighted mean, $a = \omega$. Add a per-parameter variance floor and a predictive drift test with a pre-registered escalation (CPPD).
+\end{construction}
+
+The discount is derived. With $P_\Delta$ the precision of one increment, the recursion $P_k = P_\Delta + aP_{k-1} + (1-a)P_0$ has steady state
+\begin{equation}
+P^\star = P_0 + \frac{P_\Delta}{1-a} = P_0 + \frac{W}{\Delta}P_\Delta \approx P_0 + P_W \quad\text{at } a = \omega,
+\label{eq:refresh:steady}
+\end{equation}
+the honest moving-window precision: the forgetting factor that reproduces a $W$-week window is exactly the overlap fraction, connecting moving-window practice to the power-prior and forgetting literature in one line. Exact-conjugate verification: steady-state width within 5\% of the moving-window width, coverage 0.97--0.98. The clean-room agent derived the conservatism: the geometric weights $\omega^m$ spread the information over $(1+\omega)/(1-\omega)$ increments, i.e.\ $2W - \Delta$ observations, so the true sd is about $\sqrt{W/(2W-\Delta)} \approx 0.73\times$ the reported one, and CPP is variance-better than a hard window at equal claimed width (linear-probe RMSE 0.166 versus 0.233). In the nonlinear MMM Laplace propagation still over-concentrates (coverage 0.80 in the nine-refresh static run); the floor at $0.3\times$ base prior sd restores coverage 0.91 at flips 0.07--0.08 against IND's 0.26, and without it coverage is 0.59 with a 23\% trap rate (final log-ROAS error above 0.69)---\cref{ch:fusion}'s low-drift trap paradox in refresh clothing. The drift test fires at 0.14 (well-specified) and 0.17 (delayed-peak adstock truth) against nominal 0.01, inflated by ignoring parameter uncertainty. Round 2 found that resetting the adstock transient inside increments wrecks the scheme (RMSE 0.71 $\to$ 0.55 after warming on spend history), re-confirming \cref{ch:identification}'s transient result.
+
+\subsection{What actually causes MMM refresh flips: rotation, not churn}
+\label{refresh:sec:rotation}
+
+In the nonlinear MMM \cref{refresh:law:flip} fails informatively: measured $\rho = 0.46$--$0.63 \ll \omega = 0.875$, roughly doubling flip rates.
+
+\begin{proposition}[Refuted churn hypothesis]
+\label{refresh:prop:churn}
+\tagRefuted\ Round 1 proposed $\rho = \omega(1 - h)$ with $h$ the variance share from optimizer-idiosyncratic multi-basin convergence, seemingly supported by a multistart probe ($h$ up to 0.40). Round 2 killed it: cutting $\sigma$ threefold left flips unchanged, and a multistart from 10 dispersed initialisations converged to identical ROAS (sd $\le 5\times10^{-4}$); the MAP is unique, the probe's dispersion having come from a few multimodal outlier windows.
+\end{proposition}
+
+\begin{proposition}[Rotation mechanism]
+\label{refresh:prop:rotation}
+\tagNumerical\ The anchored estimator \cref{eq:refresh:gn} (one Gauss--Newton step from the window-0 MAP, exactly linear in $y$) still shows $\rho = 0.568$. Its exact decomposition $\hat\theta_k = \E[\hat\theta_k \mid X] + C_kJ_k^\T\varepsilon_k/\sigma^2$ with $C_k = (J_k^\T J_k/\sigma^2 + P_0)^{-1}$, applied to the ROAS gap, gives $\rho_{\mathrm{pred}} = (\rho_{\varepsilon}V_{\varepsilon} + \rho_XV_X)/(V_{\varepsilon} + V_X) = 0.620$: the $\sigma$-independent \emph{design-wobble} term $V_X$---the prior-shrunk component in the near-null eigenspace, which swings as that eigenspace rotates with each window's realised spend---carries 21\% of the variance at $\rho_X = 0.41$, and the noise term correlates at only $\rho_\varepsilon = 0.676 < \omega$ because shared noise enters through rotating projections.
+\end{proposition}
+
+The attack rounds eliminated the folk explanations one by one (\cref{refresh:tab:exonerate}); most telling, a ninefold cut in $\sigma$ leaves $\mathrm{sd}(D) \approx 0.38$ unchanged, so flip dispersion is noise-floor-independent, and \cref{ch:identification}-style block pulsing restores the correct pseudo-true sign ($z$: 0.22 $\to$ 1.10) without restoring the correlation ($\rho \le 0.31$). Refresh instability in weakly identified MMMs is a geometry problem: the identified ridge's thin directions rotate with the spend realisation. Better data will not fix it; only information in the thin directions---priors carried across refreshes, calibration experiments (\cref{ch:transport}), identifying spend perturbation---will, which is also why CPP works: the carried prior fills the rotating null space.
+
+\subsection{Analyst degrees of freedom: the Janus condition}
+
+\begin{proposition}[Janus condition]
+\label{refresh:prop:janus}
+\tagNumerical\ Per-refresh specification selection adds ranking churn if and only if the near-tied specification set is sign-heterogeneous on the decision quantity. (a) Deterministic selection (AIC over $W \in \{78, 104, 130\}$ $\times$ seasonality on/off) picks one specification 100\% of the time and adds nothing. (b) Random tie-breaking among specifications within 2 AIC units whose pseudo-true answers agree in sign (tight short- versus long-carryover adstock prior camps, logit-$\alpha$ means $\mp 1.5$, sd 0.5, $\times$ $W \in \{104, 130\}$) \emph{reduces} flips, $0.204 \pm 0.024$ versus $0.279 \pm 0.027$ for the pre-registered broad-prior fit. (c) When near-tied specifications disagree in sign on the reported gap, random selection at a 30\% switch rate amplifies flips $5.8\times$ at matched signal (0.295 versus 0.051), approximately $F \approx \pi_{\mathrm{switch}}\cdot\Prob(\text{spec sign dominates}) + \text{noise floor}$.
+\end{proposition}
+
+Results (a) and (b) are refutation-grade evidence \emph{against} the naive M4 story that any analyst arbitrariness destabilises: strong camp priors stabilise more than arbitrariness destabilises. M4 bites exactly in the sign-disagreeing case---the documented Robyn Pareto-front situation, Patel et al.'s 31\% Janus rate---which is what \texttt{decomp.RSSD}-style multi-objective fronts produce; pre-registration of the specification has value there and only there.
+
+\subsection{The reporting layer and the protocol}
+
+\begin{construction}[Pre-registered hysteresis]
+\label{refresh:con:hysteresis}
+\tagNumerical\ Report a ranking change only when the new estimated gap crosses a published deadband of $h$ standard deviations of the gap in the new direction, while the underlying posterior keeps updating. On IND estimates (the worst case) at $h = 1$, reported flips fall from 0.25 to 0.057 ($-78\%$) with the wrong-order rate statistically unchanged, 0.518 $\to$ 0.518 ($n = 160$).
+\end{construction}
+
+For near-null pairs the reported ranking was a coin toss either way; hysteresis does not hide information, it stops narrating the coin, and unlike coefficient freezing it is honest because the rule is pre-registered at the reporting layer while the posterior keeps updating. The assembled deliverable for B1 is the protocol: (1) pre-register the specification, frozen, with re-selection only at scheduled annual rebuilds---mandatory when candidate specifications disagree in sign, cheap insurance otherwise; (2) CPPD updating with a pre-registered escalation when the drift test fires (floor drop or experiment trigger, never a silent refit); (3) hysteresis reporting at $h \approx 1$ with the deadband published; (4) a cadence chosen knowing flips per year scale as $\Delta^{-1/2}$, the refresh deck reporting $F(z, \rho)$ \emph{expected} flips beside realised ones: ``3 flips expected, 3 observed'' instead of ``the model changed its mind again''.
+
+\section{Numerical evidence}
+\label{refresh:sec:numerics}
+
+All nonlinear experiments use $W = 104$, $\Delta = 13$ and the DGP of \cref{eq:refresh:dgp}; flip rates are means over adjacent-refresh pairs with binomial standard errors. \cref{refresh:tab:exonerate} collects the probes behind \cref{refresh:prop:rotation}; each changes one thing and none restores $\rho \to \omega$.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Exonerating the folk explanations for MMM refresh decorrelation (channels 1--2 gap, $\omega = 0.875$, \dive{07} T5 and controls).}
+\label{refresh:tab:exonerate}
+\begin{tabularx}{\textwidth}{lXl}
+\toprule
+Probe & Finding & Verdict \\
+\midrule
+Multistart, 10 dispersed inits & identical ROAS, sd $\le 5\times10^{-4}$ & MAP unique; not optimizer \\
+Cold versus warm start & $\rho$ 0.70 versus 0.60 & not path dependence \\
+ROAS at fixed reference path & $\rho$ 0.601 versus 0.589 & not the functional \\
+$\sigma$ cut $9\times$ & $\mathrm{sd}(D) \approx 0.38$ unchanged & not SNR \\
+Block-pulsed identifying design & $z$ 0.22 $\to$ 1.10, $\rho \le 0.31$ & sign fixed, correlation not \\
+Anchored linear estimator & $\rho = 0.568$; decomposition predicts 0.620 & rotation of near-null eigenspace \\
+Linear big-gap control & flip 0.007 (10/1400) & instrument reads $\approx 0$ under strong ID \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The negative control matters: no tested \emph{nonlinear} configuration reached the linear floor, itself a statement about MMM-realistic identification. The regime duel (\cref{refresh:tab:duel}) runs $n = 40$ replications per regime over 12 refreshes, scoring flips, log-RMSE against the current truth over the last four refreshes, 90\% coverage of $\log\hat R_1$, the trap rate (final $\abs{\log \text{error}} > 0.69$) and, in the break regime, the final absolute log error; $\pm$SE is about 0.03--0.08, with seed sweeps at two extra seeds where a range is given.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Regime duel (\dive{07} T7): $W = 104$, $\Delta = 13$, 12 refreshes, $n = 40$ per regime. Static columns: flip rate / log-RMSE / 90\% coverage. Drift: trap rate. Break: end error / trap rate. Ranges are seed sweeps.}
+\label{refresh:tab:duel}
+\begin{tabular}{lcccccc}
+\toprule
+Scheme & flip & log-RMSE & coverage & drift trap & break end-error & break trap \\
+\midrule
+IND (refit fresh) & 0.28 & 0.89 & 0.72 & 0.60 & 0.83 & 0.55 \\
+NPP (posterior-as-prior) & 0.04 & 1.15 & 0.24 & --- & 1.18 & 0.70 \\
+FRZ (freeze media) & 0.01 & 0.59 & 0.93 & $0.24 \pm 0.03$ & $0.58 \pm 0.03$ & 0.36--0.47 \\
+CPPD & 0.12 & 0.48 & 0.91 & $0.10 \pm 0.05$ & $0.60 \pm 0.05$ & 0.20--0.44 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+CPPD dominates or ties wherever honest schemes compete: well under half IND's flips, the best static RMSE, calibrated coverage, the lowest drift trap rate. Two findings cut against the dive's own scheme. First, \emph{freezing is genuinely good in the estimation-noise-dominated regime}: under static and mild-drift truth FRZ's RMSE (0.59) beats refitting fresh (0.89), because refitting re-rolls the rotation lottery every quarter---this is \emph{why} practitioners freeze. Its cost is structural: a break becomes permanent bias behind stale-but-wide intervals (coverage 0.93 on a number that is no longer an estimate). Second, on breaks CPPD $\approx$ FRZ (0.60 versus 0.58); a seed-7 advantage (0.49 versus 0.66) did not survive the sweep. At this identification level no refresh scheme recovers from a break quickly, because 13-week increments barely re-estimate; breaks are what calibration experiments are for (\cref{ch:fusion}'s trap-insurance result, rediscovered from the refresh side). Round 4's consistency check: CPPD's own flips (0.08--0.12) match the law at its measured adjacent correlation, $F(z, \rho \approx 0.95) \approx 0.09$.
+
+\section{Limitations and the devil's advocate}
+
+The dive's counterarguments, section by section. Against the laws: $z$ uses the empirical sd, so the law is self-referential as stated; $\rho = \omega$ holds only in the linear, strongly identified regime it was derived for; the cadence law counts \emph{visible} flips, and frequent refreshes each carry less per-flip surprise. Against CPP/CPPD: the floor (0.3) was tuned in-sample; the drift test is a crude chi-square at a fudged threshold; coverage claims lean on Laplace approximations twice over; FRZ matches CPPD on break recovery, so a frozen model with a scheduled annual rebuild might match CPPD at lower complexity (untested); and the linear conservatism (coverage 0.97) means CPP over-reports width by about $1.4\times$, which a sceptic may call miscalibration too. Against the rotation mechanism: the decomposition was computed for the anchored estimator, not the full MAP, leaving about 0.05 (0.62 versus 0.57) unexplained; $\sigma$-independence was shown at two values of $\sigma$; and one DGP family, where time-varying-coefficient models or MCMC posterior means could change the geometry (\BL{19}). Against the Janus result: the $5.8\times$ is a synthetic-normal experiment with the sign-disagreeing tie engineered, whereas the MMM-fitted version produced camps that agreed. Against hysteresis: $h = 1$ delays reporting of true regime change by construction, and the flat wrong-order metric owes something to the pair being near-null. Beyond \cref{refresh:ass:scope}, the functional is a ranking rather than budget-decision regret (\cref{ch:voi}'s machinery would sharpen ``flip'' into ``reallocation flip''), the specification menu is small, and spend is exogenous (\BL{15}).
+
+\section{Discussion: impacts}
+
+For vendors the chapter turns three pieces of folklore into arithmetic. Meridian's double-counting warning becomes \cref{refresh:prop:npp}, with a quantified cost (coverage 0.24 at $k = 8$) and a fix that is a few lines in any Gaussian-propagation code path: condition on the increment, blend precisions at $a = \omega$, floor the variance. Robyn's \texttt{robyn\_refresh} bounding and coefficient freezing sit on the same axis as NPP---stability purchased with honesty---with the concession that under noise domination freezing has the best RMSE of any scheme tested, which explains its persistence better than the ``lying'' critique does. And the rotation result reframes the problem for every package: the instability is in the identified set's geometry, so the levers are identifying spend variation (\cref{ch:identification}), experiments constraining the thin directions (\cref{ch:transport}) and carried priors, not more careful optimisation or more data of the same kind.
+
+For CMO decision-making the cadence law is the most immediately usable statement: monthly refreshes show about $\sqrt{3}$ times the ranking churn per year of quarterly ones from the same model. The Janus condition tells a measurement lead \emph{when} to pay for pre-registration: whenever candidate specifications disagree in sign on the quantity being decided, the normal condition on a Pareto front and the rare one among nested windows.
+
+For theory the chapter supplies the correlation structure later chapters consume. \cref{ch:deadband} derives the optimal deadband $h^\star$ from flip cost against staleness cost (resolving \BL{20}) and finds the optimal cadence jumps from weekly to quarterly once refresh errors carry this chapter's overlap correlation; its field case, $\rho \approx 0.5$ from rotation, sits between the independent and $\omega$-correlated limits. \cref{ch:fusion}'s trap paradox reappears as the no-floor trap rate, and \cref{ch:feedback} is where spend chasing last refresh's estimates would couple the rotation wobble into the design itself.
+
+\section{Further exploration}
+
+The dive's next steps are five. \BL{18} asks for the rotation theory: a law $\rho = \omega\,\E[\cos\Theta]$ with $\Theta$ the rotation of the near-null eigenspace between windows and $\E[\cos\Theta]$ derived from the spend-process spectrum, making \cref{refresh:prop:rotation} predictive ex ante and closing the loop with \cref{ch:identification}'s Fisher-information design theory. \BL{19} (merging \BL{13}) asks whether full MCMC integration over the ridge restores $\rho \to \omega$ and cuts flips; one NUTS budget would serve this, \cref{ch:fusion}'s filter-class question and \cref{ch:aggregation}'s prior-domination check. \BL{20} asked for decision flips---the duel rescored on budget-reallocation regret with an optimal $h^\star$---and was resolved by \dive{08}. The remaining two are an online optimal discount replacing the fixed $a = \omega$ with Reznik's $a_0^\star$ under a Masegosa-style hierarchical prior, and endogenous-spend refreshes (\BL{15}).
+
+In the compiler's judgement the most promising extension is \BL{18}, because it would make the chapter's central number ($\rho \approx 0.5$) computable before any refresh is run: the spend spectrum is observable, the information matrix's eigenstructure follows from it, and a closed-form $\E[\cos\Theta]$ would let a vendor quote an expected flip rate for a client's actual media plan and price the spend perturbation that would raise $\rho$. Second is \BL{19}, the one most likely to \emph{change} a result: a posterior mean averages over the rotating ridge rather than sitting at one point on it.
+
+\begin{reviewernote}[(compiler)]
+\textbf{Log line versus writeup.} The INDEX log claims CPPD has the ``best RMSE in every regime''; \cref{refresh:tab:duel} shows FRZ ahead on break end-error ($0.58 \pm 0.03$ versus $0.60 \pm 0.05$), which the writeup itself calls a null after the seed sweep demoted a seed-7 advantage (0.49 versus 0.66). ``Halves flips vs refitting'' is 0.12 versus 0.28, i.e.\ 0.43. Both round in the scheme's favour.
+
+\textbf{Baseline coverage.} IND's 90\% coverage is 0.72 in the static regime, so Laplace intervals under-cover even for honest independent refits; CPPD's ``calibrated'' 0.91 is partly the in-sample-tuned $0.3\times$ floor compensating for Laplace narrowness. Two no-floor CPP coverages appear unreconciled: 0.80 (T4, nine refreshes) and 0.59 (no-floor trap probe, twelve refreshes).
+
+\textbf{Evidence not in the archived code.} The merged code contains the linear probes, NPP/CPP/CPPD, the duel, the hysteresis, both MMM-fitted specification-selection experiments, the anchored estimator and its decomposition. It does not contain the synthetic-normal Janus experiment behind the $5.8\times$ (0.295 versus 0.051) headline, the ninefold-$\sigma$ probe (the archived power controls use $\sigma = 0.08$ against 0.25, a $3.1\times$ cut; the round history says ``$\sigma/3$''), the seed sweeps, or the $40{,}000$-replication clean-room run. The duel function defaults to $n = 60$ where the writeup reports $n = 40$, and the hysteresis $n = 160$ does not match the archived \texttt{s10} (50 replicates $\times$ 11 transitions). That script also scales the deadband by the \emph{empirical} sd of the gap across replicates, not the posterior sd the protocol prescribes (``$h \approx 1$ posterior-sd''); the 78\% figure is for the former. Treat the $5.8\times$ as the dive's report of an unarchived script.
+
+\textbf{Arithmetic and scope.} $-78\%$ is $1 - 0.057/0.25 = 0.772$, consistent only if 0.25 is rounded from about 0.26; $\rho_{\mathrm{pred}} = 0.676\times0.79 + 0.41\times0.21 = 0.620$, $\sqrt{104/195} = 0.730$ and the exact cadence ratio 2.50 all reproduce. The clean-room's $\rho = 0.837$ against $\omega = 0.875$ is explained post hoc as design variation, consistent with \cref{refresh:prop:rotation} but untested in the linear probe. Laplace covariances enter every coverage number and none has had the \BL{82} singular-value audit, though the anchored decomposition inverts the prior-regularised $J^\T J/\sigma^2 + P_0$ rather than a pseudo-inverse.
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item Sheppard, W. F. (1899). \emph{On the Application of the Theory of Error to Cases of Normal Distribution and Normal Correlation}. Philosophical Transactions of the Royal Society A 192, 101--167.
+\item Harri, A. and Brorsen, B. W. (2009). \emph{The Overlapping Data Problem}. Quantitative and Qualitative Analysis in Social Sciences 3(3), 78--115. \url{https://papers.ssrn.com/sol3/papers.cfm?abstract_id=76460}
+\item Gelman, A. and Carlin, J. (2014). \emph{Beyond Power Calculations: Assessing Type S (Sign) and Type M (Magnitude) Errors}. Perspectives on Psychological Science 9(6), 641--651. \url{https://journals.sagepub.com/doi/10.1177/1745691614551642}
+\item Gelman, A. and Loken, E. (2013). \emph{The Garden of Forking Paths: Why Multiple Comparisons Can Be a Problem Even When There Is No ``Fishing Expedition'' or ``p-Hacking''}. Unpublished, Columbia University; popular version \emph{The Statistical Crisis in Science}, American Scientist 102(6), 2014. \url{http://www.stat.columbia.edu/~gelman/research/unpublished/p_hacking.pdf}
+\item Patel, C. J., Burford, B. and Ioannidis, J. P. A. (2015). \emph{Assessment of Vibration of Effects Due to Model Specification Can Demonstrate the Instability of Observational Associations}. Journal of Clinical Epidemiology 68(9), 1046--1058. \url{https://pubmed.ncbi.nlm.nih.gov/26279400/}
+\item Ibrahim, J. G. and Chen, M.-H. (2000). \emph{Power Prior Distributions for Regression Models}. Statistical Science 15(1), 46--60. Review linked by the dive: \url{https://jds-online.org/journal/JDS/article/1400/file/pdf}
+\item Reznik, Y. A. (2026). \emph{The Optimal Discounting Parameter of the Power Prior under Predictive Log-Loss}. arXiv:2608.12159. \url{https://arxiv.org/abs/2608.12159}
+\item Pawel, S., Aust, F., Held, L. and Wagenmakers, E.-J. (2023). \emph{Normalized Power Priors Always Discount Historical Data}. Stat 12(1), e591. \url{https://onlinelibrary.wiley.com/doi/full/10.1002/sta4.591}
+\item Kulh\'avy, R. and K\'arn\'y, M. (1984). \emph{Tracking of Slowly Varying Parameters by Directional Forgetting}. IFAC Proceedings 17(2), 687--692.
+\item Sm\'idl, V. and Gustafsson, F. (2012). \emph{Bayesian Estimation of Forgetting Factor in Adaptive Filtering and Change Detection}. IEEE Statistical Signal Processing Workshop. \url{https://library.utia.cas.cz/separaty/2012/AS/Smidl-bayesian%20estimation%20of%20forgetting%20factor%20in%20adaptive%20filtering%20and%20change%20detection.pdf}
+\item Masegosa, A. R., Nielsen, T. D., Langseth, H., Ramos-L\'opez, D., Salmer\'on, A. and Madsen, A. L. (2017). \emph{Bayesian Models of Data Streams with Hierarchical Power Priors}. ICML. \url{https://arxiv.org/abs/1707.02293}
+\item Kessler, S., Cobb, A., Rudner, T. G. J., Zohren, S. and Roberts, S. J. (2023). \emph{On Sequential Bayesian Inference for Continual Learning}. Entropy 25(6), 884. \url{https://arxiv.org/abs/2301.01828}
+\item Du, L. (2026). \emph{Sequential Bayesian Inference with Correlated Heavy-Ion Datasets}. arXiv:2605.17868. \url{https://arxiv.org/html/2605.17868}
+\item Jin, Y., Wang, Y., Sun, Y., Chan, D. and Koehler, J. (2017). \emph{Bayesian Methods for Media Mix Modeling with Carryover and Shape Effects}. Google research report. \url{https://research.google/pubs/bayesian-methods-for-media-mix-modeling-with-carryover-and-shape-effects/}
+\item Google (2024--26). \emph{Meridian documentation: refreshing a model} (the double-counting statement). \url{https://developers.google.com/meridian/docs/post-modeling/refreshing-model}
+\item Meta (2024--26). \emph{Robyn: \texttt{robyn\_refresh}} and issues \#890, \#507. \url{https://www.rdocumentation.org/packages/Robyn/versions/3.12.1/topics/robyn_refresh}; \url{https://github.com/facebookexperimental/Robyn/issues/890}
+\item Recast. \emph{Recast Validation: Model Stability}; \emph{How Facebook Robyn Works}; \emph{On decomp.RSSD}. \url{https://getrecast.com/recast-validation-model-stability/}; \url{https://getrecast.com/facebook-robyn/}; \url{https://getrecast.com/decomp-rssd/}
+\item Frontier study (internal): the adoption-barriers catalogue \texttt{03\_mmm\_adoption\_barriers.md}, entries M4 and M6; the open-questions catalogue \texttt{02\_open\_questions.md}, entry H8.
+\item Program (internal): \dive{01}, file \texttt{01\_mmm\_identified\_set.md} (ridge, transient, pulsed designs); \dive{05}, file \texttt{05\_fusion\_loop.md} (traps, trap insurance); \dive{08}, file \texttt{08\_decision\_deadband.md} (resolution of \BL{20}).
+\end{enumerate}
+\endgroup

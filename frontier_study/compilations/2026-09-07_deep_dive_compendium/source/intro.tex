@@ -1,0 +1,145 @@
+\chapter*{Introduction: the program and its arc}
+\addcontentsline{toc}{chapter}{Introduction: the program and its arc}
+\markboth{Introduction}{}
+
+\section*{Where the dives started}
+
+The frontier study that the dives answer summarises the state of marketing measurement in 2026 in one
+organising sentence: \emph{experiments are the ground truth, and everything else is calibrated to them}.
+The decade's load-bearing negative results---Lewis and Rao's demonstration that purchase variance swamps
+plausible advertising effects, the eBay null of Blake, Nosko and Tadelis, and Gordon et al.'s finding across
+hundreds of platform RCTs that even double machine learning on thousands of covariates fails to recover
+experimental lift---ended the hope that observational statistics could substitute for randomisation. What
+replaced it is a triangulation architecture: lift RCTs and geo experiments as causal anchors, Bayesian media
+mix models (MMM) as the cross-channel always-on connective tissue with experiments injected as priors or
+likelihood terms, and attribution demoted to a fast tactical signal understood to be non-causal. Three forces
+shaped that settlement: privacy engineering destroyed user-level joins and pushed measurement back to
+aggregates; open-source tooling (Meridian, Robyn, PyMC-Marketing, GeoLift, Trimmed Match) put the frontier in
+every analyst's hands; and the delivery algorithms became part of the measurement problem, contaminating the
+experiments meant to measure them and closing feedback loops between measurement and spend.
+
+The study's second document catalogued the open problems at the \emph{seams} of that architecture: ten
+engineering problems (E1--E10), ten human-understanding problems (H1--H10), eleven mathematical problems
+(M1--M11), and three cross-cutting grand challenges---the unified causal measurement system (M2 + M10 + E6),
+the human-mechanism panel (H1 + H3 + H5), and the calibrated simulator (E9 + H7). A third document explained
+why most companies have not adopted sophisticated MMM: business-logic barriers (unit economics, incentives,
+``precision theatre''), mathematical barriers (weak identification, the impossibility of validation, prior
+elicitation) and operational ones (data archaeology, geo data, talent, experiment operations).
+
+The deep-dive program took those catalogues as a queue. Phase~A worked the seams where experiments meet
+models (M1, M2, M10, E6, M9); Phase~B worked stability, trust and adoption mechanics (M6/M4, the decision
+interface, M3, the operational data problem, M5); Phase~C attempted the grand challenges and the frontier's
+edges (M8, E9/H7, M7, H1, efficiency under heavy tails); Phase~D began working the program's own backlog,
+returning to identification with the tools built in between. Every fourth run extended the most promising
+prior dive instead of opening a new one.
+
+\section*{A map of the chapters}
+
+\Cref{tab:map} lists the chapters with the problem each addresses and its principal dependencies. The
+chapters are self-contained, but they were not written in isolation: the dives borrowed each other's
+constructions, and several later dives exist only because an earlier one left a specific question in the
+backlog. A reader who wants the shortest path through the book's central thread should read
+\cref{ch:identification} (what a spend path can identify and what it costs), \cref{ch:transport} (how an
+experiment enters a model), \cref{ch:voi} (what the information is worth), \cref{ch:deadband} (when to act on
+it) and \cref{ch:feedback} (what the acting does to the measuring). The remaining chapters branch off that
+spine.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Chapter map: the frontier-study problem each chapter addresses, its source dives, and the chapters it most depends on or feeds.}
+\label{tab:map}
+\begin{tabular}{@{}c p{2.55in} c c p{1.55in}@{}}
+\toprule
+Ch. & Topic & Problem & Dives & Builds on / feeds \\
+\midrule
+1 & Identified set of MMM parameters; the price of identification; the spectral comb; the price of the prior & M1, BL1--2, 70, 73, 75 & 01, 20, 21, 22 & feeds 2, 3, 7, 13; uses 7, 9 \\
+2 & Transport map from lift tests to MMM parameters & M2 & 02 & uses 1; feeds 3, 4, 14 \\
+3 & Decision-calibrated uncertainty and EVSI & M10 & 03, 04 & uses 2; feeds 4, 7, 11, 12 \\
+4 & Always-on experiment-to-model fusion & E6 & 05 & uses 2, 3; feeds 7, 13 \\
+5 & Geo aggregation and privacy noise & M9 & 06 & uses 1, 2 \\
+6 & Refresh stability and analyst degrees of freedom & M6/M4 (barriers) & 07 & uses 1; feeds 7, 9 \\
+7 & The reallocation deadband & M9(comm.), B5, H8 & 08, 09 & uses 3, 4, 6; feeds 9, 10, 12, 13, 15 \\
+8 & Creative estimands under algorithmic delivery & M3 & 10 & feeds 11 \\
+9 & The data-archaeology compiler & O1/O3 & 11 & uses 5, 6; feeds 1, 13 \\
+10 & Long-run effects under weak surrogacy & M5 & 12 & uses 2, 3; feeds 7, 14 \\
+11 & Impossibility of causal attribution; escape designs & M8 & 13, 14 & uses 8, 3; feeds 4, 7 \\
+12 & The calibrated simulator & E9/H7 & 15 & uses 3, 7; feeds 15 \\
+13 & Inference inside the feedback loop & M7 & 16, 19 & uses 1, 3, 4, 7, 9; feeds 1 \\
+14 & The human-mechanism panel & H1 & 17 & uses 1, 2, 10 \\
+15 & Lift under heavy tails & M6 (efficiency) & 18 & uses 7, 12 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section*{Recurring ideas across the dives}
+
+Reading the twenty-two reports together, a small number of ideas recur often enough to count as the
+program's findings rather than any single dive's. They are stated here so that the reader can watch for them.
+
+\paragraph{The decision-optimal policy destroys the information it needs.}
+\cref{ch:identification} shows that the profit-maximising media plan is, to first order, exactly
+non-identifying, and that budget-neutral variation cannot identify the total marginal value of media at all
+under a common adstock. \cref{ch:feedback} shows that a certainty-equivalent allocation loop without
+exogenous exploration stalls at an uninformative spend where the model's own marginal ROAS echoes the
+breakeven target exactly. \cref{ch:fusion} finds that belief-driven experiment selection leaves the very
+channel that is about to trap unprobed. The same mechanism appears in each: what is best to do given current
+beliefs is what teaches least about them. The escapes are also the same across chapters---exogenous probes with
+energy off the seasonal harmonics, switch designs, spend floors and coverage constraints, $t^{-1/4}$
+exploration---and \cref{ch:identification} prices them in dollars.
+
+\paragraph{Plateaus: design choice is second-order, the statistic is first-order.}
+\cref{ch:voi} finds an EVSI power plateau---among well-powered scalar-readout experiments, which channel,
+pulse or window to test is decision-irrelevant---and diagnoses it as a ceiling structure. \cref{ch:identification}
+finds the same plateau in the frequency domain (the information functional is flat within 10\% across
+probe periods from 13 to 182 weeks). \cref{ch:deadband} finds that the \emph{shape} of the multichannel
+inaction region is second-order while using the wrong \emph{statistic} (raw estimates, significance rules,
+posterior width) costs tens of percent to multiples. The practical reading is that effort spent optimising a
+design within its admissible class buys little, while effort spent on the estimand, the projection, the filter
+and the count of experiments buys a lot.
+
+\paragraph{Precisely wrong.}
+Several dives find a sophisticated procedure that is more confident than a naive one and more biased:
+iROAS used as a prior on marginal ROAS (\cref{ch:transport}, IQR seven times tighter, 43\% off); naive
+posterior-as-prior refreshing (\cref{ch:refresh}, coverage 0.24); pseudo-inverses on singular Fisher
+matrices (\cref{ch:identification}, \BL{82}); an outcome-selected experiment library that makes a simulator
+look better than perfect (\cref{ch:simulator}); a model inside a feedback loop whose marginal ROAS reports
+the target it was steered to (\cref{ch:feedback}); a difference-in-means lift estimate that at 200,000 users is
+worse than not experimenting (\cref{ch:heavytail}). The adoption study called this precision theatre; the
+dives supply the mechanisms.
+
+\paragraph{Exact identities as the working method.}
+The program's characteristic move is to find an exact decomposition whose terms name the mechanisms:
+$\iROAS = m_\infty\,\rho\,C\,Q$ (\cref{ch:transport}); the divergence-bias identity for creative tests
+(\cref{ch:algorithmic}); the leakage law for imputed channels (\cref{ch:archaeology}); the surrogate-index
+error as bypass tail minus phantom persistence (\cref{ch:surrogacy}); Muth's invariance
+$\Var(\Delta\hat z) = q$ that collapses a partially observed control problem to a fully observed one
+(\cref{ch:deadband}); exact comb orthogonality through heterogeneous adstock and the ledger identities
+through one vector $d$ and one matrix $\tilde I$ (\cref{ch:identification}); the design theorem for
+attribution (\cref{ch:attribution}). Almost all were reproduced by the clean-room verifier to machine
+precision, which is where the program's confidence in them comes from.
+
+\paragraph{Every assumption has a price, and the price can be computed.}
+\cref{ch:heavytail} prices a margin restriction in variance ratios; \cref{ch:identification} prices a shape
+prior in excitation dollars and an unknown saturation curve as the harmonic-collision penalty;
+\cref{ch:attribution} prices an interaction cap in aliasing and a holdout-only design in $n^4$ precision loss;
+\cref{ch:surrogacy} prices a maximum half-life in the width of the identified set; \cref{ch:aggregation}
+prices a privacy budget in posterior width. The unifying object is a cost--precision frontier on which a
+decision-maker chooses, and several chapters conclude that the decision layer of \cref{ch:deadband} is where
+those prices should be paid.
+
+\paragraph{The program corrected itself.}
+Each dive's later rounds refuted some of its own earlier claims, and the compendium keeps them under the
+\tagRefuted\ label: the predicted 42\% D-optimality forfeit (\cref{ch:voi}), the cadence law as a forecaster
+(\cref{ch:fusion}), the closed-form confounding factor and the ``resolution'' account of block length, the
+closed-form quadrature angle, the ``700--2400$\times$ worse'' flighting claim that was in fact exact
+singularity, and the admissibility constant (\cref{ch:identification}). The reviewer notes add what the dives
+did not catch.
+
+\section*{How to read the numbers}
+
+All figures are from simulations under the model stated in each chapter's setup, with the uncertainty the
+dive reported; where a dive reported none, the reviewer note says so. Percentages of ``media spend'' or
+``revenue'' are in the dives' synthetic units and should be read as orders of magnitude. Where two dives
+disagree, both numbers are given and the disagreement is flagged. Where a result depends on a Fisher-matrix
+inversion that has not had the \BL{82} audit, the reviewer note names it. The compendium adds no results of
+its own.

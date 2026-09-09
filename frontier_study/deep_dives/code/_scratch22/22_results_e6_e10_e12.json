@@ -1,0 +1,47 @@
+{
+ "e6": {
+  "d (residual shape sensitivity)": "+6.4782 -0.2289 +0.1130",
+  "(a) bias identity max rel err (200 cells)": "4.911e-14",
+  "delta_alpha=0.02: bias(mROAS) at u=0.1/1/10/inf": "-0.01178 -0.06478 -0.11779 -0.12956   ceiling=-0.12956",
+  "   as % of mROAS=1.290": "-4.56% -25.10% -45.64% -50.21%",
+  "delta_alpha=0.05: bias(mROAS) at u=0.1/1/10/inf": "-0.02945 -0.16196 -0.29446 -0.32391   ceiling=-0.32391",
+  "delta_alpha=0.10: bias(mROAS) at u=0.1/1/10/inf": "-0.05889 -0.32391 -0.58893 -0.64782   ceiling=-0.64782",
+  "(MC n=200) da=0.05 u=1.0: bias mc / pred": "-0.14957 +- 0.02012  /  -0.15720   (z=+0.38)",
+  "(MC n=200) da=0.05 u=10.0: bias mc / pred": "-0.22985 +- 0.00937  /  -0.28548   (z=+5.94)"
+ },
+ "e10": {
+  "alpha / half-life / dhl_dalpha": "0.600 / 1.3569 wk / 4.4272",
+  "Psi0": "19.8044",
+  "(a) prior sd 0.25 wk on half-life -> sd_alpha=0.0565": "Psi=13.47597  (L* multiplier 0.8249)",
+  "(a) prior sd 0.50 wk on half-life -> sd_alpha=0.1129": "Psi=17.07950  (L* multiplier 0.9287)",
+  "(a) prior sd 1.00 wk on half-life -> sd_alpha=0.2259": "Psi=18.97306  (L* multiplier 0.9788)",
+  "(a) prior sd 2.00 wk on half-life -> sd_alpha=0.4518": "Psi=19.58445  (L* multiplier 0.9944)",
+  "--- (b) uniform vs Gaussian prior on alpha ---": "",
+  "free sd(alpha) from FIM": "0.0636",
+  "w=0.02 (w/sd_free=0.31): sd(mROAS) MC / Gaussian-matched": "0.36342 +- 0.02105 / 0.35311",
+  "w=0.05 (w/sd_free=0.79): sd(mROAS) MC / Gaussian-matched": "0.55686 +- 0.03226 / 0.38320",
+  "--- (c) which shape parameter is worth pricing ---": "",
+  "pin alpha exactly -> Psi": "8.4872   (value captured 44.5%)",
+  "pin K exactly -> Psi": "17.5197   (value captured 7.7%)",
+  "pin S exactly -> Psi": "18.4736   (value captured 4.4%)"
+ },
+ "e12": {
+  "mROAS / sd(mROAS) flat": "1.29030 / 0.52828",
+  "rel sd r=0.50: sd(mROAS) for priors on beta/alpha/K/mROAS": "0.50249 / 0.52174 / 0.49717 / 0.40873",
+  "rel sd r=0.30: sd(mROAS) for priors on beta/alpha/K/mROAS": "0.50243 / 0.51125 / 0.49698 / 0.31224",
+  "rel sd r=0.20: sd(mROAS) for priors on beta/alpha/K/mROAS": "0.50241 / 0.49407 / 0.49692 / 0.23187",
+  "rel sd r=0.10: sd(mROAS) for priors on beta/alpha/K/mROAS": "0.50240 / 0.44124 / 0.49688 / 0.12535",
+  "rel sd r=0.05: sd(mROAS) for priors on beta/alpha/K/mROAS": "0.50240 / 0.38552 / 0.49687 / 0.06404",
+  "rank-one identity max rel err": "2.906e-12",
+  "--- L* multiplier (dollar value) at r=0.20 ---": "",
+  "   prior on beta": "L* x 0.9510   (saves 4.9% of the budget)",
+  "   prior on alpha": "L* x 0.9352   (saves 6.5% of the budget)",
+  "   prior on K": "L* x 0.9406   (saves 5.9% of the budget)",
+  "   prior on mROAS": "L* x 0.4389   (saves 56.1% of the budget)",
+  "--- the governing quantity: corr(functional, direction) ---": "",
+  "   corr(mROAS, beta)": "+0.30914",
+  "   corr(mROAS, alpha)": "+0.75594",
+  "   corr(mROAS, K)": "-0.33965",
+  "   corr(mROAS, mROAS)": "+1.00000"
+ }
+}

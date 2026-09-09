@@ -1,0 +1,595 @@
+% ===========================================================================
+% Chapter: The identified set of MMM parameters and the price of
+% identification (dives 01 + 20 + 21 + 22)
+% ===========================================================================
+\chapter[The identified set and the price of identification]{The identified set of MMM parameters and the price of identification}
+\label{ch:identification}
+
+\begin{provenance}
+\textbf{Source dives:} \dive{01} \emph{The identified set of MMM parameters (M1)} (run 2026-08-31, file \texttt{01\_mmm\_identified\_set.md}, written 2026-08-31 22:08 UTC); \dive{20} \emph{The price of identification: the spectrum and the cost of MMM experimental design} (run 2026-09-04, file \texttt{20\_price\_of\_identification.md}, written 2026-09-04 17:20 UTC); \dive{21} \emph{The $n$-channel spectral comb} (run 2026-09-06, file \texttt{21\_spectral\_comb.md}, written 2026-09-06 19:17 UTC); \dive{22} \emph{Price the prior: what an assumption is worth in excitation dollars} (run 2026-09-07, file \texttt{22\_price\_of\_the\_prior.md}, written 2026-09-07 16:46 UTC).
+\textbf{Code:} \texttt{code/01\_mmm\_identified\_set.py}, \texttt{code/20\_price\_of\_identification.py}, \texttt{code/21\_spectral\_comb.py}, \texttt{code/22\_price\_of\_the\_prior.py} (results \texttt{code/22\_results.json}).
+\textbf{Frontier-study problem(s) addressed:} M1 --- characterise the sharp identified set of $(\alpha, K, S, \beta)$ as a functional of the spend path, give formal conditions (frequency content, on/off structure, range coverage) for point versus set identification, and an optimal-design theory for curvature separately from decay; adoption barriers M1 (weak identification) and M7 (prior elicitation).
+\textbf{Backlog items closed:} \BL{1}, \BL{2} (opened by \dive{01}, closed by \dive{20}); \BL{73} (opened by \dive{20}, closed by \dive{21}); \BL{70} (priced by \dive{21}); \BL{75} (opened by \dive{20}, closed by \dive{22}); \BL{82} discharged by \dive{22} for dives 20--22. \textbf{Opened:} \BL{74}, \BL{76}, \BL{77}, \BL{78} (\dive{20}); \BL{79}, \BL{80}, \BL{81}, \BL{82}, \BL{83}, \BL{84} (\dive{21}); \BL{85}, \BL{86}, \BL{87}, \BL{88} (\dive{22}).
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item Spend perturbations of relative amplitude $\delta$ leave a likelihood ridge whose smallest Fisher eigenvalue scales as $\delta^4$ (verified slope 3.99): a $\pm10\%$ wiggle would need about 5.5 million weeks to match one two-level block design. Blocks of half-length $L \approx 3/(1-\alpha)$ with the adstock transient kept point-identify all four parameters (discarding the transient collapses $\lambda_{\min}$ about $700\times$); annealed budget-neutral designs beat AR(1) spend $5\times$ on the D-criterion.
+\item Profit cost and Fisher information pass through the same adstock filter, so at matched profit cost the calibrated $\mathrm{se}(\mROAS)$ is exactly frequency-invariant (0.0992 across periods 4--182 weeks) and the design frontier is the hyperbola $C\cdot\Var(\hat c_1) = \tfrac12\kappa S_\varepsilon(\omega)$. The price of identifying a channel is $L^* = m\sigma\sqrt{\Psi T_r}$, half probing and half residual ignorance: 0.36--1.12\% of media spend in probing cost, independent of curvature and adstock.
+\item Design content lives in the nuisance projection: a probe on a seasonal harmonic carries identically zero information, the Fej\'er margin rule asks for $\ge 1.15/(\pi\sqrt{\epsilon}) \approx 1.6$ Fourier bins, week-of-year dummies annihilate every probe whose period divides 52, and the profit-maximising media plan is, to first order, exactly non-identifying.
+\item Comb tones at distinct DFT bins stay exactly orthogonal through heterogeneous adstock, so the $n$-channel frontier binds for all channels at once and the price is a channel-count tax (20 channels pay 1.75--5.5\% of a fixed budget where one pays 0.09--0.28\%). Saturation puts each channel on a harmonic ladder; a collision obeys $\mathrm{VIF} = 1/\sin^2(p\psi_j - \psi_k)$ and phase is a design variable (15.5$\times$ naive, 4.27$\times$ closed form, 1.085$\times$ numerical optimum), but the penalty deflates to 1.03$\times$ once the shape is calibrated. Budget-neutral variation leaves the total marginal value exactly unidentified under a common adstock; synchronised 13-week flighting is exactly singular.
+\item Everything a shape prior does to a decision functional passes through one vector $d$ and one matrix $\tilde I$, and $d = 0$ makes a prior worth exactly zero and harmless. The ladder becomes continuous, $\Psi(u) = 1 + (\Psi_0 - 1)/(1+u)$, with half its dollar value bought at $u_{1/2} < 3$; a prior is admissible iff $\Delta^2 < 2\tau^2 + \mathrm{sd}_{\rm data}^2$; the direction law $\mathrm{value}/\Var = \mathrm{corr}^2\,u/(1+u)$ shows an ROI prior saves 56\% of the identification budget against 4.9\% for a coefficient prior. The 4-parameter $\Psi_0 = 19.8$ is a $\pm35\%$ quantity; only the direction-law ratio survives the estimability audit.
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+The workhorse Bayesian marketing-mix model represents a channel's effect on weekly sales as a saturating function of a geometrically decaying stock of past spend. Its authors report that with weekly national data the likelihood is nearly flat along ridges trading off decay, saturation and effectiveness, so that ``prior distributions have a big impact on the posteriors'' (Jin et al., 2017), and five equally well-fitting models disagree on optimal allocation by up to 50\% (Chan and Perry, 2017). Problem M1 asked for the mathematics: the sharp identified set of $(\alpha, K, S, \beta)$ as a functional of the spend path $\{x_t\}$; conditions on spend variation---frequency content, on/off structure, range coverage---for point rather than set identification; and an optimal-design theory for learning curvature separately from decay. Behind it sit the adoption barriers M1 (``the data can't answer the question, so priors do'') and M7 (``the model demands beliefs business users cannot supply'').
+
+Four dives answer M1 as one arc. \dive{01} characterises the identified set locally through the Fisher information and transports dose-ranging design theory into the dynamic setting: the transient of a block design is a free dose-ranging sweep, and information about saturation grows as the fourth power of the excursion. It left two admitted gaps---seasonal nuisance collinearity and the profit cost of probing---which \dive{20} shows to be one question, answered in the frequency domain: cost and information are the same quadratic form in the same filtered signal, so the exchange rate between forgone profit and precision is an exact hyperbola and the price of identification has a closed form. \dive{21} extends the theory to $n$ channels through an orthogonal spectral comb, finds the binding constraint to be nonlinearity and phase rather than frequency, and prices the budget-neutral constraint \dive{19} had found blinding. \dive{22} completes the economics on the Bayesian side: it puts the prior-regularised estimator on the same cost--precision plane, turns \dive{20}'s discrete knowledge ladder into a continuous function of prior precision, and prices priors on different parameters against one another in excitation dollars. The four share one model and working point but drift in notation; \cref{ident:sec:setup} fixes one notation and the reviewer's notes record where the dives corrected themselves.
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{Fisher information, the Cram\'er--Rao bound, local identification and optimality criteria}
+
+For a Gaussian mean model $y_t = \mu_t(\theta) + \varepsilon_t$, $\varepsilon_t \sim \mathcal N(0, \sigma^2)$, with Jacobian $J_{ti} = \partial\mu_t/\partial\theta_i$, the Fisher information is $I(\theta) = J^\T J/\sigma^2$, and the Cram\'er--Rao lower bound (CRLB) says any unbiased estimator has $\Cov(\hat\theta) \succeq I^{-1}$; for a functional $\phi = g^\T\theta$, $\Var(\hat\phi) \ge g^\T I^{-1}g$. The parameter is \emph{locally identified} at $\theta_0$ iff $I(\theta_0)$ has full rank; a near-zero eigenvalue is a likelihood ridge along its eigenvector, identified in principle but with CRLB standard error $\lambda_{\min}^{-1/2}$. Optimal design shapes $I$ through the regressor path: \emph{D-optimality} maximises $\det I$, \emph{c-optimality} minimises $g^\T I^{-1}g$ for a chosen functional, and \emph{$D_s$-optimality} (Atkinson and Cox, 1974) maximises the determinant of the Schur complement $I_{ss} - I_{sc}I_{cc}^{-1}I_{cs}$ when only a block matters. All are local in the unknown $\theta_0$, the classical circularity of nonlinear design. When a linear nuisance basis $Z$ (intercept, trend, seasonal harmonics) is profiled out, a coefficient with score vector $v$ retains information $\|M_Z v\|^2/\sigma^2$, $M_Z = \mathrm{Id} - Z(Z^\T Z)^{-1}Z^\T$: whatever part of $v$ lies in the span of $Z$ is lost.
+
+\subsection{The adstock/Hill MMM and its weak identification (Jin et al., 2017; Chan and Perry, 2017)}
+
+Jin, Wang, Sun, Chan and Koehler (2017) model a KPI as baseline plus, per channel, a carryover transform followed by a shape transform of spend. Carryover is geometric adstock, $a_t = x_t + \alpha a_{t-1}$, so a unit of spend contributes $\alpha^l$ after $l$ periods and constant spend $\bar x$ settles at $\bar a = \bar x/(1-\alpha)$; the shape is the Hill function $h(a; K, S) = a^S/(a^S + K^S)$ with half-saturation $K$ and slope $S$, convex below and concave above its inflection; the channel contributes $\beta h(a_t)$ with $\beta$ the sales ceiling. Fitted by MCMC to weekly national series, the posterior for $(\alpha, K, S)$ was prior-dominated and the likelihood flat along ridges. Chan and Perry (2017) catalogue the data problems---156 observations against 20 or more channels, ``insufficient variation in media spend'', collinearity when channels move together---noting that ``the data contains little information'' about a channel unless it moves independently. Recast's practitioner note (2026) comes closest to a prescription---flight spend both with and against seasonality, pulse one channel up the week after another---with no mathematics, optimum or cost. These are empirical diagnoses and rules of thumb; none says which variation identifies what, nor what it costs.
+
+\subsection{Emax dose-ranging design theory}
+
+The pharmacological sigmoid Emax model $E(d) = E_0 + E_{\max}d^h/(d^h + \mathrm{ED}_{50}^h)$ is the Hill function under another name. Two facts from its optimal-design literature (Dette et al.\ and the adaptive sigmoid-Emax designs cited by \dive{01}) matter here. A locally D-optimal design for the four-parameter model needs at least four distinct dose levels; a two-level experiment cannot identify a four-parameter sigmoid. And \emph{range coverage}: when the largest dose is far below $\mathrm{ED}_{50}$, $E(d) \approx E_0 + E_{\max}(d/\mathrm{ED}_{50})^h$ and only the composite $E_{\max}/\mathrm{ED}_{50}^h$ is identified---the plateau is extrapolation, and doses must reach the knee to locate it. The static theory sets the dose freely; in the MMM the ``dose'' $a_t$ is a filtered functional of the spend path.
+
+\subsection{Frequency-domain system identification}
+
+For a linear dynamic system driven by an input with power spectrum $\Phi_u(\omega)$, the Fisher information is an integral of $\Phi_u$ against the squared parameter sensitivity of the transfer function (Mehra, 1974; Goodwin and Payne, 1977; Ljung, 1999, ch.\ 13). Three consequences matter. \emph{Persistent excitation}: an input must carry energy at enough distinct frequencies to excite every parameter direction; a constant input identifies only a gain. \emph{Multisines on the DFT grid}: because information is a moment functional of the spectrum, optimal spectra are realisable as finite sums of sinusoids, and tones at integer numbers of cycles in the record ($\omega = 2\pi k/T$) are exactly orthogonal over the record at any phases; Morelli's orthogonal optimised multisines for flight testing (NASA, 2021) assign disjoint bin sets to different inputs so that all can be excited at once, and Gevers, Miskovic, Bonvin and Karimi (2006) show that adding an excited input reduces every parameter's covariance when inputs share parameters. \emph{Leakage}: a rectangular record of length $T$ smears any line by the Fej\'er kernel
+\begin{equation}
+F_T(\Delta) = \frac{\sin^2(T\Delta/2)}{T^2\sin^2(\Delta/2)} \le \frac{4}{T^2\Delta^2},
+\label{ident:eq:fejer}
+\end{equation}
+the squared normalised Dirichlet kernel, with main lobe $2\pi/T$ and sidelobes decaying as the inverse square of distance; an off-grid tone leaks the fraction $F_T(\Delta)$ of its energy onto a line $\Delta$ radians away, an on-grid tone leaks nothing onto other grid lines. Schoukens, Pintelon and Guillaume's harmonic-suppressed multisines leave chosen lines unexcited so that the energy a nonlinearity puts there can be measured. ``Least costly identification'' (Bombois et al., 2006) minimises input power subject to a precision constraint, Hjalmarsson (2009) frames excitation energy per unit accuracy as a cost of complexity, and Rivera et al.'s plant-friendly identification bounds the crest factor of the multisine so that a running plant is not disturbed; none of it prices excitation in profit.
+
+\subsection{Nonlinear distortion and Volterra readouts}
+
+A static nonlinearity $f(\bar a + B\cos\omega t)$ expanded to third order gives $\tfrac14 f''B^2[1 + \cos 2\omega t] + \tfrac1{24}f'''B^3[3\cos\omega t + \cos 3\omega t] + \ldots$: one tone becomes a ladder of lines at $\omega, 2\omega, 3\omega$, the $p$-th carrying $p$ times the input phase and an amplitude proportional to the $p$-th derivative. This is the local Volterra description of a weakly nonlinear system and the basis of harmonic-distortion measurement: the second-harmonic line reads the curvature without fitting a curve. It is also a hazard in multi-input excitation, since one input's distortion products can land on another's fundamental.
+
+\subsection{The cost of learning (Little, 1966; Feit and Berman, 2019)}
+
+Little (1966) chose the size of an advertising experiment ``to minimize the cost of imperfect information plus the cost of experimentation'' in a quadratic response model; the adaptive-control line (Pekelman and Tse, 1980; Kolsarici, Vakratsas and Naik, 2020) makes the probe increment proportional to the posterior variance of effectiveness, and den Boer and Zwart (2014) show that pricing with a controlled dispersion decaying as $t^{-1/4}$ attains $O(T^{1/2+\epsilon})$ regret, by the same second-order Taylor argument as the cost law below. Feit and Berman (2019) give the closed-form profit-maximising test size $n^* \approx \tfrac12\sqrt N(s/\sigma)$ and a map from posterior precision to deployment profit---an existing price-of-identification frontier for a two-arm i.i.d.\ test. Marketing pulsing theory (Sasieni, 1989; Feinberg, 2001) is profit-driven; Feinberg proves no finite pulsing frequency is optimal in continuous time, so a finite probing period must come from discreteness, memory or identification.
+
+\subsection{The van Trees inequality and the effective sample size of a prior}
+
+The CRLB bounds unbiased estimators only. The van Trees (Bayesian Cram\'er--Rao) inequality in the form of Gill and Levit (1995) bounds the Bayes risk of \emph{any} estimator by $1/(\E_\pi[I(\theta)] + \mathcal J(\pi))$, with $\mathcal J(\pi)$ the Fisher information of the prior; for a Gaussian prior of precision $P$ the bound is $(I + P)^{-1}$. Morita, Thall and M\"uller (2008) define a prior's effective sample size by curvature matching; in the normal case a prior of variance $\tilde\sigma^2$ is worth $\sigma^2/\tilde\sigma^2$ observations; Neuenschwander et al.\ (2020) show that most other effective-sample-size definitions fail a predictive-consistency axiom. The shrinkage crossover (Casella, 1985; Efron and Morris) says that for $X \sim \mathcal N(\theta, \sigma^2)$ with prior $\mathcal N(\mu_0, \tau^2)$ the posterior mean beats the MLE in MSE iff $(\theta - \mu_0)^2 < 2\tau^2 + \sigma^2$.
+
+\subsection{Priors in MMM practice, and the ridge-with-a-tight-curve observation}
+
+Meridian (Zhang, Wurm et al., 2024) reparameterises the channel coefficient $\beta_m$ as a deterministic function of the channel's ROI and the shape parameters so that the prior, often from a lift test, sits on ROI; its documentation notes that the induced prior on $\beta$ is then not independent of $(\alpha_m, \mathrm{ec}_m, \mathrm{slope}_m)$, that translating an experiment's standard error into a prior ``is not a precise formula'', and ships a prior--posterior shift diagnostic without a threshold. LightweightMMM placed $\mathrm{lag\_weight} \sim \mathrm{Beta}(2,1)$ on adstock decay for MCMC stability; Robyn injects lift tests as a third objective with self-declared subjective weights. Dew, Padilla and Shchetkina (2024) show that saturation and time-varying effectiveness are not separately identifiable from observational spend, worst under autocorrelated media, and propose a maximal-separation intervention; Heusch (2026) recovers adstock, saturation and effectiveness structurally from geo experiments and reports a posterior ridge with $\mathrm{corr}(\lambda, \beta) = -0.68$ whose \emph{implied response curve} over the probed range is nevertheless tight. That coexistence of a wide parameter ridge with a tight curve is what \dive{22}'s residual sensitivity $d$ formalises.
+
+\section{Setup and assumptions}
+\label{ident:sec:setup}
+
+All four dives use one model, written here in $n$-channel form with a nuisance basis:
+\begin{equation}
+y_t = z_t^\T\gamma + \sum_{j=1}^{n}\beta_j\,h(a_{jt}; K_j, S_j) + \varepsilon_t, \qquad a_{jt} = x_{jt} + \alpha_j a_{j,t-1}, \qquad h(a; K, S) = \frac{a^S}{a^S + K^S},
+\label{ident:eq:model}
+\end{equation}
+with $\theta_j = (\beta_j, K_j, S_j, \alpha_j)$, $z_t$ an intercept, centred linear trend and Fourier harmonics $k \le 3$ at period 52 (\dive{01} has $z_t \equiv 0$), and $\varepsilon_t$ stationary with normalised spectral density $S_\varepsilon(\omega)$, equal to $\sigma^2$ for white noise. Adstock is the filter $H_\alpha(\omega) = (1 - \alpha e^{-i\omega})^{-1}$ with memory $\tau = 1/(1-\alpha)$. The working point is $\theta_0 = (1, 1.5, 2, 0.6)$, $\sigma = 0.05$. \dive{01} sets mean spend $\bar x = 1$, so $\bar a = 2.5$; dives 20--22 add a margin $m = 2$ and sit at the myopic profit optimum $m\beta h'(\bar a^*) = 1-\alpha$, giving $\bar a^* = 2.1804$, $\bar x^* = 0.8722$, $h''(\bar a^*) = -0.15731$, profit curvature $\kappa \equiv m\beta|h''(\bar a^*)| = 0.31463$ and weekly channel profit 0.4854. Local composites are $c_k = \beta h^{(k)}(\bar a)$, $k = 0, \ldots, 3$; the decision functional is the marginal ROAS at the operating point, $\mROAS = mc_1/(1-\alpha)$. The Fisher matrix is $I$ throughout (\dive{01} wrote $F$); the record length is $T$ (\dive{20} wrote $T_w$): 156 in dives 01 and 22 (96 for \dive{01}'s annealer), 364 in dives 20 and 21, the latter two with a 52-week burn-in carrying the periodic extension of the design. $T_r$ is the decision horizon.
+
+Drifting symbols are reconciled as follows. $\delta$ is the relative amplitude of a spend perturbation (\dive{01}); the prior mis-centring, which \dive{22} also wrote $\delta$, is $\Delta = s_{\rm true} - s_0$. $\rho$ is the AR(1) residual coefficient (\dive{20}); \dive{22}'s whitened sensitivities $\rho_k^2$ are written $r_k^2$. $d$ is \dive{22}'s residual shape sensitivity; distance from a nuisance harmonic in Fourier bins is $\ell$. \dive{22}'s frontier constant $A = \tfrac12\kappa S_\varepsilon(\omega)$ is written $\mathcal A$, since $A_j$ is a probe amplitude in \dive{21}.
+
+\begin{definition}[Identified set, probing design, ladder]
+\label{ident:def:main}
+The \emph{sharp identified set} under design $x$ is $\Theta_I(x) = \{\theta : \mu_t(\theta; x) = \mu_t(\theta_0; x)\ \forall t\}$; \emph{practical identification} is the eigenstructure of $I(x, \theta_0)$. A \emph{probing design} is a mean-zero perturbation $u$ of the operating spend; in dives 20--22 a tone $x_{jt} = \bar x_j^*(1 + A_j\cos(\omega_j t + \phi_j))$ on the DFT grid $\omega_j = 2\pi m_j/T$, whose adstock deviation has amplitude $B_j$ and phase $\psi_j = \phi_j + \arg H_j(\omega_j)$. Its \emph{cost} $C$ is the expected profit forgone over the window relative to constant spend at $\bar x^*$. The \emph{ladder factor} $\Psi = \Var(\widehat{\mROAS})/\Var(\widehat{\mROAS} \mid \alpha, \text{shape known})$; $\Psi_0$ is its value with the shape free.
+\end{definition}
+
+\begin{definition}[Prior blocks and ledger objects]
+\label{ident:def:prior}
+Partition $\theta = (c, s)$ into a free block $c$ and a shape block $s = (\alpha, K, S)$ carrying a Gaussian prior of precision $P$ centred at $s_0$; $J = I + P_{\rm full}$. For $\phi = g^\T\theta$, $g = (g_c, g_s)$, define
+\begin{equation}
+\tilde I = I_{ss} - I_{sc}I_{cc}^{-1}I_{cs}, \qquad d = g_s - I_{sc}I_{cc}^{-1}g_c, \qquad V_\infty = g_c^\T I_{cc}^{-1}g_c,
+\label{ident:eq:ledgerobjects}
+\end{equation}
+the profile information, the residual shape sensitivity and the shape-known variance; the relative prior strength is $u$ with $P = u\tilde I$ (isotropic case) or $u = p\,(n^\T I^{-1}n)$ for a rank-one prior of precision $p$ along $n$.
+\end{definition}
+
+\begin{assumption}[Model class and locality]
+\label{ident:ass:model}
+Adstock is geometric and the shape exactly Hill; channels are additive; the analysis is local at $\theta_0$ except where a nonlinear Monte Carlo is named; residuals are white unless $S_\varepsilon$ appears; the world is stationary with one decision at the horizon and quadratic certainty-equivalent regret, except in \dive{22}'s deadband section.
+\end{assumption}
+
+\section{Main results}
+
+\subsection{A. The identified set and the design recipe (\dive{01})}
+
+\begin{proposition}[Constant spend is rank one]
+\label{ident:prop:constant}
+\tagEstablished\ If $x_t \equiv \bar x$ the mean path is the single number $c_0$, $\Theta_I$ is the three-dimensional manifold $\{\theta : \beta h(\bar x/(1-\alpha); K, S) = c_0\}$, and $I$ has rank one (eigenvalues $(0, 0, 10^{-10.6}, 10^{5.0})$; CRLB standard errors $10^4$--$10^6$).
+\end{proposition}
+
+\begin{law}[Amplitude law: a $\delta^4$-slow ridge]
+\label{ident:law:delta4}
+\tagEstablished\ Write $x_t = \bar x(1 + \delta u_t)$ with $u_t$ bounded and mean zero. Then $a_t = \bar a(1 + \delta v_t)$, $v_t = (1-\alpha)\sum_{j\ge0}\alpha^j u_{t-j}$, and
+\begin{equation}
+\mu_t = \beta h(\bar a) + \delta\,\bar a\beta h'(\bar a)\,v_t + \tfrac12\delta^2\bar a^2\beta h''(\bar a)\,v_t^2 + O(\delta^3).
+\label{ident:eq:expansion}
+\end{equation}
+At $O(1)$ the design reveals $c_0$; at $O(\delta)$ the filter shape (hence $\alpha$, from any temporally rich $u$) and $c_1$; only at $O(\delta^2)$ the curvature $c_2$. To first order $(c_0, c_1, \alpha)$ are three constraints on four parameters, so the identified set is a one-dimensional ridge through $(\beta, K, S)$-space \emph{regardless of the frequency content of the perturbation}, resolved only by the curvature term:
+\begin{equation}
+\lambda_{\min}(I) = \Theta(T\delta^4/\sigma^2), \qquad \lambda_2(I) = \Theta(T\delta^2/\sigma^2).
+\label{ident:eq:delta4}
+\end{equation}
+\end{law}
+
+The standard error along the ridge scales as $\sigma/(\delta^2\sqrt T)$ and the sample size for fixed precision as $\delta^{-4}$: generic point identification (the map $(\beta, K, S) \mapsto (c_0, c_1, c_2)$ is generically invertible) coexists with catastrophic practical weakness, which the dive proposes as the mathematical form of Jin et al.'s ridges. For $x = 1 + \delta\sin(2\pi t/8)$ the log-log slope of the eigenvalues on $\delta \in [0.025, 0.4]$ is $3.990$ for $\lambda_{\min}$ (theory 4) and $2.020$ for $\lambda_2$ (theory 2). A $\pm10\%$ wiggle at $T = 156$ has $\lambda_{\min} = 0.0028$; matching the block design below ($\lambda_{\min} \approx 99$) would take about 5.5 million weeks.
+
+\begin{proposition}[Range coverage: below the knee only $\beta/K^S$ exists]
+\label{ident:prop:range}
+\tagTransported\ If $\max_t a_t \ll K$ then $h(a) = (a/K)^S(1 + O((a/K)^S))$, so the mean path depends on $(\beta, K)$ only through $\beta/K^S$ and $\Theta_I$ contains, to that order, the curve $\{(\beta\lambda^S, \lambda K, S, \alpha) : \lambda > 0\}$.
+\end{proposition}
+
+Scaling the block design to $\max a/K = 0.29$ drops $\lambda_{\min}$ from $10^2$ to $10^{-3}$, rotates the ridge eigenvector into the $(\beta, K)$ plane, $(-0.74, -0.66, 0.07, 0.00)$, and a noiseless profile fit reproduces the data ($\mathrm{RSS} \le 3.4\times10^{-4}$) for any $K \in [0.8, 6]$ with $\beta$ sliding from 0.33 to 15.0 along $\beta/K^S \approx$ const (0.52, 0.44, 0.42, 0.42). One cannot learn the ceiling from below the knee.
+
+\begin{proposition}[Block length]
+\label{ident:prop:block}
+\tagEstablished\ For a square wave alternating $x_{\rm hi}/x_{\rm lo}$ with half-period $L$, the steady-state adstock separation between block ends is
+\begin{equation}
+\Delta a(L) = \frac{x_{\rm hi} - x_{\rm lo}}{1-\alpha}\cdot\frac{1 - \alpha^L}{1 + \alpha^L}
+\label{ident:eq:blocklength}
+\end{equation}
+(two-cycle fixed point). Short blocks attenuate the dose separation, acting like a small $\delta$; long blocks waste the $O(1)$-per-event information that the $T/L$ transitions carry about $\alpha$ and curvature. Requiring $\alpha^L \le 0.05$ gives $L^* \gtrsim 3/\ln(1/\alpha) \approx 3/(1-\alpha)$.
+\end{proposition}
+
+With $\tau = 2.5$ the D-criterion peaks at $L^* = 8$--10; $\lambda_{\min}$ is 0.65, 99, 3.1 at $L = 1, 8, 78$. \dive{20} later refuted its own alternative explanation (frequency resolution): $L^*$ stays at 8--10 for $T = 104, 208, 416, 832$, so the settling-time account stands.
+
+\begin{proposition}[The adstock transient is a free dose-ranging sweep]
+\label{ident:prop:transient}
+\tagNumerical\ Static theory needs four dose levels for a four-parameter sigmoid, yet a two-level \emph{dynamic} design is full rank and well conditioned: every transition drags $a_t$ through a continuum of intermediate values along the known exponential path, tracing an arc of the Hill curve. In a two-level design with $L = 13$, keeping only the 84 settled observations gives $\lambda_{\min} = 0.079$; keeping 84 transient-heavy observations gives 53.4 (full series 85.2)---a collapse of about $700\times$ at equal sample size when the transient is removed.
+\end{proposition}
+
+Pipelines that model only steady-state relationships, or geo-test analyses that discard ramp-up weeks, throw away most of the curvature information an experiment bought; Heusch's estimator works because it keeps the transient (\cref{ch:transport} applies this to what an experiment reports).
+
+\begin{construction}[Annealed budget-neutral design]
+\label{ident:con:anneal}
+\tagNumerical\ Simulated annealing over sequences on levels $\{0, 0.5, \ldots, 2.5\}$ with the mean exactly preserved, maximising $\det(I)^{1/4}$ at $T = 96$, beats three-level blocks by $1.23\times$ and AR(1) lognormal spend by $5.0\times$ on the D-criterion ($3$--$4\times$ on standard errors). The solution is interpretable: long full-off runs (35 of 96 weeks at zero, clean decay reads), sustained blocks at 2--2.5 (past the knee) and a minority of intermediate levels (dose ranging). CRLB standard errors $(\beta, K, S, \alpha) = (0.022, 0.065, 0.115, 0.009)$ against $(0.087, 0.190, 0.453, 0.037)$ for AR(1) spend.
+\end{construction}
+
+The recipe: pulse in blocks of at least $3/(1-\alpha)$ weeks (6--10 covers most channels); use three or more levels including full-off windows and excursions to 2--2.5$\times$ normal spend so peak adstock reaches the suspected $K$; never discard transition weeks; remember that saturation information grows as the fourth power of the excursion, so two big pulses beat fifty small wiggles; anneal the FIM when the schedule is free.
+
+\subsection{B. The frequency-domain price of identification (\dive{20})}
+
+Perturb around the profit optimum with a mean-zero $u$ and let $\tilde a = H_\alpha u$ be the adstock deviation.
+
+\begin{theorem}[Same-filter theorem and the price-of-precision hyperbola]
+\label{ident:thm:hyperbola}
+\tagEstablished\ Around the optimum the linear profit term vanishes, so the weekly cost is $C_{\rm week} = \tfrac12\kappa\Var(a) + O(\E\tilde a^3)$. The score for $c_1$ is $\tilde a$, so after projecting out $Z$, $I_{c_1} = \|M_Z\tilde a\|^2/\sigma^2 = T\Var(a)(1-\nu)/\sigma^2$, $\nu$ being the fraction of filtered energy absorbed by $Z$. Cost and information are the same quadratic form in the same filtered signal; on the clean band, for total window cost $C$,
+\begin{equation}
+C\cdot\Var(\hat c_1) = \tfrac12\,\kappa\,\sigma^2, \qquad\text{and with coloured residuals}\qquad C\cdot\Var(\hat c_1) = \tfrac12\,\kappa\,S_\varepsilon(\omega_{\rm probe}),
+\label{ident:eq:hyperbola}
+\end{equation}
+independently of probing frequency, amplitude and duration.
+\end{theorem}
+
+Halving the standard error costs four times the profit. \emph{Frequency invariance}: probing at 4 or 182 weeks buys identical precision per dollar for the linear effect. \emph{Duration--amplitude invariance}: the energy $E = T_e\Var(a)$ of an excitation lasting $T_e$ weeks is the only design scalar for $c_1$, so a 4-week go-dark and a two-year 5\% wiggle of equal cost are equally informative about $\mROAS$. \emph{The cheap-channel law}: $I/C = 2/(\kappa_j\sigma^2)$, so flat channels---the ones nobody can pin down---are the cheap ones to probe (verified to 0.2\%). \emph{Curvature is the exception}: the score for $c_2$ is $\tfrac12\tilde a^2$, so $I_{c_2} \propto E^2/T_e$; at fixed cost, concentrate. The exact nonlinear cost obeys the second-order law to $\le 0.5\%$ up to $\pm50\%$ swings (clean-room: $+0.41\%$ worst over commensurate periods, $+0.72\%$ at 38\% amplitude, $-3.5\%$ at a degenerate 3-week period); $t_3$ errors give $0.965 \pm 0.023$. The dive concedes the $c_1$ invariance is nearly a tautology once both sides are the same quadratic form; the content is which parameters break it.
+
+\begin{law}[Rule L: the Fej\'er leakage margin]
+\label{ident:law:ruleL}
+\tagEstablished\ A probe $\Delta$ radians from a nuisance harmonic loses the fraction $F_T(\Delta)$ of \cref{ident:eq:fejer}, summed over harmonics; in bins the envelope is $1/(\pi^2\ell^2)$, giving a naive margin $\ell \ge 1/(\pi\sqrt\epsilon)$, which the clean-room found violated when three sidelobes add (loss $0.0576 > 0.05$ at $\ell = 1.42$). Calibrated: keep the probe $\ell \ge 1.15/(\pi\sqrt\epsilon)$ bins from every nuisance harmonic to lose less than $\epsilon$ ($\approx 1.6$ bins at $\epsilon = 0.05$), \emph{or} place it on an exact Fourier frequency of the window, where leakage is identically zero at any separation $\ge 1$ bin. A probe \emph{on} a harmonic ($52/k$ weeks) carries identically zero information (matched-cost standard error $10^6$--$10^{12}$).
+\end{law}
+
+\begin{proposition}[Refuted: the closed-form confounding factor]
+\label{ident:prop:refutedVIF}
+\tagRefuted\ Round 1 derived the inflation of $\Var(\hat c_1)$ under joint estimation of $\alpha$, $\mathrm{VIF}(\omega) = 1 + (\cos\phi_H + r/|H_\alpha|)^2/\sin^2\phi_H$ with $r = (h''/h')\,\bar a/(1-\alpha)$ and $\phi_H = \arg(e^{-i\omega}H_\alpha)$, matching the FIM to 0.04--0.8\%, and in the long-memory limit a curvature index $\bar a|h''|/h' = |1 - S(1-2h(\bar a^*))|$ with a threshold at half-saturation (separable below, confounded above, rising 5.9 $\to$ 21.2 as spend goes from $1\times$ to $3\times$ optimal). Monte Carlo (250 replications) gave inflation 1.3 where the formula said 4.6, and 0.98 against 12.1 at a 7-week period---below one, impossible for the quantity claimed.
+\end{proposition}
+
+The formula prices the slope at a \emph{fixed} reference adstock; the decision functional is the slope at the \emph{fitted} operating point, whose gradient carries an extra term $mc_2\,\partial\bar a/\partial\alpha/(1-\alpha)$ that cancels most of the confounding (corrected gradient $(5, 0, -1.788)$ against the naive $(5, 0, +2.5)$). Individually unidentified quantities combine into a well-determined decision functional, as \cref{ch:voi} found in other coordinates.
+
+\begin{construction}[The $\Psi$ ladder and the decision frontier]
+\label{ident:con:ladder}
+\tagNumerical\ With $\Psi$ of \cref{ident:def:main} computed directly,
+\begin{equation}
+C\cdot\Var(\widehat{\mROAS}) = \Big(\frac{m}{1-\alpha}\Big)^2\,\tfrac12\,\kappa\,S_\varepsilon(\omega)\cdot\Psi.
+\label{ident:eq:decisionfrontier}
+\end{equation}
+At matched cost $C = 1.0$ (0.44\% of the window's spend), white residuals, the calibrated standard error is 0.0992 at every period from 4 to 182 weeks (clean-room spread 0.004\%); $\Psi_3$ ($c_1, c_2, \alpha$ free) is 17.0, 4.69, 1.97, 1.35, 1.20, 1.08, $10^{27}$, 1.06, 1.19 and $\Psi_4$ (full Hill free) is $3\times10^9$, 12.1, 10.7, 10.1, 9.98, 9.87, $10^{16}$, 9.94, 10.5 at periods 4, 7, 13, 21.4, 28, 45.5, 52, 91, 182.
+\end{construction}
+
+For the full Hill model, frequency within the admissible band is nearly decision-irrelevant---$\Psi_4$ varies by 10\% over 13--182 weeks, the plateau of \cref{ch:voi} in the frequency domain---while a harmonic ($10^{16}$) or a period faster than the memory ($3\times10^9$ at 4 weeks, where carryover is unidentifiable) is catastrophic. The ladder is the lever: from $\Psi \approx 9.9$ to $\Psi = 1$ cuts the standing standard error $\sqrt{9.9} \approx 3.1\times$ at fixed cost, so a one-time shape-fixing experiment is worth $\sqrt{10}$ on the perpetual budget. Monte Carlo at a 21.4-week period, 10\% amplitude, 250 replications: local-3 $\mathrm{se}_{\rm MC} = 0.1186 \pm 0.0053$ against FIM 0.1134; bounded structural-4 MLE $\mathrm{se}_{\rm MC} = 0.2022 \pm 0.0091$, bias $+0.107$ on an $\mROAS$ of 1.31, RMSE 0.229 against CRLB 0.311---inside the frontier, the puzzle \dive{22} resolves.
+
+\begin{proposition}[The noise spectrum restores a frequency optimum]
+\label{ident:prop:spectrum}
+\tagEstablished\ With AR(1) residuals, $S_\varepsilon(\omega) = \sigma^2(1-\rho^2)/|1 - \rho e^{-i\omega}|^2$ in \cref{ident:eq:hyperbola}: measured inflation at $\omega = 0.2934$ (5 seeds $\times$ 300 replications) is $3.077 \pm 0.080$ against 3.029 predicted for $\rho = 0.6$, and $2.215 \pm 0.057$ against 2.185 asymptotic / 2.258 exact finite-sample for $\rho = 0.9$.
+\end{proposition}
+
+MMM residuals are strongly autocorrelated, so the noise floor is low-frequency-heavy and pushes probes fast while parameter separation pushes them slow. Minimising $S_\varepsilon(\omega)\Psi_4(\omega)$ gives optimal periods 84, 84, 84, 12, 11 weeks at $\rho = 0, 0.3, 0.5, 0.7, 0.85$: a sharp crossover from ``flight annually-ish'' to ``quarterly-ish'' between 0.5 and 0.7, within a total-loss spread of only 1.0--2.6$\times$ across the band.
+
+\begin{theorem}[The price of identification]
+\label{ident:thm:price}
+\tagEstablished\ Certainty-equivalent budgeting maps an $\mROAS$ error $e$ into a spend error $e(1-\alpha)^2/\kappa$ and a per-period regret $\Var(\widehat{\mROAS})(1-\alpha)^2/(2\kappa)$; substituting \cref{ident:eq:decisionfrontier}, $\kappa$ and $(1-\alpha)$ cancel:
+\begin{equation}
+L(C) = C + \frac{T_r m^2\sigma^2\Psi}{4C} \quad\Longrightarrow\quad C^* = \tfrac12 m\sigma\sqrt{\Psi T_r}, \qquad L^* = 2C^* = m\sigma\sqrt{\Psi T_r}.
+\label{ident:eq:price}
+\end{equation}
+The minimum price of identifying a channel is margin $\times$ residual sales noise $\times\sqrt{\text{horizon}\times\Psi}$, split exactly half between probing and residual misallocation, independent of curvature, adstock and the duration/amplitude split.
+\end{theorem}
+
+Closed form and numerical argmin agree to 0.4\% ($C^* = 1.7289$, $L^* = 3.4578$ at $\Psi = 4.599$, $T_r = 260$; clean-room to six decimals). Over five years the probing cost $C^*$ is 0.36\% of media spend fully calibrated ($\Psi = 1$; $L^* = 0.71\%$), 0.37\% with the local shape free ($\Psi = 1.06$; 0.73\%) and 1.12\% with the full Hill free ($\Psi = 9.87$; 2.23\%)---an order of magnitude below practitioner rules of thumb for geo holdouts (10--20\% of a test region's budget), which the dive could not source. $L^* \propto m\sigma$ exactly.
+
+\begin{theorem}[The profit-maximising plan is non-identifying]
+\label{ident:thm:nonident}
+\tagEstablished\ Let demand seasonality be multiplicative, $s_t = 1 + A_s\cos(2\pi t/52)$, and let spend be set quasi-statically optimally, $ms_t\beta h'(a_t^*) = 1-\alpha$. Then the spend path lies in the span of the seasonal nuisance basis and carries zero first-order information about $c_1$ after projection.
+\end{theorem}
+
+At $A_s = 0, 0.15, 0.30, 0.50$ the optimal path has spend coefficient of variation $0, 0.064, 0.134, 0.255$ and $I(c_1) = 0.0, 0.0, 0.0, 16.7$ (the residual is Hill nonlinearity leaking into harmonics $k \ge 4$); the same path plus a 10\% orthogonal probe gives $2617, 2617, 2617, 2633$. A 25\% coefficient of variation is more than most advertisers have and identifies nothing, because optimal variation is a deterministic function of the demand signal the model controls for; more history does not help, since the \emph{rate} of accrual is zero. It is the static counterpart of the certainty-equivalent stall of \cref{ch:feedback}. The counterweight: log-normal managerial noise at $cv = 10\%$ gives $I(c_1) = 1633 \pm 30$ at cost 0.627, i.e.\ 2604 information units per profit dollar against 2473 for the designed probe---undesigned variation is not inefficient, it is endogenous and uncontrolled in frequency. The exact zeros need seasonality exactly in the control basis; the verifier noted that under multiplicative seasonality the natural score regressor is $s_t(a_t - \bar a)$, which the quoted numbers do not use.
+
+The single-channel recipe: never probe on a harmonic; obey Rule L; match the probe to the baseline specification (\cref{ident:tab:basis}); keep $\ge 4$ cycles in the window and period $\ge 4\tau$; within the admissible set minimise $S_\varepsilon(\omega)\Psi(\omega)$; run a continuous low-amplitude probe for $\mROAS$ plus occasional short deep excursions for curvature. On the working example (7-year window, annual seasonality) the best admissible period is 84 weeks, giving $\mathrm{se}(\mROAS) = 0.261$ against 0.381 for 13-week quarterly flighting ($2.1\times$ less profit forgone at equal precision); a 17-week flight sits 0.36 bins from the third annual harmonic and retains 43\% of its information.
+
+\subsection{C. The $n$-channel spectral comb (\dive{21})}
+
+Channel $j$ gets its own bin $m_j$. The working point is six channels A--F with $(K, S, \alpha, h(\bar a^*))$ = (1.5, 2.0, 0.60, 0.68), (2.0, 1.6, 0.30, 0.55), (1.0, 2.4, 0.75, 0.75), (3.0, 1.3, 0.45, 0.60), (0.8, 3.0, 0.20, 0.70), (2.5, 2.0, 0.55, 0.50), $m = 2$, $\beta_j$ solved from the first-order condition so that true $\mROAS_j = 1$ for all; $T = 364$.
+
+\begin{proposition}[Heterogeneous adstock is free]
+\label{ident:prop:hetero}
+\tagEstablished\ Geometric adstock is linear and time-invariant, hence diagonal in the Fourier basis: on-grid tones at distinct bins produce exactly orthogonal steady-state adstock deviations whatever the channels' memories. Six rates in $[0.20, 0.75]$ at bins (19, 23, 25, 29, 31, 37) give maximum off-diagonal correlation $2.5\times10^{-15}$ (clean-room $7.5\times10^{-16}$). The only linear leak is the centred trend, whose induced pairwise correlation is the bin-independent constant $-6/(T^2 - 7)$ (clean-room, 12 digits at five window lengths; $-4.528678\times10^{-5}$ at $T = 364$, VIF 1.000001), because $\sum_{t<T} t\cos(2\pi mt/T) = -T/2$ for every integer $m \ne 0$. The probe switch-on transient is benign once the baseline is in steady state (coupling $7.5\times10^{-3}$, VIF 1.0002); starting the channel from $a = 0$ had given 0.39 and was the wrong model of a running advertiser.
+\end{proposition}
+
+\begin{theorem}[$n$-channel frontier]
+\label{ident:thm:ncomb}
+\tagEstablished\ Let $v_j = M_Z(H_j \star u_j)$. Then $\Var(\hat c_{1j}) = \sigma^2/\|P_{-j}^\perp v_j\|^2 \ge \sigma^2/\|v_j\|^2$ with equality iff $v_j \perp \mathrm{span}\{v_k\}_{k\ne j}$, and the cost is separable, $C_j = \tfrac12\kappa_j\|v_j\|^2$. Hence for any design $C_j\cdot\Var(\hat c_{1j}) \ge \tfrac12\kappa_j S_\varepsilon(\omega_j)$ for every $j$, with equality iff channel $j$'s projected excitation is orthogonal to every other's: an orthogonal comb attains the single-channel frontier for all $n$ simultaneously, and every collinearity is a strict Pareto loss.
+\end{theorem}
+
+The six-channel comb gives $C_j\Var(\hat c_{1j})/(\tfrac12\kappa_j\sigma^2) \in [1.00010, 1.00071]$, exactly 1 to $10^{-12}$ without the trend; each channel's $\mathrm{se}(\mROAS)$ equals its solo value to $1.1\times10^{-5}$.
+
+\begin{corollary}[The channel-count tax]
+\label{ident:cor:tax}
+\tagEstablished\ $L^*$ contains no channel-specific quantity, and $C\cdot\Var$ is invariant to scaling a channel by $s$ (ratio 1.000527 over $s = 0.25$--4), so the price of identification is the same absolute number for a large and a small channel. Against a fixed six-channel budget over $T_r = 260$, $L^*$ is 0.09\%, 0.53\%, 1.05\%, 1.75\% for 1, 6, 12, 20 channels at $\Psi = 1$ and 0.28\%, 1.65\%, 3.30\%, 5.50\% at $\Psi = 9.87$. Fragmentation, not scale, makes measurement expensive.
+\end{corollary}
+
+\begin{theorem}[Harmonic-collision phase law]
+\label{ident:thm:phase}
+\tagEstablished\ Expanding $h_j(\bar a_j + \tilde a_j)$ with $\tilde a_j = B_j\cos(\omega_jt + \psi_j)$ gives $\tfrac12c_{2j}\tilde a_j^2 = \tfrac14c_{2j}B_j^2[1 + \cos(2\omega_jt + 2\psi_j)]$ and a third-order line $\propto\cos(3\omega_jt + 3\psi_j)$: channel $j$ occupies the ladder $m_j, 2m_j, 3m_j, \ldots$ with phase $p\psi_j$ on the $p$-th line. In the local Volterra model, if $\omega_k = p\,\omega_j$,
+\begin{equation}
+\mathrm{VIF}(\hat c_{1k}) = \mathrm{VIF}(\hat c_{pj}) = \frac{1}{\sin^2(p\psi_j - \psi_k)},
+\label{ident:eq:phaselaw}
+\end{equation}
+non-identifying iff $\psi_k \equiv p\psi_j \pmod\pi$, exactly orthogonal iff $\psi_k = p\psi_j \pm \pi/2$; only the phase difference matters.
+\end{theorem}
+
+Verified to relative error $3.75\times10^{-4}$ ($p = 2$) and $1.98\times10^{-4}$ ($p = 3$), values sweeping 1.007 $\to$ 148 $\to$ 172, exact to $10^{-10}$ without the trend (near the pole $d\mathrm{VIF}/d\phi \approx 2500$). A comb therefore need not avoid octaves: capacity is a phase-feasibility problem, the constraints $\psi_k - p\psi_j \equiv \pi/2 \pmod\pi$ forming a linear system over $\R/\pi\mathbb Z$, always solvable when the collision graph is a forest.
+
+\begin{proposition}[Refined: the closed-form quadrature angle is the wrong angle]
+\label{ident:prop:wrongangle}
+\tagNumerical\ In the full Hill model every channel-$A$ parameter contributes to the $2\omega_A$ line at a different phase ($+0.350$ for $\alpha$, $+2.300$ for $\beta$, $-0.841$ for $S$), so the second-harmonic content spans a two-dimensional subspace (singular values 0.768, 0.285) and no single phase for channel $B$ is orthogonal to all of it. At bins 19 and 38, 10\% amplitude, $\mathrm{se}(\mROAS_B)$ relative to a clean comb is $15.53\times$ at the naive phase $\phi_B = 0$, $7.97\times$ at a random phase (median; IQR 3.7--15.0), $4.27\times$ at the quadrature angle $\phi_B = 0.9650$ and $1.085\times$ at the numerical optimum $\phi_B = 1.5267$; the worst phase is a pole.
+\end{proposition}
+
+The closed form recovers about half the gain in log terms; a line search on the FIM recovers essentially all of it (\BL{83}). The originally reported ``maximum'' of $332\times$ was a 49-point-grid artefact (687, 895, 1181 at 401, 4001, 50001 points): never summarise a near-pole function by a grid maximum. On/off flights carry a third harmonic at 32.5\% and a fifth at 18.4\% of the fundamental, against the saturation $2\omega$ line at 2.0--15.2\% over 5--40\% amplitudes---larger but cheap (1.12--1.23$\times$ for a $3\times$ collision, 1.36--1.41$\times$ for $5\times$) and not phase-defeasible. Non-negativity is a non-issue below 100\% amplitude (5.9\% and 4.6\% harmonics at 130\%).
+
+\begin{law}[Rule R: packing capacity and record length]
+\label{ident:law:ruleR}
+\tagEstablished\ Bin $m$ is admissible if (i) $m \ge 4$, (ii) $m \le T/(4\tau_j)$, (iii) $rm$ is not a seasonal bin $pT/52$ for $r = 1, \ldots, q$. With $k = T/52$, $rm \equiv 0 \pmod k$ reduces to $m \equiv 0 \pmod k$ whenever $\gcd(r, k) = 1$, so if $k$ is coprime to 6---a 5-, 7-, 11- or 13-year window---protecting the second and third harmonics costs nothing. Sufficient, not necessary: $k = 2, 3, 9, 15$ also cost nothing because the extra exclusions fall below the $m \ge 4$ floor.
+\end{law}
+
+Enumeration ($\tau = 2.5$, seasonal harmonics $p \le 3$): $|\mathcal A| = (20, 20, 20)$, $(30, 30, 30)$, $(51, 51, 51)$ for $q = 1, 2, 3$ at $T = 260, 364, 572$ against $(14, 13, 13)$, $(25, 24, 23)$, $(56, 54, 52)$ at $T = 208, 312, 624$. At $T = 364$: 30 admissible bins, of which the largest subset free of $(m, 2m)$ and $(m, 3m)$ pairs has 20 (exact ILP, reproduced by branch-and-bound and an independent MILP); 14/20/26/33/40/46 phase-free channels at 5/7/9/11/13/15 years. Capacity is not binding for any real advertiser; cost and phase are.
+
+\begin{theorem}[Budget-neutral rank theorem and escape law]
+\label{ident:thm:rank}
+\tagEstablished\ Let $\Phi : c \mapsto \sum_j c_j(H_j \star u_j)$ with $\sum_j u_{jt} = 0$ for all $t$. With a common adstock, $\Phi(\one) = H \star \sum_j u_j = 0$: the total marginal value $\sum_j c_{1j}$ is unidentified under budget-neutral variation, however many tones or contrast patterns are used (rank 1, 2, 3 of 4 with 1, 2, 4 tones, $\|P_{\rm null}\one\|/\|\one\| = 1.000$ throughout). With heterogeneous adstock $\Phi(\one) = \sum_j(H_j - \bar H) \star u_j$ is generically nonzero and two tones suffice for full rank (the dive first wrote four). For $n = 2$ with $u_2 = -u_1 = -A\cos\omega t$,
+\begin{equation}
+\mathrm{se}(\hat c_{11} + \hat c_{12}) = \sigma\sqrt{\tfrac{2}{T}}\;\frac{|H_1(\omega) + H_2(\omega)|}{A\,|\mathrm{Im}(\overline{H_1(\omega)}H_2(\omega))|}, \qquad
+\mathrm{Im}(\bar H_1H_2) = \frac{(\alpha_1 - \alpha_2)\sin\omega}{|1 + \alpha_1\alpha_2 - \alpha_1e^{i\omega} - \alpha_2e^{-i\omega}|^2},
+\label{ident:eq:escape}
+\end{equation}
+from the Gram determinant $(T/2)^2\mathrm{Im}(\bar z_1z_2)^2$, $z_1 = AH_1$, $z_2 = -AH_2$ (verified $\le 3.6\times10^{-3}$ relative over eight cells; exact without the trend).
+\end{theorem}
+
+The escape is bought with adstock \emph{phase lag}, not gain: $\mathrm{Im}(\bar H_1H_2)$ is the area of the parallelogram spanned by the two transfer functions, which vanishes at DC (every $H_j = 1/(1-\alpha_j)$ is real) and at Nyquist, so the total marginal value is unidentified at DC however different the memories. For $(0.6, 0.3)$ it is $6.6\times10^{-5}$ at a 364,000-week period, 0.0660 at 364, 0.827 at 19, 0.0987 at 3 and $1.2\times10^{-4}$ at 2 weeks; the matched-cost optimal budget-neutral period is 8.6--20.5 weeks and often sits inside the $4\tau_{\max}$ floor. In frontier units $\Lambda \equiv C\cdot\Var/(\tfrac12\kappa\sigma^2)$, $\Lambda_{\rm neutral} = |H_1 + H_2|^2(|H_1|^2 + |H_2|^2)/\mathrm{Im}(\bar H_1H_2)^2$, the total-budget analogue replacing $|H_1 + H_2|$ by $|H_1 - H_2|$, and a single channel's own $c_1$ sits at $\Lambda = |H|^2 \approx 3.4$: \cref{ident:tab:lambda} is the exchange rate \BL{70} asked for.
+
+\begin{construction}[Model-free harmonic readout]
+\label{ident:con:readout}
+\tagEstablished\ With $Y(\cdot)$ the DFT of the nuisance-projected response,
+\begin{equation}
+\hat c_{2j} = \frac{4}{B_j^2}\mathrm{Re}\big[Y(2\omega_j)e^{-2i\psi_j}\big], \qquad \hat c_{3j} = \frac{24}{B_j^3}\mathrm{Re}\big[Y(3\omega_j)e^{-3i\psi_j}\big], \qquad \mathrm{se}(\hat c_{2j}) = \frac{4\sigma}{B_j^2}\sqrt{\tfrac{2}{T}},
+\label{ident:eq:readout}
+\end{equation}
+and $|Y(3\omega)|/|Y(2\omega)| = |c_3/c_2|B/6$ is a saturation shape test needing neither $\beta$ nor a fitted curve.
+\end{construction}
+
+Noiseless recovery is 0.1--2\% for $c_2$ and 0.5--12\% for $c_3$; a 20,000-replication Monte Carlo matches the standard error to 0.05\% ($0.43380 \pm 0.00217$ vs 0.43402; $0.02711 \pm 0.00014$ vs 0.02713), the original 400 replications having been unable to adjudicate. Recovered $|c_3/c_2|$: 0.777 vs 0.781 (A), 1.399 vs 1.403 (C), 1.360 vs 1.397 (E); channel F sits at the inflection where $c_3 = 0$ and the test returns 0.0002---its own null control. The caveat is signal-to-noise: the $2\omega$ line's SNR is $|c_2|B^2/(4\sigma\sqrt{2/T}) = 0.36$ at a 10\% probe, where a DFT-modulus estimator is catastrophically biased (mean $-0.563$ against a truth of $-0.157$; the phase-known projection is unbiased, $-0.1586$ at every amplitude). Reaching $z = 2$ on $c_2$ needs $B^* = \sqrt{8\sigma\sqrt{2/T}/|c_2|} = 23.5\%$ of mean spend---the closed form of ``concentrate for curvature'' and the cheapest route up the ladder.
+
+\begin{proposition}[Synchronised flighting is exactly singular]
+\label{ident:prop:singular}
+\tagEstablished\ (Clean-room correction.) Six channels flighted on a common 13-week cycle at $T = 364$: since $T/28 = 13$, every spend path, adstock, response and Jacobian column is 13-periodic, so all 24 structural columns lie in a 13-dimensional subspace. The full-Hill FIM has rank 19 of 32 (nullity 13, $s_{\min}/s_{\max} = 1.9\times10^{-12}$), the calibrated-shape FIM rank 18 of 20, and every channel's $\mROAS$ gradient leaks into the null space ($\|P_{\rm null}g\|/\|g\|$ up to 0.821 and 0.694). The dive's first ``700--2400$\times$ penalty'' was \texttt{pinv} at default \texttt{rcond} on a singular matrix, pure floating-point noise (63/9.7/202 at $10^{-11}$; 0.26/0.042 at $10^{-6}$).
+\end{proposition}
+
+Synchronised flighting does not degrade multichannel identification; it destroys it---one degree of freedom where the model needs $n$, the multichannel form of \cref{ident:thm:nonident}. The exactness is an artefact of commensurability; a 13-week flight in a 365-week record is merely very ill-conditioned. The correction produced the program-wide rule \BL{82}: every FIM-based standard error must carry $s_{\min}/s_{\max}$ and the functional gradient's null-space leak. Attacks that failed: seasonal sidebands at $\omega_j \pm \omega_s$ change $\mathrm{se}(\mROAS_B)$ by under 2\% at seasonal amplitudes 0--0.8; truncating the record to 75\% leaves $\mathrm{VIF} = 1.020$; a misspecified $\alpha$ of $\pm0.05$ leaves the phase-managed ratio at 1.10 ($+0.10$: 1.63$\times$; $+0.20$: 2.85$\times$), still far below 15.5$\times$; off-grid separation (Rule C) gives correlation 0.985 at 0.05 bins, 0.674 at 0.25, about zero at 0.5 and at every integer.
+
+\subsection{D. The price of the prior (\dive{22})}
+
+\dive{22} works in the Gaussian/FIM model with $\theta = (c, s)$ as in \cref{ident:def:prior} and penalised MLE $\hat\theta = \theta + J^{-1}\xi - J^{-1}P_{\rm full}(\theta - \theta_{\rm prior})$, $\xi \sim \mathcal N(0, I)$ the score. The functional is $\mROAS$ at a \emph{fixed observed} adstock: at the profit optimum $\mROAS \equiv 1$ for every $\theta$ (the first-order condition), so its gradient vanishes identically---\cref{ident:thm:nonident} in functional form, which broke the dive's first parameterisation. The anchor is $\bar a_0 = 0.85\,\bar a^*$, giving $\mROAS = 1.290$. Design: $T = 156$, a three-tone comb at periods $\{11, 21, 34\}$ weeks, 10\% amplitude each (12\% total CV), steady spend 0.872, three-year media spend 136.1 revenue units.
+
+\begin{proposition}[Dollar exchange rate---a bridge, not a theorem]
+\label{ident:prop:exchange}
+\tagTransported\ On the frontier, excitation information is $I_C = C/\mathcal A$. A prior of precision $p$ on the target gives excitation-equivalent budget $C_{\rm eq} = \mathcal A/\mathrm{MSE}$ equal to $\mathcal A(I_C + p)^2/I_C$ for an oracle ($\Delta \equiv 0$), exactly $C + \mathcal Ap$ if calibrated ($\E\Delta^2 = 1/p$)---a constant exchange rate of $\mathcal A$ dollars per unit precision---and capped at $\mathcal A/\Delta^2$ as $p \to \infty$ if mis-centred by a fixed $\Delta$, turning negative once $\Delta^2 > 2/p + \mathcal A/C$ (bracketed at $+0.294/0.000/-0.281$ at $0.9\times, 1\times, 1.1\times$ the threshold).
+\end{proposition}
+
+The calibrated row is Morita--Thall--M\"uller's effective sample size times \dive{20}'s marginal cost of information; the cap and sign flip are the shrinkage crossover.
+
+\begin{theorem}[van Trees attainment identity]
+\label{ident:thm:vantrees}
+\tagEstablished\ If $\Delta$ is random with $\E[\Delta\Delta^\T] = P^{-1}$ and independent of the score, then $\E_\Delta[\mathrm{MSE}(g^\T\hat\theta)] = g^\T(I + P_{\rm full})^{-1}g$ exactly, since $g^\T J^{-1}IJ^{-1}g + g^\T J^{-1}P\,\E[\Delta\Delta^\T]PJ^{-1}g = g^\T J^{-1}(I + P)J^{-1}g$.
+\end{theorem}
+
+Monte Carlo at three cells ($4\times10^5$ draws): $z = -0.24, +0.39, -0.11$; clean-room $6.7\times10^{-12}$ over 300 cells. This dissolves \dive{20}'s puzzle: the right frontier for a prior-regularised MMM is the van Trees bound $(I + P)^{-1}$, which the penalised MLE attains exactly \emph{provided the prior is calibrated}; ``RMSE 0.229 inside CRLB 0.311'' was a lower frontier purchased with an assumption.
+
+\begin{theorem}[The shape-prior ledger]
+\label{ident:thm:ledger}
+\tagEstablished\ With $\tilde I$, $d$, $V_\infty$ as in \cref{ident:eq:ledgerobjects}, exactly,
+\begin{align}
+V_{\rm post}(P) &= V_\infty + d^\T(\tilde I + P)^{-1}d, \qquad \mathrm{bias}(P) = -\,d^\T(\tilde I + P)^{-1}P\,\Delta, \label{ident:eq:ledger1}\\
+V_{\rm samp}(P) &= V_\infty + d^\T(\tilde I + P)^{-1}\tilde I(\tilde I + P)^{-1}d, \qquad \mathrm{MSE} = V_{\rm samp} + \mathrm{bias}^2. \label{ident:eq:ledger2}
+\end{align}
+\end{theorem}
+
+Block-inverting $J$ gives $\Sigma_{ss} = (\tilde I + P)^{-1}$, $\Sigma_{cs} = -I_{cc}^{-1}I_{cs}\Sigma_{ss}$, $\Sigma_{cc} = I_{cc}^{-1} + I_{cc}^{-1}I_{cs}\Sigma_{ss}I_{sc}I_{cc}^{-1}$, and $g^\T\Sigma g$ collapses to $V_\infty + d^\T\Sigma_{ss}d$; the bias follows from $g^\T J^{-1}e_s = d^\T(\tilde I + P)^{-1}$ and $V_{\rm samp} = g^\T J^{-1}(J - P_{\rm full})J^{-1}g$. Verified to $6.4\times10^{-16}$ (300 random cells) and $4.9\times10^{-14}$ (200 cells); clean-room $6.3\times10^{-15}$, $6.3\times10^{-14}$. $d$ measures how much the functional still depends on the shape after the free parameters have re-absorbed all they can. The bias ceiling is $-d^\T\Delta$ however confident the prior (with $P$ nonsingular; a rank-deficient prior pins only $\mathrm{range}(P)$), and if $d = 0$ a shape prior is worth exactly nothing and can do exactly no harm for any $P$ and $\Delta$ (12 decimals at $P = 10^9$, $|\Delta| \sim 100$; sampling variance also unchanged)---the formal content of the Heusch/Dew observation.
+
+\begin{law}[The continuous $\Psi$ ladder]
+\label{ident:law:ladder}
+\tagEstablished\ $\Psi(P) = 1 + d^\T(\tilde I + P)^{-1}d/V_\infty$; whitening by $\tilde I$ and diagonalising,
+\begin{equation}
+\Psi(P) = 1 + \sum_k\frac{r_k^2}{1 + u_k}, \quad \sum_k r_k^2 = \Psi_0 - 1, \qquad\text{and for } P = u\tilde I:\quad \Psi(u) = 1 + \frac{\Psi_0 - 1}{1 + u},
+\label{ident:eq:ladder}
+\end{equation}
+$u_k$ the eigenvalues of $\tilde I^{-1/2}P\tilde I^{-1/2}$ and $r_k^2$ the squared whitened sensitivity in direction $k$: a prior pays only in directions the functional leaks into.
+\end{law}
+
+Exact to $7.9\times10^{-16}$ across $u \in [0, 100]$ on the MMM FIM; precision along a direction with $n^\T\tilde I^{-1}d = 0$ leaves $\Psi$ unchanged to 12 decimals at strength $10^8$, while along $\tilde I^{-1}d$ it drives $\Psi \to 1$. The scalar form $\Psi = (1 + u')/(1 + u' - \varrho^2)$, $\varrho^2 = I_{cs}^2/(I_{cc}I_{ss})$, requires the \emph{free} block to be one-dimensional; otherwise it carries a cosine factor and over-states $\Psi$ by up to 69\% (clean-room caveat). On the MMM: $\Psi_0 = 19.804$, $\sqrt{V_\infty} = 0.1187$, $\mathrm{sd}(\mROAS) = 0.5283$ free, $d = (+6.478, -0.229, +0.113)$ against raw $g_s = (+3.226, +0.359, +0.588)$---re-fitting $\beta$ \emph{amplifies} the dependence on adstock---and $r_k^2 = (1.535, 5.256, 12.013)$, all reproduced by the clean-room to 5--6 figures on the exported matrix.
+
+\begin{law}[Admissibility of a mis-centred prior]
+\label{ident:law:admissible}
+\tagEstablished\ For a scalar nuisance and arbitrary $g$, the penalised estimator beats the flat-prior estimator in frequentist MSE of $\phi$ iff
+\begin{equation}
+\Delta^2 < \frac{2}{p} + \frac{1}{\tilde I} = 2\tau^2 + \mathrm{sd}_{\rm data}^2,
+\label{ident:eq:admissible}
+\end{equation}
+independent of $d$ and $V_\infty$ ($\mathrm{MSE} - V_\infty = d^2[\tilde I + p^2\Delta^2]/(\tilde I + p)^2$ against $d^2/\tilde I$; $d^2$ cancels); equivalently $k < 2 + u$ with $k = p\,\E[\Delta^2]$ the factor by which the prior is more mis-centred than it advertises.
+\end{law}
+
+The clean-room showed the independence directly (identical root 0.01210018957 for $d \in \{0.01, 6.478, 500\}$, $V_\infty \in \{10^{-4}, 0.0141, 100\}$). As a $z$-score of the prior--data discrepancy the criterion is $z^2 < (2\tau^2 + \sigma_d^2)/(\tau^2 + \sigma_d^2) \in (1, 2]$: $z < \sqrt2$ for a prior much looser than the data, $z < 1$ for one much tighter ($z^* = 1.382 \to 1.000$ over $u = 0.1 \to 10^4$). A prior may be 2--5$\times$ more wrong than it claims and still pay; a calibrated one ($k = 1$) can never hurt, whatever the distribution of $\Delta$. On the MMM ($\tilde I = 247.9$, $\mathrm{sd}_{\rm data}(\alpha) = 0.0635$) the break-even $|\Delta_\alpha^*|$ is 0.291, 0.176, 0.110, 0.082, 0.070, 0.064 at $u = 0.1, 0.3, 1, 3, 10, 100$: an adstock prior centred more than 0.064 from the truth (0.44 weeks of half-life at $\alpha = 0.6$) is worse than no prior if tight, and may be off by 0.29 if loose. Round 2 corrected the constant: the posterior-variance derivation gives $1/p$, the frequentist sandwich $2/p$ ($\Delta^* = 0.132 \to 0.176$ at $u = 0.3$, $0.073 \to 0.082$ at $u = 3$), so the Bayesian's own accounting is 25--33\% too pessimistic.
+
+\begin{law}[Direction law]
+\label{ident:law:direction}
+\tagEstablished\ For a rank-one prior of precision $p$ along any direction $n$,
+\begin{equation}
+\frac{\Var_{\rm flat} - \Var(p)}{\Var_{\rm flat}} = \mathrm{corr}^2(\phi, n)\cdot\frac{u}{1 + u}, \qquad u = p\,(n^\T I^{-1}n),
+\label{ident:eq:direction}
+\end{equation}
+corr being between $g^\T\hat\theta$ and $n^\T\hat\theta$ under the sampling distribution; invariant to rescaling $n$; exact to $3.3\times10^{-16}$ (clean-room $1.7\times10^{-11}$ over 400 cells).
+\end{law}
+
+At matched relative strength the value of a prior is proportional to the squared correlation between the functional and the direction constrained (\cref{ident:tab:direction}). The ROI direction has $\mathrm{corr} = 1$ by construction, so nothing beats it at matched $u$: a derivation of Meridian's reparameterisation with a price. It also says the coefficient prior most stacks regularise is the least valuable of the four directions, below the adstock prior LightweightMMM set for MCMC stability; pinning $\alpha$ exactly captures 44.5\% of the available value, $K$ 7.7\%, $S$ 4.4\% (subadditive, summing to 0.566).
+
+\begin{proposition}[Half-value precision and the dollar ladder]
+\label{ident:prop:halfvalue}
+\tagEstablished\ A shape prior of strength $u$ is worth $V(u) = m\sigma\sqrt{T_r}[\sqrt{\Psi_0} - \sqrt{\Psi(u)}]$, and $V(u_{1/2}) = V(\infty)/2$ at
+\begin{equation}
+u_{1/2} = \frac{3s + 1}{s + 3}, \qquad s = \sqrt{\Psi_0}, \qquad\text{so } u_{1/2} < 3 \text{ always}.
+\label{ident:eq:halfvalue}
+\end{equation}
+\end{proposition}
+
+$u_{1/2} = 1.106, 1.188, 1.472, 1.702, 1.929, 2.385$ at $\Psi_0 = 1.5, 2, 5, 10, 20, 100$, with $u_{90\%}/u_{50\%}$ from 9.0 to 15.5 and $u_{99\%}/u_{50\%}$ from 73 to 220: half the value of any shape prior is bought by a prior no stronger than three times the data's own shape information, and the last 1\% costs 100--220$\times$ more precision than the first half. Get a shape prior roughly right, never tight. On the MMM ($T_r = 156$): free, $\Psi = 19.80$, $L^* = 5.558$ (4.09\% of three-year media spend); $u = u_{1/2} = 1.93$, $\Psi = 7.43$, $L^* = 3.404$ (2.50\%); $u = 1$, $\Psi = 10.40$, $L^* = 4.028$ (2.96\%); shape known, $L^* = 1.249$ (0.92\%). A perfect shape prior is worth 3.17\% of three-year media spend, a decent one half of that; the figures sit above \dive{20}'s because this design identifies four structural parameters from three tones at $T = 156$. Re-optimising the comb's amplitudes given the prior improves $\mathrm{sd}(\mROAS)$ by only 2.4\%, 2.5\%, 2.9\% at $u = 0, 1, 10$: the value of a prior is design-invariant to second order.
+
+\begin{construction}[Empirical-Bayes widening]
+\label{ident:con:eb}
+\tagNumerical\ The observable is $D = \hat s_{\rm flat} - s_0 = \Delta + \text{noise}$, $\Var(\text{noise}) = 1/\tilde I$. Rules: FLAT (ignore the prior); FIXED ($p = 1/\tau^2$); TEST (use $p$ iff $D^2 < 2\tau^2 + 2/\tilde I$, the plug-in of \cref{ident:eq:admissible}); EB (widen to $\hat\tau^2 = \max(\tau^2, D^2 - 1/\tilde I)$). At $\tau = \mathrm{sd}_{\rm data}(\alpha)$: worst-case risk relative to FLAT is 25.4 (unbounded) for FIXED, 1.53 (at $1.38\Delta^*$) for TEST and 1.32 (at $1.54\Delta^*$) for EB; the gain captured when the prior is calibrated is 100\%, 42.7\% and 66.7\%.
+\end{construction}
+
+EB dominates TEST on both axes (clean-room 1.322 vs 1.528, 66.7\% vs 42.7\%; stable over $u \in [0.25, 10]$, EB 1.185--1.432 against TEST 1.398--1.590). Do not test a prior and discard it; widen it by the observed discrepancy---a two-line change and the threshold Meridian's shift check lacks (\BL{87}).
+
+\begin{proposition}[The decision layer: bias is invisible to a deadband]
+\label{ident:prop:deadband}
+\tagNumerical\ Under \cref{ch:deadband}'s policy (act only when $|\hat z - x|$ exceeds the band) a constant bias $b$ shifts $\hat z$ and, once the band is crossed, $x$ by the same amount, so the trigger statistic is unchanged and a biased estimate never causes churn (excess move cost $\le 10^{-4}$, against up to 0.204 per period from noise). With $\pi$ the excess regret from a bias $b$ over that from i.i.d.\ noise of sd $b$ (24 seeds $\times$ 6000 periods), $\pi = 0.91 \pm 0.40, 0.583 \pm 0.069, 0.291 \pm 0.015, 0.302 \pm 0.004$ at $b = 0.05, 0.10, 0.20, 0.40$; the act-always power control returns $0.997 \pm 0.003$ throughout.
+\end{proposition}
+
+Bias is 2--3.4$\times$ cheaper than equal-MSE variance under a deadband, so the decision-admissible mis-centring is $\Delta^2 < (2\tau^2 + \mathrm{sd}_{\rm data}^2)/\pi$, 1.3--1.9$\times$ wider in $\Delta$---derived, not verified in the nonlinear Hill loop.
+
+\section{Numerical evidence}
+\label{ident:sec:numerics}
+
+\emph{\dive{01}} computes finite-difference FIMs at $\theta_0$ over named designs at $T = 156$ (mean spend 1; two-level blocks alternate 1.8/0.2) and checks them against 120 multistart least-squares MLE fits (\cref{ident:tab:designs}). The FIM story holds end to end: constant spend leaves the curve unrecoverable (median maximum curve error 0.20, a fifth of the ceiling), the $\pm10\%$ sine diverges ($\mathrm{RMSE}(K) = 32$), AR(1) is mediocre ($\mathrm{RMSE}(S) = 0.38$), blocks reach $\mathrm{RMSE}(\beta, K, S, \alpha) = (0.021, 0.087, 0.086, 0.011)$ with curve error 0.012.
+
+\begin{table}[htbp]
+\centering\footnotesize
+\caption{\dive{01}: practical identification by design at $\theta_0$, $\sigma = 0.05$, $T = 156$ unless stated. $\lambda_{\min}$ is the smallest FIM eigenvalue; standard errors are CRLB, RMSE from 120 MLE fits (no Monte Carlo standard errors reported).}
+\label{ident:tab:designs}
+\begin{tabularx}{\textwidth}{lcXl}
+\toprule
+Design & $\lambda_{\min}(I)$ & Precision statement & Exp. \\
+\midrule
+constant spend & 0 (rank 1) & CRLB se $10^4$--$10^6$; MLE curve error 0.20 & A, D \\
+sine $\pm10\%$, period 8 & 0.0028 & $\lambda_{\min} \propto \delta^{3.99}$; MLE $\mathrm{RMSE}(K) = 32$ & B, D \\
+2-level blocks, $L = 1$ / 8 / 78 & 0.65 / 99 / 3.1 & D-criterion peaks at $L = 8$--10 & C \\
+2-level, $L = 13$: settled 84 / transient 84 / all 156 & 0.079 / 53.4 / 85.2 & $\sim700\times$ collapse without the transient & G \\
+blocks scaled to $\max a/K = 0.29$ & $10^{-3}$ (from $10^2$) & ridge eigenvector $(-0.74, -0.66, 0.07, 0.00)$ & E \\
+2-level blocks, MLE & --- & RMSE $(0.021, 0.087, 0.086, 0.011)$; curve 0.012 & D \\
+annealed, $T = 96$ & --- & se $(0.022, 0.065, 0.115, 0.009)$; D-crit $5.0\times$ AR(1) & F \\
+AR(1) lognormal, $T = 96$ & --- & se $(0.087, 0.190, 0.453, 0.037)$ & F \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\emph{\dive{20}} works at $T = 364$ with intercept, trend and three annual harmonics, 10\% sinusoidal probes, all designs cost-matched by exact expected profit loss. Its clean-room reproduced all eight numbered claims (five constants; the cost law; the frontier 0.099177--0.099181 across periods 4--182; both spectral values and Monte Carlos; four leakage pairs; the argmin; $0.000/0.048/16.65/2616.4$ for the non-identifying plan; 662.6 vs 22.16, ratio 29.9, for concentration). \cref{ident:tab:basis} is the dive's most actionable table and \cref{ident:tab:price} its economics. The concentration claim was re-explained: the $30\times$ gain from a 28-week burst is not all the $E^2/T_e$ law (which predicts $364/28 = 13$); decomposing $I(c_2)$ into a windowed-$2\omega$ component (277.2, ratio 12.5) and a burst-envelope component (385.4) reveals a window-contrast term that exists only when $T_e < T$ (\BL{78}).
+
+\begin{table}[htbp]
+\centering\small
+\caption{\dive{20}, E6: probe periods annihilated by each nuisance basis (fraction of $c_1$-information retained in parentheses where reported). A flexible baseline is a low-pass nuisance filter with cutoff about twice the knot spacing; week-of-year dummies are a comb filter.}
+\label{ident:tab:basis}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+Nuisance basis & Probe periods annihilated \\
+\midrule
+Fourier $k \le 3$ + trend & 52 only (and $\ge 182$ partially: 0.85 retained) \\
+Fourier $k \le 6$ & also 13, i.e.\ quarterly flighting \\
+B-spline baseline, 8 knots & $\ge 91$ (0.16, 0.001 retained) \\
+B-spline baseline, 52 knots & 28 (0.000) and half of 14 \\
+week-of-year dummies & every period dividing 52: 4, 13, 26, 52 all 0.000 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{The price of identification per channel over five years ($T_r = 260$): \dive{20} \S5.3 (one channel, share of its own spend; $C^*$ probing cost, $L^* = 2C^*$ total) and \dive{21} S16 (channel-count tax: $L^*$ for $n$ channels as a share of a fixed six-channel budget---a different denominator).}
+\label{ident:tab:price}
+\begin{tabular}{lcccccc}
+\toprule
+Knowledge state & $\Psi$ & $C^*$ (1 ch.) & $L^*$ (1 ch.) & $L^*$, 1 of 6 & 6 ch. & 20 ch. \\
+\midrule
+fully calibrated ($\alpha, K, S$ known) & 1.00 & 0.36\% & 0.71\% & 0.09\% & 0.53\% & 1.75\% \\
+local shape free ($c_1, c_2, \alpha$) & 1.06 & 0.37\% & 0.73\% & --- & --- & --- \\
+full Hill free ($\beta, K, S, \alpha$) & 9.87 & 1.12\% & 2.23\% & 0.28\% & 1.65\% & 5.50\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\emph{\dive{21}} runs sixteen sections at $T = 364$ with the six-channel working point (amplitudes 5--40\%, collision orders 2, 3, 5, nine adstock pairs) and a nonlinear Monte Carlo (S15: 150 replications $\times$ 4 cost-matched designs, calibrated-shape MMM with $\beta_j, \alpha_j$ free). \cref{ident:tab:lambda} prices budget neutrality and \cref{ident:tab:collision} the collision. The Monte Carlo reframed the dive: two octave collisions cost $1.03\times$ (max 1.29) in median RMSE against the compliant comb, random phases $0.96\times$, the synchronised 13-week flight $11.2\times$ (max 20.2)---the last a lower bound manufactured by the optimiser's damping and start at the truth, the statistical truth being non-identification. The harmonic-collision penalty is exactly the price of not knowing the saturation curve: it lives inside the $\Psi$ ladder.
+
+\begin{table}[htbp]
+\centering\small
+\caption{\dive{21}: budget-neutral against total-budget probing of the aggregate marginal value at a 13-week period, in frontier units $\Lambda = C\cdot\Var/(\tfrac12\kappa\sigma^2)$; a single channel's own coefficient sits at $\Lambda \approx 3.4$.}
+\label{ident:tab:lambda}
+\begin{tabular}{lccc}
+\toprule
+$(\alpha_1, \alpha_2)$ & $\Lambda_{\rm neutral}$ & $\Lambda_{\rm total}$ & ratio \\
+\midrule
+(0.60, 0.30) & 71.5 & 3.96 & $18\times$ \\
+(0.80, 0.20) & 17.1 & 4.21 & $4\times$ \\
+(0.70, 0.50) & 84.7 & 2.85 & $30\times$ \\
+(0.90, 0.60) & 24.8 & 2.38 & $10\times$ \\
+(0.65, 0.60) & 1\,196 & 2.63 & $454\times$ \\
+(0.50, 0.45) & 2\,193 & 3.57 & $615\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{\dive{21}: the octave collision (bins 19 and 38, 10\% amplitude) under the full Hill FIM (S4, converged 4001-point sweep; se of $\mROAS_B$ relative to a clean comb) and under the nonlinear calibrated-shape Monte Carlo (S15, median RMSE ratio to the compliant comb; MC standard error about 6\%).}
+\label{ident:tab:collision}
+\begin{tabular}{lcc}
+\toprule
+Design / phase choice & FIM se ratio (shape free) & MC RMSE ratio (shape calibrated) \\
+\midrule
+naive $\phi_B = 0$ & $15.53\times$ & --- \\
+random phase (median, IQR) & $7.97\times$ (3.7--15.0) & $0.96\times$ (compliant comb, random phases) \\
+closed-form quadrature $\phi_B = 0.9650$ & $4.27\times$ & --- \\
+numerical optimum $\phi_B = 1.5267$ & $1.085\times$ & --- \\
+comb with two octave collisions & --- & $1.03\times$ (max 1.29) \\
+synchronised 13-week flight & singular (nullity 13) & $11.2\times$ (max 20.2) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\emph{\dive{22}} runs sixteen experiments, two robustness sweeps and four controls on the three-tone comb at $T = 156$; \cref{ident:tab:direction} is the direction law and \cref{ident:tab:audit} the estimability audit that discharges \BL{82} for dives 20--22. Against a fully nonlinear bounded-MLE Monte Carlo ($n = 150$) the FIM is accurate with the shape pinned ($\mathrm{sd}(\mROAS)$ 0.1187 vs $0.1236 \pm 0.0072$) and badly optimistic with it free (0.5283 vs $0.9166 \pm 0.0531$), so the implied $\Psi_0$ is 55.0 against the FIM's 19.80: the ledger under-states a shape prior's value $2.8\times$, though the fraction of budget a perfect prior saves, $1 - 1/\sqrt{\Psi_0}$, moves only from 0.775 to 0.865 (\BL{88}). The linear bias law over-states harm: the exact pseudo-true bias is 0.954, 0.939, 0.908, 0.817, 0.672 of the linear ceiling at $\Delta_\alpha = 0.005, 0.01, 0.02, 0.05, 0.10$, because saturation absorbs a wrong adstock (pseudo-true $K$ collapses from 1.467 to 0.200), relocating the damage to the response curve away from the operating point---where re-allocation reads it, and unpriced (\BL{85}); a penalised nonlinear Monte Carlo ($n = 200$, $\Delta_\alpha = 0.05$) gives bias $-0.150 \pm 0.020$ vs $-0.157$ predicted at $u = 1$ and $-0.230 \pm 0.009$ vs $-0.285$ at $u = 10$. An experiment-derived prior with transport offset $t = 0.10$ in $\alpha$ (\cref{ch:transport}) still pays at $u = 1$ (MSE 0.252 vs flat 0.279) and harms at $u = 10$ (0.385). Controls: $d = 0$ gives $\Psi = 1.000000000000$ and bias $\le 3\times10^{-14}$; the Monte Carlo signs the value correctly at $\pm10\%$ of break-even ($z = -16.2$, $+18.4$) and is indecisive at it ($z = -1.97$). $\Psi_0$ is exactly $\sigma$-invariant (28.13 at $T = 104$ for $\sigma = 0.02, 0.05, 0.10$ alike), $u_{1/2}$ moves only over $[1.93, 2.04]$ across nine $(\sigma, T)$ cells, and single-tone designs are near-singular for a four-parameter shape (condition $10^7$--$10^9$, $\Psi_0$ in the thousands) and ``should not be quoted''.
+
+\begin{table}[htbp]
+\centering\small
+\caption{\dive{22}, the direction law on the MMM: value of a rank-one prior at 20\% relative standard deviation by the direction it constrains ($T_r = 156$; every entry reproduced by the clean-room to 4--5 significant figures).}
+\label{ident:tab:direction}
+\begin{tabular}{lcccc}
+\toprule
+Prior placed on & $\mathrm{corr}(\mROAS, \cdot)$ & $L^*$ multiplier & budget saved & value, \% of 3-yr media spend \\
+\midrule
+coefficient $\beta$ & $+0.309$ & 0.951 & 4.9\% & 0.20\% \\
+adstock $\alpha$ & $+0.756$ & 0.935 & 6.5\% & 0.27\% \\
+saturation $K$ & $-0.340$ & 0.941 & 5.9\% & 0.24\% \\
+ROI / $\mROAS$ & $+1.000$ & 0.439 & 56.1\% & 2.29\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{\dive{22} \S6.4, the estimability audit (\BL{82}): $\Psi_0$ recomputed under relative jitter of every FIM entry (2000 draws per cell; 5--95\% range; ``fail'' = draws with no finite $\Psi_0$).}
+\label{ident:tab:audit}
+\begin{tabular}{lccccc}
+\toprule
+Model & $\mathrm{cond}(I)$ & $\Psi_0$ & jitter $10^{-6}$ & jitter $10^{-4}$ & jitter $10^{-3}$ \\
+\midrule
+2-param $(\beta, \alpha)$, $T = 156$ & 40.6 & 13.01 & [13.01, 13.01] & [13.00, 13.03] & [12.88, 13.15] \\
+4-param, $T = 156$ & $3.77\times10^5$ & 19.80 & [19.77, 19.85] & [12.95, 26.82], 2\% fail & [16.57, 19.86] \\
+4-param, $T = 312$ & $5.10\times10^5$ & 23.95 & [23.81, 24.10] & [9.50, 37.22], 4\% fail & [16.67, 22.12] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The two-parameter ladder is a hard number ($\pm1\%$ at $10^{-3}$ FIM error); the four-parameter $\Psi_0 = 19.8$ is a $\pm35\%$ quantity requiring the Fisher matrix to about six significant figures, and a longer record does not fix it. The direction law, a ratio, is robust: the ROI multiplier stays at $0.439\,[0.398, 0.512]$ under $10^{-4}$ jitter and $0.456\,[0.440, 0.473]$ under $10^{-3}$, while the coefficient-prior multiplier degrades to $[0.844, 1.160]$.
+
+\section{Limitations and the devil's advocate}
+
+\dive{01}: no controls, seasonality or trend (repaired by \dive{20}); single channel (\dive{21}); a local analysis whose D-optimal design depends on the unknown $\theta$, so a Bayesian or minimax design is the production answer; geometric adstock and exact Hill assumed, so the identified set is within-model; a theory of designed, exogenous perturbation that does not fix endogeneity of historical spend (geo differencing does, and the two compose); a $\delta^4$ law at a single operating level. The dive predates the attack-and-refine protocol, so none of its numbers carries an uncertainty.
+
+\dive{20}: the hyperbola is second-order in amplitude and asymptotic in record length, exact only for commensurate periods, and prices information rather than any estimator's RMSE. The price theorem's concept is Little's and Feit--Berman's; only the object is new, and it assumes stationarity and a single terminal decision---drift caps $T_r$ and raises the amortised price, a deadband makes regret piecewise and lowers it, neither computed (\BL{76}). The plateau holds at a well-run channel near its optimum: the operating-point sweep shows $\Psi$-type inflation rising from 1.8 to 21 as spend goes from $0.75\times$ to $3\times$ optimal, without a re-run of the full frequency profile. Rule L's constant is calibrated to three harmonics plus intercept and trend at $T = 364$; more nuisance lines widen it like $\sqrt{\text{lines}}/(\pi\sqrt\epsilon)$. Probes are sinusoidal, not non-negative and quantised (\BL{77}); $\Psi$ and $S_\varepsilon(\omega)$ are design inputs nobody measures (\BL{74}); the go-dark comparison rests on unsourced rules of thumb.
+
+\dive{21}: additive channels only---synergy puts intermodulation at $\omega_i \pm \omega_j$ and is uninvestigated (\BL{79}); white residuals, so bin assignment is not yet an optimisation (\BL{80}); geometric adstock, whose real transfer function at DC makes the budget-neutral null exact, and a delayed-peak kernel may break it (\BL{84}); a numerical rather than closed-form phase optimum (\BL{83}); phase management matters ``in proportion to $\Psi - 1$''; no real calendar audited (\BL{81}). \dive{22}: the four-parameter ladder is numerically fragile; the FIM under-states the prior's value $2.8\times$; the bias law is linear and conservative, and the relocated curve damage is unpriced; $\Delta$ is unobservable and EB's safety margin inherits any error in $\tilde I$; everything assumes the model class is right---Heusch's observational MMM reporting ROAS $10.6\times$ against a truth of $4.2\times$ with oracle controls is beyond any prior's help; the decision layer is a reduced form; single channel. Its sharpest self-criticism: the $11.4\times$ ROI-versus-coefficient comparison equalises \emph{relative} spread, not a neutral yardstick across parameters; the scale-free statement is the direction law, and $\mathrm{corr}(\mROAS, \beta) = 0.309$ is a property of this design at this operating point, though the ordering cannot change.
+
+\section{Discussion: impacts}
+
+For practice the arc replaces a diagnosis (``insufficient variation'') with a design theory and a price list. The design content is short: pulse in blocks of about three settling times with the transient kept; push adstock past the knee; put the probe on a DFT bin away from every seasonal harmonic and off every period the baseline spline or dummy set annihilates; give each channel its own bin; set phases by a line search; never synchronise channels on one flighting clock; buy the aggregate marginal value with one non-neutral total-budget tone rather than hoping budget-neutral reallocation reveals it. The price content is that a continuous low-amplitude probe costs a fraction of a percent of media spend per channel and the bill scales with the number of channels, not their size---a quantitative form of the barrier that measurement is too expensive for fragmented mid-size advertisers. The two negative results are the most consequential: the profit-optimal plan under seasonal demand accrues information at rate zero, and synchronised flighting makes the multichannel Fisher matrix exactly singular, with \texttt{pinv} manufacturing finite standard errors from it.
+
+For vendors the results land on specific features. Meridian's ROI reparameterisation is derived with a price: an ROI prior of 20\% relative spread is worth $11.4\times$ a coefficient prior of the same spread, and the coefficient priors most stacks regularise are the least valuable direction; its prior--posterior shift diagnostic gets a threshold and a better rule than a test. LightweightMMM's stability prior on decay sits on the second-best direction. Robyn's evolutionary search over decay and saturation hyperparameters walks exactly the ridge of \cref{ident:law:delta4}. Every vendor's residual spectrum decides whether the right flighting period is 84 weeks or 11, and the audit of \cref{ident:tab:audit} should accompany any FIM- or Hessian-derived interval. For experimentation platforms, ramp-up weeks are the curvature information (\cref{ident:prop:transient}) and a 24\% probe reads saturation off the second harmonic with no curve fitting (\cref{ident:con:readout}). For CMOs the message is the ladder: a shape-fixing experiment is worth $\sqrt{10}$ on a perpetual identification budget, and a shape prior worth 3\% of three-year media spend is bought half-price at $u \approx 2$.
+
+For theory the chapter connects outward. The transient result underlies \cref{ch:transport}'s rank-4 trajectory calibration, and the operator likelihood there is where a shape-fixing experiment enters. The plateau of \cref{ch:voi} reappears twice, in the frequency domain and in the deflation of the collision penalty under a calibrated shape. The non-identifying plan is the static counterpart of the stall of \cref{ch:feedback}, whose \BL{70} the rank theorem prices. The deadband of \cref{ch:deadband} makes bias 2--3.4$\times$ cheaper than variance. The leakage machinery of \cref{ch:archaeology} is the same nuisance projection, and the van Trees identity is the correct frontier whenever a prior is in play.
+
+\section{Further exploration}
+
+The dives' next steps became fourteen backlog items. From \dive{20}: estimate $\Psi$ and $S_\varepsilon$ from a fitted model (\BL{74}); a drift-capped horizon turning the one-off budget into a standing probing rate (\BL{76}); planner-feasible crest-factor-constrained probes (\BL{77}); the window-contrast term in curvature information (\BL{78}). From \dive{21}: intermodulation under synergy (\BL{79}); bin assignment as an optimisation with coloured residuals and per-channel $\Psi_j$ (\BL{80}); audit a real flighting calendar for rank and null-space leak (\BL{81}); the estimability rule (\BL{82}); a closed form for the full-model optimal phase from $\partial\arg H/\partial\alpha$ (\BL{83}); delayed-peak adstock and the DC null (\BL{84}). From \dive{22}: the response-curve estimand for prior pricing, where the ROI prior's advantage is predicted to shrink because ROI at the current point does not pin the curvature that sets the optimum (\BL{85}); the multichannel ledger (\BL{86}); the EB widening rule as a shipped diagnostic (\BL{87}); the second-order correction to $\Psi_0$ that would close the 19.8-versus-55 gap (\BL{88}). Both later dives also ask for a join to \cref{ch:voi}'s EVSI: the $\sqrt{10}$ of the ladder, the 3.17\% of a perfect shape prior and the $1.09\times$-versus-$15.5\times$ of phase management are one quantity computed three ways, and reconciling them would close \BL{7}'s cost side.
+
+In the compiler's judgement the most promising extension is the one the INDEX also ranks first: compute $\tilde I$, $d$ and $\Psi_0$ with the jitter audit on a real fitted MMM's Hessian (\BL{81}+\BL{74}+\BL{86}). It needs no new theory, tests the chapter's two most checkable predictions at once---that common flighting calendars are near-singular and that real advertisers' $d$ is dominated by adstock---and, since every dollar figure here inherits an unaudited $\Psi$, it decides whether the price list is a number or a shape. Second is \BL{85}, which may overturn the ROI-prior ranking: if a wrong adstock is absorbed by saturation, the damage a prior does is read by re-allocation, not by $\mROAS$ at the current point, and the direction law has not been evaluated for that functional.
+
+\begin{reviewernote}[(compiler): estimability and the $\pm35\%$ caveat]
+\textbf{What \BL{82} means here.} \dive{01}'s numbers are eigenvalue statements and unaffected, except the CRLB standard errors of \cref{ident:con:anneal}, obtained by inverting $I + 10^{-12}\,\mathrm{Id}$ with no condition number reported. \dive{20}'s $\Psi$ entries of $10^{27}$, $10^{16}$ and $3\times10^9$ are inverses of singular FIMs and should be read as ``singular''. More seriously, \dive{20}'s $\Psi_4 \approx 9.87$---the source of the 1.12\%, the $\sqrt{10}$ and the $3.1\times$---is a single-tone four-parameter FIM quantity at $T = 364$ that was never audited, while \dive{22} \S6.5 states that single-tone designs are near-singular for a four-parameter shape (condition $10^7$--$10^9$, $\Psi_0$ ``in the thousands'') and ``should not be quoted''; at $T = 156$ its single-tone $\Psi_0$ is 2371 at a 13-week period and 1283 at 21 weeks against \dive{20}'s 10.7 and 10.1 at $T = 364$. The functionals differ (\dive{22} anchors at $0.85\,\bar a^*$), as do $T$ and amplitude, but the $\Psi_4 \approx 10$ row and everything priced with it should be treated as unaudited. \dive{22}'s own $\Psi_0 = 19.8$ is $\pm35\%$ under $10^{-4}$ relative FIM error with 2\% outright failures, and its nonlinear Monte Carlo gives 55.0; only the direction-law ratios survive. Every absolute dollar figure in Parts B--D is therefore conservative by an unquantified amount (\BL{88}) and uncertain by at least a third.
+\end{reviewernote}
+
+\begin{reviewernote}[(compiler): refutations; re-derivations; consistency checks]
+\textbf{Refuted and re-derived within the dives.} \dive{20}: the closed-form VIF (\cref{ident:prop:refutedVIF}); its ``resolution'' re-explanation of \dive{01}'s block length; Rule L's constant $1 \to 1.15$; the concentration mechanism (12.5 of 29.9 from the law). \dive{21}: $-6/T^2 \to -6/(T^2 - 7)$; four tones $\to$ two; the grid maximum 332$\times$; the quadrature angle ($4.27\times$ vs $1.085\times$); 700--2400$\times$ $\to$ exactly singular. \dive{22}: the admissibility constant $1/p \to 2/p$; the scalar $\varrho^2$ form needing $\dim c = 1$; the bias ceiling needing $P$ nonsingular; and a fabricated FIM in the dive's own verification prompt, caught by the clean-room's check $g^\T I^{-1}g = \Psi_0V_\infty$ (3.222 vs 0.279).
+
+\textbf{Plateau versus phase.} \dive{20} says frequency within the admissible band is second-order ($\Psi_4$ flat within 10\%); \dive{21} says placing one channel at a multiple of another's bin, and the phase, is first-order ($15.5\times$). They are consistent only because both are conditioned on $\Psi$: the collision penalty deflates to $1.03\times$ at $\Psi = 1$, and \dive{20}'s plateau is a single-channel statement at one operating point whose own E10b sweep shows inflation from 1.8 to 21 across operating points. The practical reading is that both dives' frequency prescriptions are second-order exactly when the shape is calibrated and first-order otherwise.
+
+\textbf{Internal inconsistencies.} \dive{20} \S5.1 calls a shape-fixing experiment ``worth a factor of ten in the perpetual identification budget''; $L^* \propto \sqrt\Psi$, so it is $\sqrt{10} \approx 3.1$, as the INDEX line and \S5.3 say. The $\Psi = 4.599$ used to verify the argmin appears in no table. \dive{21} \S3.6 gives the modulus-estimator bias as a mean of $-0.563$, \S8 and the INDEX as $+0.561$, against a truth of $-0.157$. \dive{21} reports the random-phase median as 7.97 (\S4.1) and 8.028 (\S8); the null-space leak as ``up to 0.821 and 0.694'' (\S5.1), ``0.19--0.78'' (\S8) and ``0.19--0.82'' (INDEX). The INDEX log line for \dive{21} states Rule R as ``free iff $\gcd(T/52, 6) = 1$'', whereas the writeup narrowed it to sufficient only. \dive{22}'s merged \texttt{22\_results.json} carries in its \texttt{e4} block $\Psi_0 = 3.755$, $d = (+3.00, +0.52, -0.33)$ and condition $6.0\times10^4$---the single-tone 26-week design of the \texttt{e11} sweep---not the comb numbers the writeup quotes ($19.80$; $(+6.478, -0.229, +0.113)$; $3.77\times10^5$), which appear in \texttt{e6}, \texttt{e10}, \texttt{e12}, \texttt{e14}, \texttt{e16}; the \texttt{e7} header likewise shows $\tilde I = 0.7985$ against the writeup's 247.9, and the power control's break-even $\Delta^* = 1.938$ (\S6.3) is from that other cell, not the MMM's 0.110. INDEX log times for dives 01, 20 and 21 ($\sim$19:00, $\sim$09:55, $\sim$11:20) precede the files' last writes (22:08, 17:20, 19:17 UTC) by three to eight hours.
+
+\textbf{Denominators.} \dive{21}'s channel-count table divides $nL^*$ by the fixed six-channel budget (7.08 per week $\times 260$; reproduced from the code), so its ``1 channel: 0.09\%'' is not comparable with \dive{20}'s ``0.36\%'', which is $C^*$ (not $L^*$) over that channel's own spend; \cref{ident:tab:price} keeps both. \dive{22}'s 0.92--4.09\% use $T_r = 156$ and a three-tone design.
+
+\textbf{Under-supported.} \dive{01}'s $5.0\times$ annealing gain and $1.23\times$ over three-level blocks are single runs; its Monte Carlo has no standard errors; nothing in Part A was independently re-derived. \dive{20}'s crossover (84 $\to$ 12 weeks between $\rho = 0.5$ and 0.7) sits inside a total-loss spread of 1.0--2.6$\times$. \dive{21}'s $0.96\times$ for random phases is within Monte Carlo error of 1. \dive{22}'s deadband widening factor and transport-offset result are derived, not verified in the nonlinear loop, and EB was compared under a Gaussian noise model with the correct $\tilde I$; the ``327-dataset calibration study'' it mentions is explicitly unverified and not used here.
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item Jin, Y., Wang, Y., Sun, Y., Chan, D. and Koehler, J. (2017). \emph{Bayesian Methods for Media Mix Modeling with Carryover and Shape Effects}. Google research report. \url{https://research.google/pubs/bayesian-methods-for-media-mix-modeling-with-carryover-and-shape-effects/}
+\item Chan, D. and Perry, M. (2017). \emph{Challenges and Opportunities in Media Mix Modeling}. Google research report. \url{https://research.google/pubs/challenges-and-opportunities-in-media-mix-modeling/}
+\item Heusch, A. (2026). \emph{Structural Estimation of MMM Parameters from Geo-Experiments}. arXiv:2608.21128. \url{https://arxiv.org/abs/2608.21128}
+\item Dew, R., Padilla, N. and Shchetkina, A. (2024). \emph{Saturation and time-varying effectiveness in marketing mix models} (title as cited by the dives). arXiv:2408.07678. \url{https://arxiv.org/abs/2408.07678}
+\item Dette, H. et al. \emph{Optimal designs for dose response curves}. arXiv:1603.04500. \url{https://arxiv.org/pdf/1603.04500}
+\item Atkinson, A. C. and Cox, D. R. (1974). \emph{Planning experiments for discriminating between models} ($D_s$-optimality). Journal of the Royal Statistical Society B.
+\item Mehra, R. K. (1974). \emph{Optimal input signals for parameter estimation in dynamic systems}. IEEE Trans.\ Automatic Control 19(6); Goodwin, G. C. and Payne, R. L. (1977). \emph{Dynamic System Identification}. Academic Press; Ljung, L. (1999). \emph{System Identification: Theory for the User}, 2nd ed., ch.\ 13.
+\item Bombois, X., Scorletti, G., Gevers, M., Van den Hof, P. and Hildebrand, R. (2006). \emph{Least costly identification experiment for control}. Automatica 42(10). \url{https://perso.uclouvain.be/michel.gevers/PublisMig/C130.pdf}
+\item Hjalmarsson, H. (2009). \emph{System identification of complex and structured systems}. European Journal of Control 15(4). \url{https://www.kth.se/social/upload/525e5cdaf276545124e66218/hjalmarsson_ejc_2009.pdf}
+\item Morelli, E. A. (2021). \emph{Practical aspects of frequency-domain flight test input design: orthogonal optimised multisines}. NASA/AIAA, NTRS 20210018115. \url{https://ntrs.nasa.gov/api/citations/20210018115/downloads/Morelli_Practical_FTI_Paper_v1%200706.pdf}
+\item Gevers, M., Miskovic, L., Bonvin, D. and Karimi, A. (2006). \emph{Identification of multi-input systems: variance analysis and input design issues}. Automatica 42(4). \url{https://www.sciencedirect.com/science/article/abs/pii/S0005109806000148}
+\item Pintelon, R. and Schoukens, J. \emph{Leakage reduction and the local polynomial method}; Schoukens, J., Pintelon, R. and Guillaume, P., harmonic-suppressed multisines. \url{https://perso.uclouvain.be/michel.gevers/PublisMig/LPMCDC-ECC2011.pdf}
+\item Rivera, D. E. et al. \emph{Constrained minimum crest factor multisine signals for plant-friendly identification}. \url{https://www.sciencedirect.com/science/article/abs/pii/S0959152408001352}
+\item Little, J. D. C. (1966). \emph{A model of adaptive control of promotional spending}. Operations Research 14(6). \url{https://pubsonline.informs.org/doi/10.1287/opre.14.6.1075}
+\item Feit, E. M. and Berman, R. (2019). \emph{Test \& Roll: Profit-Maximizing A/B Tests}. Marketing Science 38(6). \url{https://pubsonline.informs.org/doi/10.1287/mksc.2019.1194}
+\item Pekelman, D. and Tse, E. (1980). Operations Research 28(2); Kolsarici, C., Vakratsas, D. and Naik, P. A. (2020). Journal of Marketing Research 57(3); den Boer, A. V. and Zwart, B. (2014). Management Science 60(3); Feinberg, F. M. (2001). Management Science 47(11); Sasieni, M. W. (1989). Marketing Science 8(4).
+\item Gill, R. D. and Levit, B. Y. (1995). \emph{Applications of the van Trees inequality: a Bayesian Cram\'er--Rao bound}. Bernoulli 1(1/2), 59--79. \url{https://projecteuclid.org/journals/bernoulli/volume-1/issue-1-2/Applications-of-the-van-Trees-inequality/bj/1186078362.full}
+\item Morita, S., Thall, P. F. and M\"uller, P. (2008). \emph{Determining the effective sample size of a parametric prior}. Biometrics 64, 595--602. \url{https://web.ma.utexas.edu/users/pmueller/pap/MTM08.pdf}; Neuenschwander, B. et al. (2020). \emph{Predictively consistent prior effective sample sizes}. Biometrics. \url{https://arxiv.org/abs/1907.04185}
+\item Casella, G. (1985). \emph{An introduction to empirical Bayes data analysis}. The American Statistician 39(2); Efron, B. and Morris, C. (1973). \emph{Stein's estimation rule and its competitors}. JASA 68.
+\item Zhang, Y., Wurm, M., et al. (2024). \emph{Media Mix Model Calibration With Bayesian Priors}. Google research report. \url{https://research.google/pubs/media-mix-model-calibration-with-bayesian-priors/}
+\item Google (2024--26). \emph{Meridian documentation: ROI, mROI and contribution parameterizations; ROI priors and calibration; custom priors from past experiments; prior--posterior shift check}. \url{https://developers.google.com/meridian/docs/advanced-modeling/roi-priors-and-calibration}
+\item Recast (2026). \emph{Understand and manage multicollinearity in your MMM}. \url{https://getrecast.com/understand-and-manage-multicollinearity/}
+\item Frontier study (internal): \texttt{02\_open\_questions.md}, entry M1; \texttt{03\_mmm\_adoption\_barriers.md}, entries M1, M7, O7, B1.
+\item Program (internal): \dive{02}, dives 03/04, 08/09, 11, 16/19; \texttt{00\_INDEX.md} log rows 01, 20, 21, 22 and backlog entries \BL{1}--\BL{2}, \BL{70}, \BL{73}--\BL{88}.
+\end{enumerate}
+\endgroup

@@ -1,0 +1,24 @@
+{
+ "e10": {
+  "alpha / half-life / dhl_dalpha": "0.600 / 1.3569 wk / 4.4272",
+  "Psi0": "19.8044",
+  "(a) prior sd 0.25 wk on half-life -> sd_alpha=0.0565": "Psi=13.47597  (L* multiplier 0.8249)",
+  "(a) prior sd 0.50 wk on half-life -> sd_alpha=0.1129": "Psi=17.07950  (L* multiplier 0.9287)",
+  "(a) prior sd 1.00 wk on half-life -> sd_alpha=0.2259": "Psi=18.97306  (L* multiplier 0.9788)",
+  "(a) prior sd 2.00 wk on half-life -> sd_alpha=0.4518": "Psi=19.58445  (L* multiplier 0.9944)",
+  "--- (b) uniform vs Gaussian prior on alpha ---": "",
+  "free sd(alpha) from FIM": "0.0636",
+  "UNCONSTRAINED MC baseline sd(mROAS) / FIM prediction": "0.91656 +- 0.05310 / 0.52828",
+  "w=0.02 (w/sd_free=0.31): sd(mROAS) MC / Gaussian-matched": "0.36342 +- 0.02105 / 0.35311",
+  "w=0.05 (w/sd_free=0.79): sd(mROAS) MC / Gaussian-matched": "0.55686 +- 0.03226 / 0.38320",
+  "w=0.10 (w/sd_free=1.57): sd(mROAS) MC / Gaussian-matched": "0.72561 +- 0.04203 / 0.43777",
+  "--- (b2) MC estimate of the LADDER ITSELF (nonlinear check) ---": "",
+  "sd(mROAS) MC shape-known / shape-free": "0.12357 +- 0.00716 / 0.91656 +- 0.05310",
+  "Psi0 MC / Psi0 FIM  (the FIM ladder is CONSERVATIVE)": "55.020 / 19.804",
+  "FIM sd shape-known / MC sd shape-known": "0.11871 / 0.12357",
+  "--- (c) which shape parameter is worth pricing ---": "",
+  "pin alpha exactly -> Psi": "8.4872   (value captured 44.5%)",
+  "pin K exactly -> Psi": "17.5197   (value captured 7.7%)",
+  "pin S exactly -> Psi": "18.4736   (value captured 4.4%)"
+ }
+}

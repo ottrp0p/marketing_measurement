@@ -1,0 +1,299 @@
+% ===========================================================================
+% Chapter: The reallocation deadband (dives 08 + 09)
+% ===========================================================================
+\chapter{The reallocation deadband: when to act on a refreshed model}
+\label{ch:deadband}
+
+\begin{provenance}
+\textbf{Source dives:} \dive{08} \emph{Decision-framed uncertainty outputs: the filtered deadband law (B2, absorbs BL20)} (run 2026-09-01, file \texttt{08\_decision\_deadband.md}, last written 2026-09-01 16:55 UTC); \dive{09} \emph{EXTEND of dive 08: the multichannel, budget-coupled deadband (B3)} (run 2026-09-01, file \texttt{09\_decision\_deadband\_ext.md}, last written 2026-09-01 20:01 UTC).
+\textbf{Code:} \texttt{code/08\_decision\_deadband.py}, \texttt{code/09\_decision\_deadband\_ext.py}.
+\textbf{Frontier-study problem(s) addressed:} M9 (adoption barriers: uncertainty communication --- honest wide intervals are heard as ``the model doesn't know''), B5 (precision theatre: a pointy wrong number beats a right interval in the meeting), H8 (decision-making under measurement conflict: no pre-registered decision rules exist for acting on a model).
+\textbf{Backlog items closed:} \BL{20} (by \dive{08}), \BL{21} (opened by \dive{08}, resolved by \dive{09}); \textbf{advanced:} \BL{22}; \textbf{opened:} \BL{23}, \BL{24} (from \dive{08}), \BL{25}--\BL{28} (from \dive{09}).
+\end{provenance}
+
+\begin{keyideas}
+\begin{itemize}
+\item The Kalman-filtered deviation of the optimum from the incumbent allocation is a random walk with the \emph{true} drift variance $q$ whatever the refresh noise $v$ (Muth's identity; vector form $\Cov(\Delta\hat u) = Q$ proved), so the partially observed problem reduces \emph{exactly} to fully observed impulse control; posterior width enters only through shrinkage and a policy-independent floor $\gamma P/2$.
+\item Scalar law: act when the filtered deviation leaves $h^\star = (12Kq/\gamma)^{1/4} - 0.5826\sqrt q$, DP-verified within 0.4\% for $K \ge 30$. The wrong statistic is first-order: raw estimates $2.6\times$ worse at $v = 10$; the $1.96\sqrt P$ significance rule $2.1\times$ worse at $v = 1$ and right at $v = 10$ only by coincidence; the myopic ``expected gain $> K$'' rule has exponent $\tfrac12$ instead of $\tfrac14$.
+\item With $n$ channels under a budget the ergodic inaction region is an \emph{exact} ellipsoid $\{\hat u^\T M\hat u < 1\}$, $4M\tr(QM) + 8MQM = \Sigma/K$, solved by whitening and within 0.01\% of a 2-D DP optimum; but shape is second-order (per-channel scalar bands lose $\sim$1\% at $m = 2$, $\le 4.7\%$ at $m = 8$) while the statistic is first-order ($\chi^2$ CI rule $+31$--$107\%$, posterior-width band $+45\%$, unfiltered $3.7\times$).
+\item Per-channel change costs make partial moves optimal below the residual distance $r_c = R^\star\sqrt{1 - \sqrt{1 - c/K_{\mathrm{full}}}}$ to a transfer line (tiered heuristic within 0.65\% of DP, saving up to 12.5\%); cadence and band separate exactly ($\Delta^\star$ independent of $K$, elasticity $2/3$ in refresh cost), but under the overlap-correlated refresh errors of \cref{ch:refresh} the optimal interval jumps from weekly to quarterly.
+\item Expected gain $\tfrac{\gamma}{2}\hat z^2$, probability of regret $\Phi(-|\hat z|/(2\sqrt P))$ and a derived tolerance $\alpha^\star$ give a pre-registerable ACT/HOLD protocol; in nonlinear Hill transports it beats act-always by $6.5\times$ (two channels) and $7\times$ (four) and the posterior-width band by $3\times$.
+\end{itemize}
+\end{keyideas}
+
+\section{Problem and motivation}
+
+The adoption catalogues locate one of MMM's sharpest failures at the interface rather than in the mathematics. Honest posteriors under collinearity are wide; a dashboard reading ``ROAS 4.27'' beats a model reading ``1.2--3.8'' in the meeting (B5); a wide interval is heard as ``the model doesn't know'' (M9); and no organisation has a protocol saying when a refreshed recommendation should be acted on (H8). \cref{ch:refresh} ended with the same hook from the other side: a $1\sigma$ reporting hysteresis cut reported flips by 78\% at no measured accuracy cost, but nobody could say what the right hysteresis was (\BL{20}). Problem B2 asked for the \emph{interface layer}: outputs in decision units (probability of regret, expected loss of reallocation, ``the answer at your risk tolerance'') and a decision rule an organisation could pre-register.
+
+\dive{08} makes this a control problem. An organisation runs allocation $x_c$; the true optimum drifts; each refresh delivers a noisy estimate of the deviation; operating off-optimum costs a quadratic flow loss; reallocating costs a fixed $K$ bundling execution, coordination and the credibility charge of visibly changing the recommendation (Dietvorst et al., 2015: algorithms lose trust faster than humans when seen to err; Burgeno and Joslyn, 2020: forecast inconsistency costs trust). What should the model report each refresh, and when should the organisation act? The answer is a deadband on the \emph{filtered} deviation whose closed-form width does not depend on the posterior width at all. \dive{09} extends it to $n$ channels sharing a budget (\BL{21}), to per-channel change costs and to the refresh cadence. Both dives ran attack-and-refine rounds with clean-room re-derivation; \dive{08}'s post-writeup prior-art audit relabelled its continuous-time core as rediscovered (see the reviewer's note).
+
+\section{Background: the ideas this chapter builds on}
+
+\subsection{Fixed-cost impulse control and the quartic band (Barro, 1972; Dixit, 1991; Stokey, 2009)}
+
+The menu-cost literature studies a state $z_t$ (a price gap, a cash balance) that drifts as a Brownian motion with variance rate $q$, a quadratic flow loss, and a fixed cost $K$ to reset $z$ to zero. Because the cost is fixed, small deviations are never worth correcting and the optimal policy is a band: act when $|z|$ reaches $h$. Dixit's treatment uses renewal-reward: for Brownian motion started at zero and absorbed at $\pm h$, Dynkin's formula with $f(z) = z^2/q$ gives the cycle length $\E[\tau] = h^2/q$ and with $f(z) = z^4/(6q)$ gives $\E\int_0^\tau z_t^2\,\dd t = h^4/(6q)$, so with flow loss $\tfrac{\gamma}{2}z^2$ the average cost per unit time is
+\begin{equation}
+g(h) = \frac{\gamma h^4/(12q) + K}{h^2/q} = \frac{\gamma h^2}{12} + \frac{Kq}{h^2},
+\qquad h^\star = \Big(\frac{12Kq}{\gamma}\Big)^{1/4},\qquad g(h^\star) = \sqrt{\frac{Kq\gamma}{3}}.
+\label{eq:deadband:dixit}
+\end{equation}
+The exponents are transparent: flow loss scales as $h^2$ and switching cost as $K$ divided by the $h^2/q$ time a Brownian path needs to traverse the band, so they balance at $h^4 \propto Kq/\gamma$ (Barro's constant is 6 when the loss is written $Bz^2$). With a cost proportional to the move, $\kappa|z|$, the switching term is $\kappa q/h$ and the band scales as $(6\kappa q/\gamma)^{1/3}$: the exponent identifies the cost structure. Stokey's monograph collects these results; all assume the state is \emph{perfectly observed}.
+
+\subsection{Multi-product menu costs: balls, ellipsoids and two-threshold policies}
+
+Alvarez and Lippi (2014) solve the $n$-product firm: $n$ independent price gaps, each Brownian with variance $\sigma^2$, and one menu cost $\psi$ that changes all prices at once. Symmetry makes the inaction region a ball in $y = \sum_i\mathrm{gap}_i^2$ with small-cost threshold $\bar y = \sqrt{2(n+2)\sigma^2\psi/B}$ for flow loss $B\sum_i\mathrm{gap}_i^2$, adjustment rate $N = n\sigma^2/\bar y$ and price-change kurtosis $3n/(n+2)$; nothing anisotropic is in closed form. Altarovici, Muhle-Karbe and Soner (2015), for a multi-asset portfolio with a fixed transaction cost, show the leading-order (small-cost) no-trade region is an ellipsoid $\{\rho^\T M\rho < 1\}$ in the deviation $\rho$ from the frictionless target, with $M$ solving $4M\tr(AM) + 8MAM = \Sigma$ ($A$ the target's diffusion covariance, $\Sigma$ the loss curvature). Bonomo, Carvalho, Kryvtsov, Ribon and Rigato (2023) add a per-product cost to the per-event cost and, with a continuum of products, obtain a two-threshold policy: one constant decides \emph{when} to review prices, a second \emph{which} prices to change given a review.
+
+\subsection{The Kalman filter on a random walk and Muth's invariance (Muth, 1960)}
+
+The local-level model is $z_{k+1} = z_k + w_k$, $y_k = z_k + \varepsilon_k$ with $w_k \sim \mathcal N(0,q)$, $\varepsilon_k \sim \mathcal N(0,v)$ independent. Its steady-state Kalman filter has posterior variance $P$ solving $P(P+q) = qv$, i.e.\ $P = (-q + \sqrt{q^2 + 4qv})/2$, gain $\lambda = (P+q)/(P+q+v)$ and filtered mean $\hat z_k = \hat z_{k-1} + \lambda(y_k - \hat z_{k-1})$, an exponentially weighted average of the observations. Muth's result is that the optimal forecast is itself a random walk whose innovations carry the variance of the \emph{permanent} shock: $\Var(\Delta\hat z) = \lambda^2(P+q+v) = (P+q)^2/(P+q+v) = q$, since $q(P+q+v) = q(P+q) + P(P+q) = (P+q)^2$. Noise lowers the gain and leaves a stationary residual $z - \hat z$ of variance $P$ but never changes the variance rate of the estimate. Baley and Blanco (2019) apply a Dixit-type quartic band to a Kalman-filtered markup gap in a menu-cost model with infrequent large shocks; there the band widens with current uncertainty because uncertainty cycles, and they credit the constant-uncertainty case, where ``the information friction has no effects in steady state'', to the appendix of Alvarez, Lippi and Paciello (2011), whose main text studies costly \emph{perfect} observation and finds a review interval scaling as (cost)$^{1/2}$. General partially observed impulse control (Mazziotto et al., 1988) has existence theorems but no closed forms.
+
+\subsection{Discrete monitoring: Broadie--Glasserman--Kou and Gobet--Menozzi}
+
+A Brownian path checked only every $\Delta$ time units overshoots a continuous barrier before the crossing is seen. Broadie, Glasserman and Kou (1997) show that a barrier monitored discretely at $H$ behaves like a continuous barrier shifted by $\beta\sigma\sqrt\Delta$, $\beta = -\zeta(\tfrac12)/\sqrt{2\pi} \approx 0.5826$ ($\zeta$ the Riemann zeta function); Howison and Steinberg (2007) obtain the constant by matched asymptotics. Gobet and Menozzi (2010) generalise to stopped diffusions in $d$ dimensions: shift the boundary inward along its unit normal $n$ by $\beta\sqrt{n^\T Qn}$ per step when the per-step covariance is $Q$. Here refreshes are the monitoring instants, so a continuous-time band must be \emph{narrowed} by $\beta\sqrt q$.
+
+\subsection{Expected-loss rules and decision-framed communication}
+
+Experimentation practice already frames some decisions in loss units: Stucchio's VWO SmartStats ships a variant when its expected loss falls below a ``threshold of caring'', and Feit and Berman's Test \& Roll (2019) sizes an A/B test by maximising the expected profit of test-then-deploy in closed form. Both are static --- no drift, no adjustment cost --- and their thresholds are elicited, not derived. Joslyn and LeClerc (2012) show that probabilistic formats improve incentivised decisions and buffer trust against forecast error; Burgeno and Joslyn (2023) that probabilistic framing mitigates the trust penalty of inconsistency. No MMM tool ships an act/hold statistic with a derived threshold (Recast reports intervals and simulations, Meridian a point-optimal budget with credible intervals, PyMC-Marketing CVaR \emph{objectives}); Pathak, Jeunen and Lambert (2026) build regret distributions retrospectively, as an audit.
+
+\section{Setup and assumptions}
+
+\begin{definition}[Scalar reallocation problem]
+\label{deadband:def:scalar}
+Let $z_k = x^\star(\theta_k) - x_c$ be the deviation of the optimum from the incumbent allocation at refresh $k$. Between refreshes $z_{k+1} = z_k + w_k$, $w_k \sim \mathcal N(0,q)$, $q$ the per-refresh variance of the drifting optimum. Refresh $k$ delivers $y_k = z_k + \varepsilon_k$, $\varepsilon_k \sim \mathcal N(0,v)$, $v$ the posterior variance in allocation units. Operating off-optimum costs $\tfrac{\gamma}{2}z^2$ per period, $\gamma$ the curvature of expected profit at the optimum. Acting sets $x_c \leftarrow x_c + \hat z_k$ (so $z \leftarrow z - \hat z_k$, $\hat z \leftarrow 0$) at fixed cost $K$; the objective is long-run average cost. $P$, $\lambda$, $\hat z$ are the steady-state Kalman quantities.
+\end{definition}
+
+\begin{definition}[Vector problem under a budget]
+\label{deadband:def:vector}
+With $n$ channels and $\sum_i z_i = 0$, let $B$ ($n \times m$, $m = n-1$) be an orthonormal basis of the budget tangent space and $u = B^\T z$. Then $u_{k+1} = u_k + w_k$, $w \sim \mathcal N(0,Q)$; $y_k = u_k + \varepsilon_k$, $\varepsilon \sim \mathcal N(0,V)$; flow loss $\tfrac12 u^\T\Sigma u$ with $\Sigma = B^\T\Gamma B$, $\Gamma$ the Hessian of expected profit at the incumbent allocation; a reallocation resets $\hat u$ to zero at cost $K$ (or $K_0 + c\times$\#channels changed in \cref{deadband:sec:tier}). The steady-state filter has posterior covariance $P$, predictive $\bar P = P + Q$ and gain $G = \bar P(\bar P + V)^{-1}$.
+\end{definition}
+
+\begin{assumption}[Slow Gaussian drift, known constants]
+\label{deadband:ass:main}
+The optimum drifts as a random walk (strong mean reversion is a scope condition, \cref{deadband:sec:limits}); drift and refresh noise are Gaussian and the filter is correctly specified; $(q, v, \gamma, K)$ or $(Q, V, \Gamma, K)$ are known; the optimum is interior; the criterion is ergodic (undiscounted).
+\end{assumption}
+
+\section{Main results}
+
+\subsection{Estimation noise never enters the band}
+
+\begin{theorem}[Filtered increments carry the true drift variance]
+\label{deadband:thm:muth}
+\tagTransported\ (scalar: Muth, 1960; rediscovered by \dive{08}) \tagEstablished\ (vector form, \dive{09}). In the scalar problem $\Var(\Delta\hat z) = q$ exactly for every $v$. In the vector problem $\Cov(\Delta\hat u) = \bar P(\bar P+V)^{-1}\bar P = \bar P - P = Q$ exactly for every $V$, by the Riccati fixed point $P = \bar P - \bar P(\bar P+V)^{-1}\bar P$.
+\end{theorem}
+
+The vector algebra was checked symbolically (residual $4\times10^{-14}$) and by Monte Carlo over $4\times10^5$ steps with anisotropic 3-D $Q$ and $V$ (maximum relative error 0.2\%). The identity is not tied to white noise: for any correctly specified stationary linear-Gaussian observation structure $\hat z$ is a martingale and $z - \hat z$ is stationary while $\Var(z)$ grows as $qk$, forcing $\Var(\Delta\hat z) = q$; with AR(1) refresh noise ($\rho = 0.5$) an augmented-state filter measures increment variance 1.000 where a misspecified white-noise filter measures 0.82.
+
+\begin{proposition}[Exact separation]
+\label{deadband:prop:separation}
+\tagEstablished\ Acting subtracts the \emph{known} quantity $\hat z$ from $z$, so the filter is unaffected by the control and $\E[\tfrac{\gamma}{2}z^2 \mid \text{data}] = \tfrac{\gamma}{2}(\hat z^2 + P)$ with $P$ policy-independent. The partially observed problem is exactly the fully observed impulse control of the martingale $\hat z$ (a random walk of rate $q$ by \cref{deadband:thm:muth}) plus the floor $\gamma P/2$; in $\R^m$, of $\hat u$ plus $\tfrac12\tr(\Sigma P)$.
+\end{proposition}
+
+This exactness is special to the reset-by-$\hat z$ action structure. The corollary that names the chapter: \emph{the band cannot depend on $v$}. Posterior width matters --- through the shrinkage $\lambda < 1$ that slows $\hat z$ and through the floor --- but not through where the trigger sits.
+
+\subsection{The composite filtered deadband law (scalar)}
+
+\begin{law}[Composite filtered deadband]
+\label{deadband:law:scalar}
+\tagEstablished\ (\dive{08}; continuous-time core \tagTransported\ from Dixit and Baley--Blanco). Applied to $\hat z$ and independent of $v$,
+\begin{equation}
+h^\star = \Big(\frac{12Kq}{\gamma}\Big)^{1/4} - 0.5826\,\sqrt q .
+\label{eq:deadband:hstar}
+\end{equation}
+With $h_c = h^\star + \beta\sqrt q$ the continuous band, the minimum average cost is $\sqrt{Kq\gamma/3} + \gamma P/2$ up to a discrete-time offset (\cref{deadband:conj:kappa}); the act rate is $q/h_c^2$; the demanded expected gain is $G^\star = \tfrac{\gamma}{2}h^{\star2}$ (continuous limit $\sqrt{3\gamma Kq}$: the square root of the switching cost); with proportional cost $\kappa|\hat z|$ the band is $(6\kappa q/\gamma)^{1/3} - \beta\sqrt q$.
+\end{law}
+
+The first term is \cref{eq:deadband:dixit} on the reduced problem, the second the Broadie--Glasserman--Kou shift for a state monitored once per refresh; in calendar units $q/\gamma$ is refresh-rate-free, so only the $\beta\sqrt q$ term shrinks with faster refreshing. The law's first version used Barro's constant 6 and no shift, and DP thresholds drifted from 0.79 to 1.12 of ``theory'' across $K$; after both corrections the DP/law ratio is 0.994--1.000 for $K \ge 30$, and a free fit of the shift constant gives $\beta = 0.599 \pm 0.015$ against 0.5826. A round-2 apparent refutation --- DP log-log slopes of $h$ against $K$ of 0.295 (fixed cost) and 0.42 (proportional) against $\tfrac14$ and $\tfrac13$ --- turned out to be the composite law's own prediction: with the additive $-\beta\sqrt q$ term the effective slopes over those ranges are 0.292 and 0.40, and the proportional-cost level matches (ratio 0.996 at $\kappa = 100$).
+
+\subsection{The ellipsoid law (vector)}
+
+\begin{theorem}[Exact ergodic inaction ellipsoid]
+\label{deadband:thm:ellipsoid}
+\tagEstablished\ (\dive{09}; the matrix equation is \tagTransported\ from Altarovici et al., where it is a small-cost asymptotic). For the reduced problem of \cref{deadband:def:vector} the continuation region is the ellipsoid $\{u : \Phi(u) = u^\T Mu < 1\}$ with
+\begin{equation}
+4M\tr(QM) + 8MQM = \Sigma/K, \qquad g = 2K\tr(QM),
+\label{eq:deadband:riccati}
+\end{equation}
+exactly (modulo the standard verification theorem), with relative value function $W(u) = K[2\Phi - \Phi^2]$.
+\end{theorem}
+
+Inside the region the ergodic HJB equation is $\tfrac12\tr(Q\nabla^2W) + \tfrac12u^\T\Sigma u = g$; with the ansatz, $\tfrac12\tr(Q\nabla^2W) = K[2(1-\Phi)\tr(QM) - 4u^\T MQMu]$, so it holds identically in $u$ iff the quadratic forms match, which is \cref{eq:deadband:riccati}. The quasi-variational inequality follows directly: value matching $W = K$ on $\Phi = 1$; smooth fit $\nabla W = 2K(1-\Phi)Mu = 0$ there; $W \le K$ everywhere; outside, $\tfrac12u^\T\Sigma u = K[4u^\T MQMu + 2\Phi\tr(QM)] \ge g$ whenever $\Phi \ge 1$ because $MQM \succeq 0$. The LQ ergodic problem has no wealth effects, which is why the portfolio literature's leading-order ellipsoid is here the whole answer.
+
+\begin{construction}[Closed form by whitening]
+\label{deadband:con:whitening}
+\tagEstablished\ Let $S = Q^{1/2}\Sigma Q^{1/2}/K = U\diag(s)U^\T$. Then $M = Q^{-1/2}\tilde MQ^{-1/2}$ with $\tilde M = U\diag(m)U^\T$, where $m_i(4T + 8m_i) = s_i$ and $T = \sum_i m_i$: one scalar root-find in $T$. In one dimension this returns \cref{eq:deadband:dixit}; for isotropic $Q = qI$, $\Sigma = \gamma I$ it returns Alvarez and Lippi's radius $R^\star = (4(m+2)Kq/\gamma)^{1/4}$. $K$ and $Q$ enter only through $KQ$.
+\end{construction}
+
+Discrete refreshes are handled by the Gobet--Menozzi normal shrink $\beta\sqrt{n^\T Qn}$, which gives the closed-form trigger
+\begin{equation}
+\text{act iff}\quad \Phi(\hat u) + 2\beta\sqrt{\hat u^\T MQM\hat u/\Phi(\hat u)} \;\ge\; 1 ;
+\label{eq:deadband:trigger}
+\end{equation}
+a clean-room implementation found the plain $\Phi \ge 1$ trigger 6.7\% worse, so the shift is detected, not cosmetic.
+
+\begin{conjecture}[Discrete-time cost offset]
+\label{deadband:conj:kappa}
+\tagConjecture\ Charging the flow cost at the start of each period rather than integrating it gives $g_{\mathrm{disc}} \approx 2K\tr(QM) + \tfrac12\tr(\Sigma P) - \kappa\tr(\Sigma Q)$ with $\kappa = \tfrac14 - \beta^2/4 = 0.165$; measured $\kappa = 0.154$--$0.164$ in one dimension ($q$ from 1 to $1/8$) and 0.158 in the 2-D case B, trending toward 0.165 as step/band $\to 0$. Supported to about 3\%, not derived (\BL{27}).
+\end{conjecture}
+
+\subsection{Decision-framed outputs}
+
+\begin{proposition}[Probability of regret and derived tolerance]
+\label{deadband:prop:por}
+\tagEstablished\ With $z \mid \text{data} \sim \mathcal N(\hat z, P)$ the gain from moving by $\hat z$ is $\gamma\hat z(z - \hat z/2)$, so the probability that the move hurts is ($\Phi(\cdot)$ here the standard normal distribution function, not the quadratic form of \cref{deadband:thm:ellipsoid})
+\begin{equation}
+\mathrm{PoR} = \Phi\!\Big(-\frac{|\hat z|}{2\sqrt P}\Big), \qquad
+\mathrm{PoR}_{\mathrm{vec}} = \Phi\!\Big(-\frac{\tfrac12\hat u^\T\Sigma\hat u}{\sqrt{\hat u^\T\Sigma P\Sigma\hat u}}\Big),
+\label{eq:deadband:por}
+\end{equation}
+with expected gain $\hat G = \tfrac{\gamma}{2}\hat z^2$ (vector $\tfrac12\hat u^\T\Sigma\hat u$). In the scalar case PoR is monotone in $|\hat z|$, so ``act when $\mathrm{PoR} \le \alpha^\star$'' with $\alpha^\star = \Phi(-h^\star/(2\sqrt P))$ is \emph{identical} to the deadband policy: the risk tolerance is derived from $(K, q, \gamma, v)$, not elicited.
+\end{proposition}
+
+Monte Carlo: scalar PoR predicted 0.20711, observed 0.20725; vector 0.30281 versus 0.30327 ($n = 2\times10^6$). In the vector case PoR is not monotone in the trigger statistic unless $\Sigma$, $P$ and $M$ are proportional, so \dive{09} has the organisation register $M$ and report PoR as a companion, not as the trigger. $\alpha^\star$ is where $v$ re-enters the reported numbers: the same $h^\star$ is a tolerance of 0.8\% at $v = 1$ and 27\% at $v = 100$ ($K = 30$, $q = \gamma = 1$), and 0.13 in the Hill transport of \cref{deadband:sec:numerics}.
+
+\subsection{Tiered reallocation under per-channel change costs}
+\label{deadband:sec:tier}
+
+\begin{proposition}[Residual-distance threshold]
+\label{deadband:prop:tier}
+\tagNumerical\ (structure DP-verified, constant approximate). With cost $K_0 + c\times$(\#channels changed) and $n = 3$ (2-D tangent plane), a pairwise transfer $i \leftrightarrow j$ moves $\hat u$ along the projected direction of $e_i - e_j$ (three lines at $0^\circ$, $60^\circ$, $120^\circ$) at cost $K_0 + 2c$ against $K_0 + 3c$ for a full reset. The DP with both action types chooses the pairwise move iff the perpendicular distance $r$ from $\hat u$ to the nearest transfer line is below
+\begin{equation}
+r_c = R^\star\sqrt{1 - \sqrt{1 - c/K_{\mathrm{full}}}}, \qquad R^\star = \big(4(m+2)K_{\mathrm{full}}q/\gamma\big)^{1/4},
+\label{eq:deadband:rc}
+\end{equation}
+obtained by requiring the residual left behind to cost less than the saved channel: $W(r) = K_{\mathrm{full}}(2\Phi - \Phi^2) < c$ with $\Phi = r^2/R^{\star2}$.
+\end{proposition}
+
+In the DP the maximum residual among pairwise states and the minimum among full-reset states coincide to two decimals (1.63/1.64, 2.12/2.12), so the threshold is sharp; the formula gives 1.61 and 2.00 for $c = 6.67$ and $10$ at $K_{\mathrm{full}} = 30$, about 5.5\% low, which the clean-room re-derivation softened to ``$\approx$''. The tiered heuristic (full-cost ellipsoid trigger; pairwise-cost trigger on the along-line component when $r < r_c$; pairwise iff $r < r_c$) is the deadband analogue of Bonomo et al.'s two-threshold policy.
+
+\subsection{Cadence separates from the band}
+
+\begin{proposition}[Cadence separation]
+\label{deadband:prop:cadence}
+\tagEstablished\ In calendar time with drift rate $q$, refreshes every $\Delta$ at cost $c_r$ and per-refresh noise $v$, the band being $v$-invariant and (after the monitoring shift) $\Delta$-invariant, the cost rate separates as
+\begin{equation}
+\mathrm{cost}(\Delta, h) = \underbrace{\sqrt{Kq\gamma/3}}_{\text{band: }K\text{ only}} + \underbrace{\gamma P(\Delta)/2 + c_r/\Delta + \kappa'\gamma q\Delta}_{\text{cadence: no }K},
+\qquad P(\Delta) = \frac{-q\Delta + \sqrt{q^2\Delta^2 + 4q\Delta v}}{2},
+\label{eq:deadband:cadence}
+\end{equation}
+with $\kappa' \approx 0.075$--$0.09$. Hence $\Delta^\star$ is independent of $K$ and $h^\star$ of $c_r$. For small $\Delta$ and independent refresh noise, $P \approx \sqrt{q\Delta v}$ and
+\begin{equation}
+\Delta^\star \approx \Big(\frac{4c_r}{\gamma\sqrt{qv}}\Big)^{2/3},
+\label{eq:deadband:deltastar}
+\end{equation}
+elasticity $2/3$ in refresh cost (measured 0.68--0.72 over $c_r \in [0.01, 10]$) against $\tfrac12$ for costly perfect observation, and $\Delta^\star \propto v^{-1/3}$ (measured $-0.3$ to $-0.44$): noisier refreshes should be run \emph{more} often.
+\end{proposition}
+
+\begin{proposition}[The $2/3$ law is an independent-noise bound]
+\label{deadband:prop:corrcadence}
+\tagRefuted\ (as a general cadence rule; \dive{09} round 2). With refresh-error correlation $\rho(\Delta) = 1 - \Delta/W$ ($W = 104$ weeks, the overlapping-window arithmetic of \cref{ch:refresh}) and a correctly specified augmented filter, the floor barely moves with $\Delta$ (4.38--4.41 at $K = 30$, $q = 1/13$ per week, $v = 10$) because more refreshes of the same window information do not average the error; $\Delta^\star$ moves from weekly to 8--13 weeks for every refresh cost tried ($c_r \in \{0.05, 0.2, 0.8\}$), and a white filter under correlated noise adds 12--25\%. The general rule is $\Delta^\star = \argmin_\Delta[c_r/\Delta + \gamma P_{zz}(\Delta; q, v, \rho(\Delta))/2]$, $P_{zz}$ the steady-state filtered variance of $z$ in the augmented $(z, \text{noise})$ filter.
+\end{proposition}
+
+\section{Numerical evidence}
+\label{deadband:sec:numerics}
+
+\dive{08} ran 15 experiments and \dive{09} 16, with standard errors from seed replication and DP results grid-converged at $d = 0.2/0.1/0.05$. \emph{Law verification.} Scalar: DP thresholds match \cref{eq:deadband:hstar} within 0.4\% for $K \ge 30$ across $q \in \{0.25, 1\}$ (worst case $K = 1$: $-3.6\%$); $\Var(\Delta\hat z) = q$ on a $3\times3$ $(q,v)$ grid within 0.5\%; the empirically optimal band stays at 3.6--3.8 ($h^\star = 3.77$) while $v$ spans 0 to 100, i.e.\ noise standard deviation up to $2.7\times$ the band; the floor increments predict the cost at $v = 1/10/100$ as 3.31/4.35/7.76 against observed 3.31/4.35/7.78 from a $v = 0$ level of 3.004; act rate $q/h_c^2 = 0.0526$ versus 0.0518--0.0521. A clean-room subagent re-derived the identity (residual $10^{-14}$) and re-implemented DP and simulation (thresholds 3.760/7.160 versus 3.773/7.163; floors $+0.3116 \pm 0.0067$ and $+4.7573 \pm 0.0233$ versus $+0.309/+4.756$). Vector: isotropic $m = 2$ scale-sweep argmin at 1.00 for $v \in \{1, 10, 100\}$; DP radius 4.05 versus law 4.10; the anisotropic comparison of \cref{deadband:tab:dp}, reproduced clean-room at 7.0384/7.0390/7.0389 across grids (gap 0.011--0.013\%). \emph{Controls.} $K \to 0$ collapses the DP band to $\sim$0.3 (the step scale) and the ellipsoid semi-axes from 4.95/2.98 to 1.57/0.94; the $(q+v)$-scaled alternative is rejected at $141\sigma$; the DP shape instrument separates axis ratio 1.73 from 1.00; the CI-versus-protocol gap at $v = 1$ is 380 SE.
+
+\begin{table}[htbp]
+\centering\small
+\caption{\dive{09} E3b: 2-D average-cost DP optimum against the zero-tuned Riccati ellipsoid with closed-form monitoring shrink, and the best-scaled alternative shapes (percent above DP); $K = 30$.}
+\label{deadband:tab:dp}
+\begin{tabular}{lcccccc}
+\toprule
+Configuration & DP & Ellipsoid+shrink & loss-ellipsoid & drift-Mahal. & sphere & box \\
+\midrule
+A: $Q = I$, $\Sigma = \diag(1,4)$ & 7.4496 & 7.4503 ($+0.01\%$) & $+0.37\%$ & $+5.2\%$ & $+5.2\%$ & $+6.4\%$ \\
+B: $Q$ corr 0.7, $\Sigma = \diag(1,4)$ & 7.0383 & 7.0391 ($+0.01\%$) & $+0.46\%$ & $+11.0\%$ & $+4.5\%$ & $+5.0\%$ \\
+C: $Q = \diag(1, 0.1)$, $\Sigma$ corr 0.8 & 3.3034 & 3.3034 ($+0.00\%$) & $+0.38\%$ & $+17.0\%$ & $+6.3\%$ & $+8.4\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The DP regions' second-moment axis ratios (1.73, 1.72, 2.29) match the \emph{shrunk} ellipsoid rather than the continuous one (1.60/1.66/2.15), as does the orientation ($-171.5^\circ$ versus $-166.4^\circ$; $140.9^\circ$ versus $143.5^\circ$). \cref{deadband:tab:duel} carries the practical message. Under noise, filtering is most of the value (raw triggering $2.6\times$ worse at $v = 10$ scalar, $3.7\times$ vector). The significance rule's width scales with estimation noise, which has nothing to do with the drift/cost economics: it is near-optimal at $v = 10$, where $1.96\sqrt P = 3.22 \approx h^\star$ by accident, and $2.1\times$ worse at $v = 1$. The myopic ``act when $\tfrac{\gamma}{2}\hat z^2 > K$'' rule has threshold $\sqrt{2K/\gamma} = 7.75$, the wrong exponent, and waits about twice too long. The ``posterior-width'' ellipsoid (Riccati solved with $Q + V$) costs $+5\%$ at $v = 1$ and $+45\%$ at $v = 10$. Shape, by contrast, is cheap: per-channel scalar bands with their own $(q_i, \gamma_i)$ lose 1.0\%/0.7\%, and in the isotropic dimension sweep at $v = 1$ (sphere law 3.31/5.75/7.71/10.89/14.66 at $m = 1/2/3/5/8$) the best box loses $+0.1/+1.2/+1.8/+2.3/+2.3\%$, the box at the scalar-law width $+0.0/+1.3/+2.2/+3.5/+4.7\%$, and the $\chi^2$ CI rule $+107/+74/+59/+44/+31\%$. Scale is flat too: $\mathrm{cost}(mh^\star)/\mathrm{cost}(h^\star) = 1.64, 1.17, 1.00, 1.26, 1.86$ at $m = 0.5, 0.7, 1, 1.5, 2$, and a $2\times$ error in $K$ or $Q$ costs 3.4--3.8\% in the vector case.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Policy duels: long-run average cost $\pm$ SE over seeds. Scalar block (\dive{08}): $K = 30$, $q = \gamma = 1$, 8 seeds. Vector block (\dive{09}): case B of \cref{deadband:tab:dp}, $K = 30$, 6 seeds. Act-always is reported without SE in both dives.}
+\label{deadband:tab:duel}
+\begin{tabular}{lcc}
+\toprule
+Policy & $v = 1$ & $v = 10$ \\
+\midrule
+\multicolumn{3}{l}{\emph{Scalar}} \\
+filtered band $h^\star$ (protocol) & $3.307 \pm 0.006$ & $4.354 \pm 0.006$ \\
+filtered band, width from $q + v$ & $3.414 \pm 0.005$ & $5.494 \pm 0.010$ \\
+raw band on $y$ (no filter) & $3.609 \pm 0.005$ & $11.388 \pm 0.011$ \\
+myopic: act when $\tfrac{\gamma}{2}\hat z^2 > K$ & $6.338 \pm 0.017$ & $7.387 \pm 0.020$ \\
+CI rule: act when $|\hat z| > 1.96\sqrt P$ & $6.864 \pm 0.006$ & $4.468 \pm 0.010$ \\
+act-always & 30.31 & 31.35 \\
+\midrule
+\multicolumn{3}{l}{\emph{Vector, case B}} \\
+ellipsoid + shrink on filtered $\hat u$ (protocol) & $8.444 \pm 0.005$ & $13.212 \pm 0.006$ \\
+box of per-channel scalar bands (own $q_i$, $\gamma_i$) & $8.532 \pm 0.004$ & $13.308 \pm 0.009$ \\
+Riccati with $Q + V$ (``posterior width'' band) & $8.904 \pm 0.005$ & $19.159 \pm 0.020$ \\
+CI rule: $\hat u^\T P^{-1}\hat u > \chi^2_2(0.95)$ & $10.881 \pm 0.004$ & $14.370 \pm 0.016$ \\
+ellipsoid on raw $y$ (no filter) & $11.736 \pm 0.008$ & $48.521 \pm 0.012$ \\
+act-always & 31.406 & 36.189 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\emph{Tiering} (\dive{09} E4--E4c, $Q = \Sigma = I$): pairwise moves save 2.0/6.3/12.5/7.7\% over full resets for $(K_0, c) = (20, 3.3)/(10, 6.7)/(0, 10)/(15, 15)$; the tiered heuristic is $+0.07/+0.41/+0.65/+0.38\%$ from DP while the full-reset ellipsoid alone is 2--14\% worse; the clean-room pairwise DP gave a 12.58\% saving and threshold 2.1221/2.1224. \emph{Cadence} (E7, E10): the band argmin sits at $h_c - \beta\sqrt{q\Delta}$ for all $\Delta \in [0.25, 4]$; the $\Delta$ argmin is identical for $K = 30$ and $120$ at every $c_r$; \cref{eq:deadband:cadence} is within 0.5\% of simulation at $\Delta \le 2$ (5.588 versus $5.611 \pm 0.01$); clean-room costs at $\Delta = 1/2/4$ (5.606/5.643/6.153) match the dive's (5.611/5.645/6.113), with the flag that dropping the $O(\gamma q\Delta)$ term picks $\Delta = 2$ instead of 1.
+
+\emph{Nonlinear MMM transports.} \tagNumerical\ (one configuration each; flat basin). \dive{08} E10: two Hill channels, log-random-walk effectiveness drift $\eta = 0.02$, posterior noise $\tau = 0.10$, reallocation cost 0.02, budget 2; $(\gamma, q_x, v_x)$ calibrated numerically at the operating point give $h^\star = 0.064$ (3.2\% of budget) and $\lambda = 0.17$ ($v_x/q_x \approx 30$). True-regret flow per refresh: protocol $0.0032 \pm 0.0008$; act-always $0.0209 \pm 0.0002$ ($6.5\times$ worse); myopic $0.0059 \pm 0.0010$; an oracle band sweep has its flat argmin at $0.75h^\star$ ($0.0030 \pm 0.0003$), indistinguishable from $h^\star$. \dive{09} E8: four concave Hill channels, budget 1, same $\eta$, $\tau$ and per-event cost, $(\Gamma, Q, V)$ calibrated at the operating point ($v/q \approx 26$, Kalman gains 0.17--0.19, semi-axes 3.0--4.8\% of budget), 8 paired seeds $\times$ 4000 periods: protocol $0.00299 \pm 0.00056$ per period; sphere $0.97\times$, box $1.04\times$, CI $0.95\times$ (all within one paired SE); $Q + V$ ellipsoid $2.96\times$; myopic $4.1\times$; unfiltered $5.6\times$; act-always $7.0\times$; paired oracle-scale differences at $0.8/1.0/1.25$ of $-0.00016 \pm 0.00016$, 0, $+0.00065 \pm 0.00027$.
+
+\section{Limitations and the devil's advocate}
+\label{deadband:sec:limits}
+
+The dives' own counterarguments: \emph{policy class} --- $v$-invariance is proved for band-on-$\hat z$ policies given reset-by-$\hat z$ actions, with no proof that a non-band policy cannot do better (symmetry and convexity make it very plausible). \emph{Stacked asymptotics} --- small-cost band, monitoring shift and LQ loss; the free-fit $\beta = 0.599 \ne 0.5826$ shows residual structure and the cost level carries the unproved \cref{deadband:conj:kappa}. \emph{Mean reversion} --- an OU optimum with $\phi \ge 0.98$ per refresh leaves the argmin at $h^\star$, but $\phi = 0.9$ widens it about 17\% (free reversion adds option value to waiting), though acting still beats never acting (2.08 versus 2.63). \emph{Noise structure} --- misspecified white filtering costs $+2.6\%$ at $\rho = 0.5$, $v = 10$, not swept to extreme $\rho$; $t_3$ refresh noise costs $+8.9\%$ scalar and $+7.9\%$ vector with the linear filter, the scalar band unmoved and the vector argmin at scale 0.9 (\BL{23}). \emph{Parameters must be estimated} --- $q$ is confounded with refresh noise in observed jitter (the rotation wobble of \cref{ch:refresh} would inflate a naive $\hat q$ and widen the band spuriously), $\gamma$ comes from a possibly misspecified fitted curvature, and $K$ is an organisational quantity nobody measures (\BL{22}); the fourth root blunts this (a $2\times$ error in $K$, $q$ or $\gamma$ moves $h^\star$ by 19\% and costs $\lesssim 5\%$) without removing it. \emph{Trust as a stock} --- if churny recommendations degrade $K$ itself, it is a different control problem (\BL{24}). Further: near a bound the region is truncated and the reset target is not zero; $(\Gamma, Q, V)$ were not re-calibrated as effectiveness drifts (\BL{26}); $r_c$ is derived from the full-reset value function for $n = 3$ only (\BL{25}); discounting changes the region, second-order at business rates; everything is Gaussian.
+
+Against $v$-invariance the natural misreading is ``uncertainty doesn't matter''; it matters through $\lambda$ (0.17 in the transports) and the floor, just not through the band, and that is the deliverable. Against the duel, rankings depend on parametrisation and the CI rule tied twice ($v = 10$ scalar, $v/q \approx 26$ vector); the point is the wrong scaling variable, not the size of a gap. Against the ellipsoid, the dives' own reframing is that the decisive content is the filter, the scale ($KQ$ product, $(m+2)^{1/4}$ growth) and the tiering, not the ellipse. Against the framing, an organisation may reject deadbands (``why pay for a model we mostly don't act on?''), which is B5 again, but with inaction now carrying a derived price.
+
+\section{Discussion: impacts}
+
+For practice the proposal is an interface change, not a modelling change. At engagement start an organisation registers the loss-curvature source (the model Hessian at the incumbent allocation), the $\hat q$ estimation procedure (refresh-history variance decomposition with estimation noise removed), the $K$ elicitation (execution cost plus an agreed credibility charge), the derived $h^\star$, $G^\star$ and $\alpha^\star$ --- or, for several channels, the tangent basis, $\Gamma$, $\hat Q$ and $M$, or per-channel bands with their documented $\le 5\%$ penalty --- the per-line-item cost $c$ with its $r_c$, the filter's noise-correlation structure, and the cadence from the floor-with-correlation rule (expecting quarterly, not monthly, under overlapping windows). Each refresh the model reports three lines: expected annualised gain from moving to the filtered target, the probability the move hurts, and ACT-FULL / ACT-PAIR$(i,j)$ / HOLD against the registered threshold; intervals go to an appendix. HOLD reads ``the expected gain does not yet cover the registered cost of switching'': inaction becomes a priced option value of waiting, not an admission of ignorance. This meets B5 and M9 in the only way consistent with honesty --- the wide posterior never reaches the meeting as a naked interval but multiplied by the decision it implies --- and supplies H8's missing pre-registered rule. Meridian, Robyn and PyMC-Marketing already have the ingredients (a Hessian at the recommended budget, a posterior covariance in allocation units, a refresh history); missing are the filter across refreshes and the derived threshold. For CMO decision-making the sharpest lessons are that the intuitive rules are wrong in exponent, not in constant --- significance thresholds scale with the noise, expected-loss thresholds with $K^{1/2}$ rather than $K^{1/4}$ --- and that noisier models should be refreshed more, not less, unless the refreshes reuse the same window.
+
+For theory the chapter contributes an exactness statement (the LQ ergodic partially observed problem separates, and its region is exactly an ellipsoid), a discrete composite formula verified to 0.4\% and 0.01\%, and an honest deflation: what the field would argue about (shape) is second-order, what it does by default (the statistic) is first-order. Outward links: \cref{ch:refresh} supplies the refresh-error correlation $\rho \approx 0.5$ and the hysteresis this chapter prices; \cref{ch:fusion}'s cadence law $\tau^\star = \sqrt{c/(r(1/\kappa - \tfrac12))}$ is the other half of a unified inaction theory that \cref{deadband:prop:cadence} begins; \cref{ch:identification} (\dive{22}) later used this band to show that a constant estimation bias shifts $\hat z$ and $x_c$ equally and is therefore \emph{invisible} to the trigger --- a biased model never churns, only a noisy one. Later chapters wire the protocol to other triggers (\BL{49}, \BL{56}, \BL{66}, \BL{72}) and replace its scalar EVSI bar with the ellipsoid loss (\BL{53}).
+
+\section{Further exploration}
+
+\dive{08}'s next steps became \BL{21} (done here), \BL{22} (estimate $q$ under rotation wobble with the anchored-estimator decomposition of \cref{ch:refresh}, and a revealed-preference elicitation for $K$), \BL{23} (a Huberised or Student filter to recover part of the $+9\%$ heavy-tail loss), \BL{24} (trust as a state degraded by acting-and-regretting) and a one-page field template. \dive{09} opened \BL{25} (general-$n$ tiering: a greedy ``add channels while the marginal $W$-reduction exceeds $c$'' rule against a lattice DP for $n = 4$--5, connected to Bonomo et al.'s continuum policy), \BL{26} (adaptive $M$: whether re-calibrating $(\Gamma, Q, V)$ each refresh makes the trigger matrix itself churn --- the instability of \cref{ch:refresh} in new clothes), \BL{27} (prove $\kappa = \tfrac14 - \beta^2/4$ by matched asymptotics) and \BL{28} (estimate $\hat\rho(\Delta)$ and $\hat q$ jointly from refresh history and run the floor-with-correlation cadence rule end-to-end on the nonlinear MMM, where $\rho \approx 0.5 \ll \omega$ makes frequent refreshes more valuable than the overlap arithmetic suggests).
+
+In the compiler's judgement the most promising extension is \BL{28} merged with \BL{22}: every constant the protocol consumes except $K$ is a second moment of the refresh history, and the cadence answer swings by an order of magnitude on one of them, so one anchored decomposition of refresh jitter into drift, white estimation noise and window-overlap correlation would make $h^\star$, $\Delta^\star$ and the filter field-estimable at once. Second is \BL{24}, the one item that could change the \emph{form} of the answer: if trust is a stock, the credibility charge depends on the history of regretted moves and the band should widen after a visible error --- the dynamics Dietvorst et al.\ measured, which a fixed $K$ cannot represent.
+
+\begin{reviewernote}[(compiler)]
+\textbf{Novelty.} \dive{08}'s same-day audit relabelled its \S3.1--3.2 from ``derived here'' to ``rediscovered; known in continuous time'' (Muth, 1960; Alvarez--Lippi--Paciello, 2011, appendix; Baley--Blanco, 2019), keeping the discrete composite formula, the floor decomposition and the MMM/PoR layer as ``plausibly unclaimed ($\sim$75\% confidence)''. \dive{09}'s ellipsoid equation is Altarovici et al.'s with a change of notation; the dive concedes this and claims only exactness, the whitening closed form and the verification. In Baley--Blanco proper the band \emph{does} depend on uncertainty because uncertainty cycles; the invariance is the constant-uncertainty limit. Neither literature search is reproduced; ``no marketing/OR application found'' rests on a subagent.
+
+\textbf{The scalar cost formula is off at the level.} \dive{08} states the minimum average cost as $\gamma h_c^2/12 + Kq/h_c^2 + \gamma P/2$, which at $K = 30$, $q = \gamma = 1$ is $3.162 + \gamma P/2$; the observed $v = 0$ cost is 3.004 and the ``predicted 3.00/3.31/4.35/7.76'' series is anchored on that observed level, so only the floor \emph{increments} were verified (the clean-room checked increments too). The 5\% level gap is exactly \dive{09}'s discrete-time offset $-\kappa\tr(\Sigma Q) \approx -0.165$ ($3.162 - 0.165 = 2.997$), which \dive{09} presents as new without noting that it corrects \dive{08}'s formula. Nothing downstream depends on the level.
+
+\textbf{Numbers not to over-read.} The CI rule ``ties'' twice by coincidence of scale --- at $v = 10$ scalar ($1.96\sqrt P = 3.22$ against $h^\star = 3.77$; still 2.6\% worse) and in the 4-channel transport ($v/q \approx 26$); \dive{08}'s 2-channel transport did not run it; the ranking among filtered shapes in the 4-channel transport is within one paired SE, and both transports are single configurations calibrated at the initial point. The tiered rule is $n = 3$ only with a constant 5.5\% low. \dive{09} states the correlated-noise cadence as ``8--13 weeks'' in \S4 and ``1 to 13 weeks'' in \S5. The $\kappa$ conjecture is supported at 3\%, and the effective-exponent reconciliation (0.292/0.40 versus 0.295/0.42) is a fit over a chosen $K$ range. Act-always has no SE in the scalar duel.
+
+\textbf{INDEX consistency.} Both log lines agree with the writeups on every headline ($6.5\times$, $7\times$, $3\times$, 0.01\%, 0.012\%, 12.5\%, 0.65\%, $+45\%$, $3.7\times$); ``$\chi^2$ CI rule $+30$--$107\%$'' is the isotropic sweep's $+31$--$107\%$ (case B gives $+29\%/+9\%$). The \dive{08} log timestamp ($\sim$15:30) precedes the file's last write (16:55 UTC), consistent with the post-writeup audit but unstated. No FIM/pinv computation enters either dive, so \BL{82} does not apply; the transports' $\Gamma$ is a finite-difference Hessian, which \BL{70} later notes presumes the budget-direction total value known.
+\end{reviewernote}
+
+\section*{Sources}
+\begingroup\raggedright
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em]
+\item Dixit, A. (1991). \emph{A Simplified Treatment of the Theory of Optimal Regulation of Brownian Motion}. Journal of Economic Dynamics and Control 15(4), 657--673.
+\item Barro, R. J. (1972). \emph{A Theory of Monopolistic Price Adjustment}. Review of Economic Studies 39(1), 17--26. \url{https://academic.oup.com/restud/article-abstract/39/1/17/1518557}
+\item Stokey, N. L. (2009). \emph{The Economics of Inaction: Stochastic Control Models with Fixed Costs}. Princeton University Press.
+\item Alvarez, F. and Lippi, F. (2014). \emph{Price Setting with Menu Cost for Multiproduct Firms}. Econometrica 82(1), 89--135. \url{https://onlinelibrary.wiley.com/doi/abs/10.3982/ECTA10662}
+\item Altarovici, A., Muhle-Karbe, J. and Soner, H. M. (2015). \emph{Asymptotics for Fixed Transaction Costs}. Finance and Stochastics 19, 363--414. \url{https://arxiv.org/abs/1306.2802}
+\item Bonomo, M., Carvalho, C., Kryvtsov, O., Ribon, S. and Rigato, R. (2023). \emph{Multi-Product Pricing: Theory and Evidence from Large Retailers}. Economic Journal 133(651), 905--927. \url{https://academic.oup.com/ej/article-abstract/133/651/905/6888011}
+\item Muth, J. F. (1960). \emph{Optimal Properties of Exponentially Weighted Forecasts}. Journal of the American Statistical Association 55(290), 299--306.
+\item Baley, I. and Blanco, A. (2019). \emph{Firm Uncertainty Cycles and the Propagation of Nominal Shocks}. American Economic Journal: Macroeconomics 11(1), 276--337. \url{https://www.aeaweb.org/articles?id=10.1257/mac.20170402}
+\item Alvarez, F., Lippi, F. and Paciello, L. (2011). \emph{Optimal Price Setting with Observation and Menu Costs}. Quarterly Journal of Economics 126(4), 1909--1960. \url{https://academic.oup.com/qje/article-abstract/126/4/1909/1924043}
+\item Mazziotto, G., Stettner, L., Szpirglas, J. and Zabczyk, J. (1988). \emph{Impulse Control with Partial Observation}. SIAM Journal on Control and Optimization 26(4), 964--984.
+\item Broadie, M., Glasserman, P. and Kou, S. (1997). \emph{A Continuity Correction for Discrete Barrier Options}. Mathematical Finance 7(4), 325--349.
+\item Gobet, E. and Menozzi, S. (2010). \emph{Stopped Diffusion Processes: Boundary Corrections and Overshoot}. Stochastic Processes and their Applications 120(2), 130--162. \url{https://arxiv.org/abs/0706.4042}
+\item Howison, S. and Steinberg, M. (2007). \emph{A Matched Asymptotic Expansions Approach to Continuity Corrections for Discretely Sampled Options. Part 1: Barrier Options}. Applied Mathematical Finance 14(1), 63--89. \url{https://arxiv.org/abs/math/0511106}
+\item Stucchio, C. (2015). \emph{Bayesian A/B Testing at VWO} (SmartStats technical whitepaper). \url{https://vwo.com/downloads/VWO_SmartStats_technical_whitepaper.pdf}
+\item Feit, E. M. and Berman, R. (2019). \emph{Test \& Roll: Profit-Maximizing A/B Tests}. Marketing Science 38(6), 1038--1058. \url{https://pubsonline.informs.org/doi/10.1287/mksc.2019.1194}
+\item Joslyn, S. L. and LeClerc, J. E. (2012). \emph{Uncertainty Forecasts Improve Weather-Related Decisions and Attenuate the Effects of Forecast Error}. Journal of Experimental Psychology: Applied 18(1), 126--140. \url{https://www.apa.org/pubs/journals/features/xap-18-1-126.pdf}
+\item Burgeno, J. N. and Joslyn, S. L. (2020). \emph{The Impact of Weather Forecast Inconsistency on User Trust}. Weather, Climate, and Society 12(4). \url{https://journals.ametsoc.org/view/journals/wcas/12/4/WCAS-D-19-0074.1.xml}
+\item Burgeno, J. N. and Joslyn, S. L. (2023). \emph{The Impact of Forecast Inconsistency and Probabilistic Forecasts on Users' Trust and Decision-Making}. Weather, Climate, and Society 15(3). \url{https://journals.ametsoc.org/view/journals/wcas/15/3/WCAS-D-22-0064.1.xml}
+\item Dietvorst, B. J., Simmons, J. P. and Massey, C. (2015). \emph{Algorithm Aversion: People Erroneously Avoid Algorithms After Seeing Them Err}. Journal of Experimental Psychology: General 144(1), 114--126.
+\item Pathak, N., Jeunen, O. and Lambert, E. (2026). \emph{Auditing Marketing Budget Allocation with Hindsight Regret}. arXiv:2604.25977. \url{https://arxiv.org/abs/2604.25977}
+\item Frontier study (internal): the adoption-barriers catalogue \texttt{03\_mmm\_adoption\_barriers.md}, entries B5 and M9, and the open-questions catalogue \texttt{02\_open\_questions.md}, entry H8.
+\item Program (internal): \dive{07} (refresh-error correlation, hysteresis hook), \dive{05} (cadence law), \dive{03} and \dive{04} (decision-loss machinery), \dive{22} \S5.3 (bias invisible to the trigger).
+\end{enumerate}
+\endgroup

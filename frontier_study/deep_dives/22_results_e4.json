@@ -1,0 +1,22 @@
+{
+ "e4": {
+  "(a) scalar law: max rel err, 1000 random cells": "2.017e-15",
+  "(b) V_post identity: max rel err, 300 random 4-param cells": "6.442e-16",
+  "(c) FIM svals (BL82 estimability audit)": "1.122e+03 3.504e+01 8.102e-01 2.977e-03",
+  "    condition number": "3.770e+05",
+  "    mROAS / sd(mROAS) shape-known / shape-free": "1.2903 / 0.11871 / 0.52828",
+  "    Psi(0) [= dive 20's ladder top]": "19.8044",
+  "    residual shape sensitivity d (alpha,K,S)": "+6.4782 -0.2289 +0.1130",
+  "    raw g_s (alpha,K,S)": "+3.2257 +0.3586 +0.5883",
+  "    Itil eigenvalues": "3.8478e-03 8.4146e-01 2.4793e+02",
+  "    rho_k^2 per Itil eigendirection": "1.53518 5.25611 12.01313",
+  "    sum rho_k^2 vs Psi0-1": "18.804413 / 18.804413",
+  "    u=0.00    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "19.804413 / 19.804413",
+  "    u=0.10    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "18.094921 / 18.094921",
+  "    u=0.50    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "13.536275 / 13.536275",
+  "    u=1.00    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "10.402206 / 10.402206",
+  "    u=5.00    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "4.134069 / 4.134069",
+  "    u=100.00  Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "1.186182 / 1.186182",
+  "    max rel err of the isotropic law": "7.854e-16"
+ }
+}

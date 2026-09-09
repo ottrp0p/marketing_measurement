@@ -1,0 +1,52 @@
+{
+ "e4": {
+  "(a) scalar law: max rel err, 1000 random cells": "2.017e-15",
+  "(b) V_post identity: max rel err, 300 random 4-param cells": "6.442e-16",
+  "(c) FIM svals (BL82 estimability audit)": "1.122e+03 3.504e+01 8.102e-01 2.977e-03",
+  "    condition number": "3.770e+05",
+  "    mROAS / sd(mROAS) shape-known / shape-free": "1.2903 / 0.11871 / 0.52828",
+  "    Psi(0) [= dive 20's ladder top]": "19.8044",
+  "    residual shape sensitivity d (alpha,K,S)": "+6.4782 -0.2289 +0.1130",
+  "    raw g_s (alpha,K,S)": "+3.2257 +0.3586 +0.5883",
+  "    Itil eigenvalues": "3.8478e-03 8.4146e-01 2.4793e+02",
+  "    rho_k^2 per Itil eigendirection": "1.53518 5.25611 12.01313",
+  "    sum rho_k^2 vs Psi0-1": "18.804413 / 18.804413",
+  "    u=0.00    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "19.804413 / 19.804413",
+  "    u=0.10    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "18.094921 / 18.094921",
+  "    u=0.50    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "13.536275 / 13.536275",
+  "    u=1.00    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "10.402206 / 10.402206",
+  "    u=5.00    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "4.134069 / 4.134069",
+  "    u=100.00  Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "1.186182 / 1.186182",
+  "    max rel err of the isotropic law": "7.854e-16"
+ },
+ "e5": {
+  "dollar scale m*sigma*sqrt(T_r)": "1.24900",
+  "Psi0=1.5     u_half=  1.1064": "V(inf)=$  0.2807  V(u_half)=$  0.1404  ratio=0.50000000",
+  "Psi0=2.0     u_half=  1.1877": "V(inf)=$  0.5174  V(u_half)=$  0.2587  ratio=0.50000000",
+  "Psi0=5.0     u_half=  1.4721": "V(inf)=$  1.5438  V(u_half)=$  0.7719  ratio=0.50000000",
+  "Psi0=10.0    u_half=  1.7018": "V(inf)=$  2.7007  V(u_half)=$  1.3503  ratio=0.50000000",
+  "Psi0=20.0    u_half=  1.9294": "V(inf)=$  4.3367  V(u_half)=$  2.1683  ratio=0.50000000",
+  "Psi0=100.0   u_half=  2.3846": "V(inf)=$ 11.2410  V(u_half)=$  5.6205  ratio=0.50000000",
+  "--- diminishing returns: u for 50% / 90% / 99% of the value ---": "",
+  "Psi0=2.0    ": "u50=1.1877  u90=10.8261  u99=119.4612   u90/u50=9.12x  u99/u50=100.6x",
+  "Psi0=10.0   ": "u50=1.7018  u90=17.7809  u99=204.8879   u90/u50=10.45x  u99/u50=120.4x",
+  "Psi0=100.0  ": "u50=2.3846  u90=36.9310  u99=525.3158   u90/u50=15.49x  u99/u50=220.3x",
+  "--- MMM (T=156, 26-wk probe) ---": "",
+  "Psi0 / u_half / max prior value as a fraction of L*(0)": "19.804 / 1.9262 / 0.7753"
+ },
+ "e7": {
+  "Itil (profile info on alpha) / sd_data(alpha)": "247.9256 / 0.0635",
+  "d (residual sensitivity of mROAS to alpha)": "+6.4782",
+  "Psi(0)": "13.0123",
+  "u=0.1       tau=0.2008: delta* numeric / formula / z*": "0.291037 / 0.291037 / 1.3817",
+  "u=0.3       tau=0.1160: delta* numeric / formula / z*": "0.175850 / 0.175850 / 1.3301",
+  "u=1.0       tau=0.0635: delta* numeric / formula / z*": "0.110002 / 0.110002 / 1.2247",
+  "u=3.0       tau=0.0367: delta* numeric / formula / z*": "0.081991 / 0.081991 / 1.1180",
+  "u=10.0      tau=0.0201: delta* numeric / formula / z*": "0.069571 / 0.069571 / 1.0445",
+  "u=100.0     tau=0.0064: delta* numeric / formula / z*": "0.064142 / 0.064142 / 1.0049",
+  "u=10000.0   tau=0.0006: delta* numeric / formula / z*": "0.063516 / 0.063516 / 1.0000",
+  "--- round-2 note: posterior-variance version gives the wrong constant ---": "",
+  "u=0.3: delta* from V_post / from V_samp": "0.132206 (formula sqrt(1/p+1/Itil)=0.132206) / 0.175850",
+  "u=3.0: delta* from V_post / from V_samp": "0.073335 (formula sqrt(1/p+1/Itil)=0.073335) / 0.081991"
+ }
+}

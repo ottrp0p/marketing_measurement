@@ -1,0 +1,37 @@
+{
+ "e4": {
+  "(a) scalar law: max rel err, 1000 random cells": "2.017e-15",
+  "(b) V_post identity: max rel err, 300 random 4-param cells": "6.442e-16",
+  "(c) FIM svals (BL82 estimability audit)": "8.050e-01 1.184e-01 5.003e-03 1.338e-05",
+  "    condition number": "6.018e+04",
+  "    mROAS / sd(mROAS) shape-known / shape-free": "1.0000 / 0.00000 / 0.00000",
+  "    Psi(0) [= dive 20's ladder top]": "83.4063",
+  "    residual shape sensitivity d (alpha,K,S)": "-0.0000 -0.0000 +0.0000",
+  "    raw g_s (alpha,K,S)": "-0.0000 -0.0000 -0.0000",
+  "    Itil eigenvalues": "1.7450e-05 5.9283e-03 8.0334e-01",
+  "    rho_k^2 per Itil eigendirection": "78.62367 3.53137 0.25125",
+  "    sum rho_k^2 vs Psi0-1": "82.406295 / 82.406295",
+  "    u=0.00    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "83.406295 / 83.406295",
+  "    u=0.10    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "75.914813 / 75.914813",
+  "    u=0.50    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "55.937530 / 55.937530",
+  "    u=1.00    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "42.203147 / 42.203147",
+  "    u=5.00    Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "14.734382 / 14.734382",
+  "    u=100.00  Psi (isotropic-in-Itil) / 1+(Psi0-1)/(1+u)": "1.815904 / 1.815904",
+  "    max rel err of the isotropic law": "1.700e-14"
+ },
+ "e5": {
+  "dollar scale m*sigma*sqrt(T_r)": "1.24900",
+  "Psi0=1.5     u_half=  1.1064": "V(inf)=$  0.2807  V(u_half)=$  0.1404  ratio=0.50000000",
+  "Psi0=2.0     u_half=  1.1877": "V(inf)=$  0.5174  V(u_half)=$  0.2587  ratio=0.50000000",
+  "Psi0=5.0     u_half=  1.4721": "V(inf)=$  1.5438  V(u_half)=$  0.7719  ratio=0.50000000",
+  "Psi0=10.0    u_half=  1.7018": "V(inf)=$  2.7007  V(u_half)=$  1.3503  ratio=0.50000000",
+  "Psi0=20.0    u_half=  1.9294": "V(inf)=$  4.3367  V(u_half)=$  2.1683  ratio=0.50000000",
+  "Psi0=100.0   u_half=  2.3846": "V(inf)=$ 11.2410  V(u_half)=$  5.6205  ratio=0.50000000",
+  "--- diminishing returns: u for 50% / 90% / 99% of the value ---": "",
+  "Psi0=2.0    ": "u50=1.1877  u90=10.8261  u99=119.4612   u90/u50=9.12x  u99/u50=100.6x",
+  "Psi0=10.0   ": "u50=1.7018  u90=17.7809  u99=204.8879   u90/u50=10.45x  u99/u50=120.4x",
+  "Psi0=100.0  ": "u50=2.3846  u90=36.9310  u99=525.3158   u90/u50=15.49x  u99/u50=220.3x",
+  "--- MMM (T=156, 26-wk probe) ---": "",
+  "Psi0 / u_half / max prior value as a fraction of L*(0)": "83.406 / 2.3406 / 0.8905"
+ }
+}
